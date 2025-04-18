@@ -1,26 +1,127 @@
 * {
   box-sizing: border-box;
 }
-html, body {
+
+html,
+body {
   margin: 0;
   padding: 0;
   width: 100%;
   height: 100%;
   font-family: Arial, sans-serif;
 }
-p{
+
+p {
   /* margin: 0; */
   /* padding: 0; */
 }
+
 canvas {
-  border:1px solid #000000;
+  border: 1px solid #000000;
   /* width: 700px;
   height: 260px; */
-  
+
+}
+
+/* Debug drawer styles */
+.side-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 350px;
+  height: 100vh;
+  background-color: #f8f8f8;
+  border-left: 1px solid #ccc;
+  box-shadow: -3px 0 6px rgba(0, 0, 0, 0.1);
+  transform: translateX(100%);
+  transition: transform 0.3s ease-in-out;
+  padding: 20px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.side-drawer.visible {
+  transform: translateX(0);
+}
+
+.close-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 20px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: #e0e0e0;
+  color: #333;
+}
+
+.close-button:hover {
+  background-color: #d0d0d0;
+}
+
+.drawer-content {
+  padding-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#toggleDebugDrawerButton {
+  font-size: 18px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #555;
+}
+
+#toggleDebugDrawerButton:hover {
+  background-color: #444;
+}
+
+.canvas-resize-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.canvas-dimensions {
+  font-family: monospace;
+  font-size: 14px;
+  min-width: 80px;
+  text-align: center;
+}
+
+#canvasIncreaseButton,
+#canvasDecreaseButton {
+  width: 40px;
+  height: 40px;
+  font-size: 24px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+#canvasIncreaseButton:disabled,
+#canvasDecreaseButton:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .outbox {
-  border:1px solid #000000;
+  border: 1px solid #000000;
   overflow-y: auto;
   padding: 10px;
   font-family: monospace;
@@ -47,7 +148,8 @@ button:hover {
   background-color: #45a049;
 }
 
-#clearDebugButton, #autoDebugButton {
+#clearDebugButton,
+#autoDebugButton {
   font-size: 12px;
   padding: 2px 5px;
   margin-left: 10px;
@@ -56,6 +158,7 @@ button:hover {
 #debugOutput {
   direction: ltr;
   display: block;
+  white-space: normal;
 }
 
 .controls-section {
@@ -111,4 +214,65 @@ button:hover {
 
 .sysex-example:hover {
   background-color: #e0e0e0;
+}
+
+.display-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 10px
+}
+
+/* OLED Display Settings Styles */
+.display-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.setting-row label {
+  flex: 1;
+  margin-right: 10px;
+}
+
+.setting-row input {
+  width: 70px;
+  padding: 3px 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.setting-row input[type="color"] {
+  height: 30px;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+}
+
+#applyDisplaySettings {
+  margin-top: 8px;
+  width: 100%;
+  background-color: #2196F3;
+}
+
+#applyDisplaySettings:hover {
+  background-color: #0b7dda;
+}
+
+.debug-section {
+  margin-top: 20px;
+}
+
+.debug-section .outbox {
+  max-height: 300px;
+  width: 100%;
+  margin-right: 0;
 }

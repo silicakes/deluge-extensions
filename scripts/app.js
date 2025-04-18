@@ -6,8 +6,21 @@ let delugeIn = null;
 let delugeOut = null;
 let theInterval = null;
 let debugInterval = null;
+let monitorModeActive = false;
+let autoConnectEnabled = true; // Default state for auto-connect toggle
 
 let did_oled = false;
+
+// Default OLED display settings
+let displaySettings = {
+  pixelWidth: 5,
+  pixelHeight: 5,
+  foregroundColor: "#eeeeee",
+  backgroundColor: "#111111",
+  resizeStep: 1,         // Step size for resizing (in pixels)
+  minSize: 1,            // Minimum pixel size
+  maxSize: 32            // Maximum pixel size
+};
 
 function $(name) {
   return document.getElementById(name)
@@ -35,7 +48,7 @@ function populateDevices() {
     const port = entry[1];
     const opt = new Option(port.name, port.id);
     $("chooseIn").appendChild(opt);
-    if (port.name.includes("Deluge MIDI 3")) {
+    if (port.name.includes("Deluge Port 3") && autoConnectEnabled) {
       opt.selected = true;
       setInput(port);
     }
@@ -44,7 +57,7 @@ function populateDevices() {
     const port = entry[1];
     const opt = new Option(port.name, port.id);
     $("chooseOut").appendChild(opt);
-    if (port.name.includes("Deluge MIDI 3")) {
+    if (port.name.includes("Deluge Port 3") && autoConnectEnabled) {
       opt.selected = true;
       delugeOut = port;
     }
@@ -113,9 +126,29 @@ function onStateChange(ev) {
 
 function onMIDISuccess(midiAccess) {
   setstatus("webmidi ready");
-  midi = midiAccess; // store in the global (in real usage, would probably keep in an object instance)
-  populateDevices()
-  midi.addEventListener("statechange", onStateChange)
+  midi = midiAccess;
+  
+  // Load auto-connect setting from localStorage
+  const savedAutoConnect = localStorage.getItem('autoConnectEnabled');
+  if (savedAutoConnect !== null) {
+    autoConnectEnabled = (savedAutoConnect === 'true');
+    $('autoConnectToggle').checked = autoConnectEnabled;
+  }
+  
+  populateDevices();
+  midi.addEventListener("statechange", onStateChange);
+  
+  // Add event listener to the auto-connect toggle
+  $('autoConnectToggle').addEventListener('change', (event) => {
+    autoConnectEnabled = event.target.checked;
+    localStorage.setItem('autoConnectEnabled', autoConnectEnabled.toString());
+  });
+  
+  // Automatically start monitoring if auto-connect is enabled
+  if (autoConnectEnabled && delugeOut !== null && delugeIn !== null) {
+    // Start monitoring UI changes automatically
+    toggleMonitorMode();
+  }
 }
 
 function onMIDIFailure(msg) {
@@ -126,7 +159,7 @@ window.addEventListener('load', function() {
   if (navigator.requestMIDIAccess) {
     navigator.requestMIDIAccess({ sysex: true }).then( onMIDISuccess, onMIDIFailure );
   } else {
-    setstatus("webmidi unavail, check browser permissions");
+    setstatus("webmidi unavailable, check browser permissions");
   }
 
   $("pingButton").addEventListener("click", pingTest)
@@ -143,12 +176,37 @@ window.addEventListener('load', function() {
   $("getVersionButton").addEventListener("click", getVersion)
   $("sendCustomButton").addEventListener("click", sendCustomSysEx)
   $("monitorModeButton").addEventListener("click", toggleMonitorMode)
+  $("applyDisplaySettings").addEventListener("click", applyDisplaySettings)
+  $("canvasIncreaseButton").addEventListener("click", increaseCanvasSize)
+  $("canvasDecreaseButton").addEventListener("click", decreaseCanvasSize)
+  
+  // Debug drawer toggle buttons
+  $("toggleDebugDrawerButton").addEventListener("click", toggleDebugDrawer)
+  $("closeDebugDrawerButton").addEventListener("click", closeDebugDrawer)
 
   $("chooseIn").addEventListener("change", onChangeIn)
   $("chooseOut").addEventListener("change", onChangeOut)
+  
+  // First load saved settings (if any)
+  initDisplaySettings();
+  
+  // Then set initial canvas size based on current settings (loaded or defaults)
+  initCanvasSize();
+  
   return;
 });
 
+// Toggle debug drawer visibility
+function toggleDebugDrawer() {
+  const debugDrawer = $("debugDrawer");
+  debugDrawer.classList.toggle("visible");
+}
+
+// Close debug drawer
+function closeDebugDrawer() {
+  const debugDrawer = $("debugDrawer");
+  debugDrawer.classList.remove("visible");
+}
 
 function pingTest() {
     delugeOut.send([0xf0, 0x7d, 0x00, 0xf7]);
@@ -354,7 +412,6 @@ function decode(data) {
 
 let oledData = new Uint8Array(6*128);
 let lastOledData = new Uint8Array(6*128);
-let monitorModeActive = false;
 
 function drawOled(data) {
   let packed = data.subarray(6,data.length-1)
@@ -404,16 +461,16 @@ function drawOleddata(data) {
   /** @type {CanvasRenderingContext2D} */
   let ctx = $("screenCanvas").getContext("2d")
 
-  let px_height = 5;
-  let px_width = 5;
+  let px_height = displaySettings.pixelHeight;
+  let px_width = displaySettings.pixelWidth;
   let indist = 0.5;
 
   let blk_width = 128;
-  ctx.fillStyle = "#111111";
+  ctx.fillStyle = displaySettings.backgroundColor;
   ctx.fillRect(offx,offy,px_width*128,px_height*48)
   did_oled = true;
 
-  ctx.fillStyle = "#eeeeee";
+  ctx.fillStyle = displaySettings.foregroundColor;
   for (let blk = 0; blk < 6; blk++) {
     for (let rstride = 0; rstride < 8; rstride++) {
       let mask = 1 << (rstride);
@@ -438,13 +495,21 @@ function draw7Seg(digits, dots) {
   /** @type {CanvasRenderingContext2D} */
   let ctx = $("screenCanvas").getContext("2d")
 
-  ctx.fillStyle = "#111111";
+  ctx.fillStyle = displaySettings.backgroundColor;
   if (did_oled) {
-    ctx.fillRect(offx,offy,5*128,5*48)
+    // If we're switching from OLED to 7-segment, clear the previous display
+    const px_width = displaySettings.pixelWidth;
+    const px_height = displaySettings.pixelHeight;
+    ctx.fillRect(offx, offy, px_width*128, px_height*48);
     did_oled = false;
   } else {
-    ctx.fillRect(offx,offy,310,140)
+    // Otherwise, just clear the whole canvas
+    ctx.fillRect(offx, offy, 310, 140);
   }
+
+  // Use original fixed colors for 7-segment display
+  const activeColor = "#CC3333";
+  const inactiveColor = "#331111";
 
   let digit_height = 120;
   let digit_width = 60;
@@ -491,9 +556,9 @@ function draw7Seg(digits, dots) {
       ctx.closePath()
 
       if (digit & (1<<s)) { 
-        ctx.fillStyle = "#CC3333";
+        ctx.fillStyle = activeColor;
       } else {
-        ctx.fillStyle = "#331111";
+        ctx.fillStyle = inactiveColor;
       }
       ctx.fill()
     }
@@ -502,9 +567,9 @@ function draw7Seg(digits, dots) {
     ctx.beginPath()
     ctx.rect(off_x+digit_width+3, off_y+digit_height+3, 6.5, 6.5);
     if (dot) {
-      ctx.fillStyle = "#CC3333";
+      ctx.fillStyle = activeColor;
     } else {
-      ctx.fillStyle = "#331111";
+      ctx.fillStyle = inactiveColor;
     }
     ctx.fill()
   }
@@ -591,4 +656,156 @@ function detectUIElements() {
   // if (detectTextInRegion(oledData, "SYNTH", 0, 0, 32, 8)) {
   //   addDebugMessage("SYNTH mode detected");
   // }
+}
+
+// Initialize display settings controls with default values
+function initDisplaySettings() {
+  // Try to load saved settings from localStorage
+  try {
+    const savedSettings = localStorage.getItem('DExDisplaySettings');
+    if (savedSettings) {
+      const parsedSettings = JSON.parse(savedSettings);
+      // Update displaySettings with saved values
+      displaySettings.pixelWidth = parsedSettings.pixelWidth || displaySettings.pixelWidth;
+      displaySettings.pixelHeight = parsedSettings.pixelHeight || displaySettings.pixelHeight;
+      displaySettings.foregroundColor = parsedSettings.foregroundColor || displaySettings.foregroundColor;
+      displaySettings.backgroundColor = parsedSettings.backgroundColor || displaySettings.backgroundColor;
+      
+      addDebugMessage("Loaded saved display settings");
+    }
+  } catch (error) {
+    console.error("Error loading saved display settings:", error);
+    addDebugMessage("Error loading saved settings, using defaults");
+    // Continue with defaults if loading fails
+  }
+  
+  // Update UI controls with current settings (either loaded or defaults)
+  $("pixelWidth").value = displaySettings.pixelWidth;
+  $("pixelHeight").value = displaySettings.pixelHeight;
+  $("foregroundColor").value = displaySettings.foregroundColor;
+  $("backgroundColor").value = displaySettings.backgroundColor;
+  
+  // Initialize resize button states
+  updateResizeButtonStates();
+  
+  // Initialize dimensions display
+  updateCanvasDimensionsDisplay();
+}
+
+// Update canvas dimensions display
+function updateCanvasDimensionsDisplay() {
+  const width = displaySettings.pixelWidth;
+  const height = displaySettings.pixelHeight;
+  $("canvasDimensions").textContent = `${width}×${height}`;
+}
+
+function applyDisplaySettings() {
+  // Get values from input controls
+  const pixelWidth = parseInt($("pixelWidth").value, 10);
+  const pixelHeight = parseInt($("pixelHeight").value, 10);
+  const foregroundColor = $("foregroundColor").value;
+  const backgroundColor = $("backgroundColor").value;
+  
+  // Validate values
+  if (pixelWidth < displaySettings.minSize || pixelHeight < displaySettings.minSize) {
+    addDebugMessage(`ERROR: Pixel dimensions must be at least ${displaySettings.minSize}`);
+    return;
+  }
+  
+  if (pixelWidth > displaySettings.maxSize || pixelHeight > displaySettings.maxSize) {
+    addDebugMessage(`ERROR: Pixel dimensions must not exceed ${displaySettings.maxSize}`);
+    return;
+  }
+  
+  // Update settings
+  displaySettings.pixelWidth = pixelWidth;
+  displaySettings.pixelHeight = pixelHeight;
+  displaySettings.foregroundColor = foregroundColor;
+  displaySettings.backgroundColor = backgroundColor;
+  
+  // Save settings to localStorage
+  try {
+    const settingsToSave = {
+      pixelWidth,
+      pixelHeight,
+      foregroundColor,
+      backgroundColor
+    };
+    localStorage.setItem('DExDisplaySettings', JSON.stringify(settingsToSave));
+    addDebugMessage("Display settings saved");
+  } catch (error) {
+    console.error("Error saving display settings:", error);
+    addDebugMessage("Error saving display settings");
+  }
+  
+  // Resize canvas based on new pixel dimensions
+  const canvas = $("screenCanvas");
+  canvas.width = offx * 2 + 128 * pixelWidth;
+  canvas.height = offy * 2 + 48 * pixelHeight;
+  
+  addDebugMessage(`Applied display settings: ${pixelWidth}×${pixelHeight} pixels, FG: ${foregroundColor}, BG: ${backgroundColor}`);
+  
+  // Update resize button states
+  updateResizeButtonStates();
+  
+  // Update dimensions display
+  updateCanvasDimensionsDisplay();
+  
+  // Redraw the display with new settings
+  if (oledData.length > 0) {
+    drawOleddata(oledData);
+  }
+}
+
+// Initialize the canvas size based on display settings
+function initCanvasSize() {
+  const canvas = $("screenCanvas");
+  canvas.width = offx * 2 + 128 * displaySettings.pixelWidth;
+  canvas.height = offy * 2 + 48 * displaySettings.pixelHeight;
+}
+
+function increaseCanvasSize() {
+  const currentWidth = parseInt($("pixelWidth").value, 10);
+  const currentHeight = parseInt($("pixelHeight").value, 10);
+  
+  // Check if maximum size would be exceeded
+  if (currentWidth + displaySettings.resizeStep <= displaySettings.maxSize) {
+    // Update the input fields
+    $("pixelWidth").value = currentWidth + displaySettings.resizeStep;
+    $("pixelHeight").value = currentHeight + displaySettings.resizeStep;
+    
+    // Apply the settings to update the canvas and sync the changes
+    applyDisplaySettings();
+  }
+  
+  // Update button states
+  updateResizeButtonStates();
+}
+
+function decreaseCanvasSize() {
+  const currentWidth = parseInt($("pixelWidth").value, 10);
+  const currentHeight = parseInt($("pixelHeight").value, 10);
+  
+  // Check if minimum size would be exceeded
+  if (currentWidth - displaySettings.resizeStep >= displaySettings.minSize) {
+    // Update the input fields
+    $("pixelWidth").value = currentWidth - displaySettings.resizeStep;
+    $("pixelHeight").value = currentHeight - displaySettings.resizeStep;
+    
+    // Apply the settings to update the canvas and sync the changes
+    applyDisplaySettings();
+  }
+  
+  // Update button states
+  updateResizeButtonStates();
+}
+
+function updateResizeButtonStates() {
+  const currentSize = parseInt($("pixelWidth").value, 10);
+  
+  // Disable the increase button if at or above max size
+  $("canvasIncreaseButton").disabled = (currentSize + displaySettings.resizeStep > displaySettings.maxSize);
+  
+  // Disable the decrease button if at or below min size
+  $("canvasDecreaseButton").disabled = (currentSize - displaySettings.resizeStep < displaySettings.minSize);
 }
