@@ -1,4 +1,4 @@
-# Deluge Client
+# DEx: Deluge Extensions
 
 A web-based client application for interfacing with the Synthstrom Deluge synthesizer/sequencer through MIDI. This application allows you to view the OLED display and 7-segment displays from the Deluge, debug and monitor the device, and send custom SysEx commands.
 
