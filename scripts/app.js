@@ -27,7 +27,18 @@ function $(name) {
 }
 
 function setstatus(text) {
-  $("midiStatus").innerText = text
+  const midiStatus = $("midiStatus");
+  midiStatus.innerText = text;
+  
+  // Remove any existing status classes
+  midiStatus.classList.remove('connected', 'error');
+  
+  // Add appropriate class based on status text
+  if (text === "webmidi ready") {
+    midiStatus.classList.add('connected');
+  } else if (text.includes("Failed") || text.includes("unavailable") || text.includes("error")) {
+    midiStatus.classList.add('error');
+  }
 }
 
 function setInput(input) {
@@ -176,9 +187,14 @@ window.addEventListener('load', function() {
   $("getVersionButton").addEventListener("click", getVersion)
   $("sendCustomButton").addEventListener("click", sendCustomSysEx)
   $("monitorModeButton").addEventListener("click", toggleMonitorMode)
-  $("applyDisplaySettings").addEventListener("click", applyDisplaySettings)
   $("canvasIncreaseButton").addEventListener("click", increaseCanvasSize)
   $("canvasDecreaseButton").addEventListener("click", decreaseCanvasSize)
+  
+  // Add input event listeners for OLED display settings
+  $("pixelWidth").addEventListener("input", handleSettingChange)
+  $("pixelHeight").addEventListener("input", handleSettingChange)
+  $("foregroundColor").addEventListener("input", handleSettingChange)
+  $("backgroundColor").addEventListener("input", handleSettingChange)
   
   // Debug drawer toggle buttons
   $("toggleDebugDrawerButton").addEventListener("click", toggleDebugDrawer)
@@ -199,13 +215,19 @@ window.addEventListener('load', function() {
 // Toggle debug drawer visibility
 function toggleDebugDrawer() {
   const debugDrawer = $("debugDrawer");
+  const settingsBtn = $("toggleDebugDrawerButton");
+  
   debugDrawer.classList.toggle("visible");
+  settingsBtn.classList.toggle("active");
 }
 
 // Close debug drawer
 function closeDebugDrawer() {
   const debugDrawer = $("debugDrawer");
+  const settingsBtn = $("toggleDebugDrawerButton");
+  
   debugDrawer.classList.remove("visible");
+  settingsBtn.classList.remove("active");
 }
 
 function pingTest() {
@@ -246,6 +268,7 @@ function getDisplay(force) {
 
 function getDebug() {
     delugeOut.send([0xf0, 0x7d, 0x03, 0x00, 0x01, 0xf7]);
+    addDebugMessage("Requested debug messages from device");
 }
 
 function getFeatures() {
@@ -301,13 +324,17 @@ function clearDebug() {
 }
 
 function toggleAutoDebug() {
+    const btn = $('autoDebugButton');
+    
     if (debugInterval) {
         clearInterval(debugInterval);
         debugInterval = null;
-        $('autoDebugButton').textContent = 'Auto Debug';
+        btn.textContent = 'Auto Debug';
+        btn.classList.remove('active');
     } else {
         debugInterval = setInterval(getDebug, 1000); // Request debug every second
-        $('autoDebugButton').textContent = 'Stop Auto Debug';
+        btn.textContent = 'Stop Auto Debug';
+        btn.classList.add('active');
     }
 }
 
@@ -318,16 +345,23 @@ function scrollDebugToBottom() {
 
 function flipscreen() {
     delugeOut.send([0xf0, 0x7d, 0x02, 0x00, 0x04, 0xf7]);
+    addDebugMessage("Display orientation flipped");
 }
 
 function setRefresh() {
+  const btn = $('intervalButton');
+  
   if (theInterval != null) {
-    clearInterval(theInterval)
+    clearInterval(theInterval);
     theInterval = null;
+    btn.textContent = 'Refresh';
+    btn.classList.remove('active');
+  } else {
+    theInterval = setInterval(function() { getDisplay(false); }, 1000);
+    getDisplay(true);
+    btn.textContent = 'Pause';
+    btn.classList.add('active');
   }
-
-  theInterval = setInterval(function() { getDisplay(false); }, 1000);
-  getDisplay(true);
 }
 
 let lastmsg
@@ -598,7 +632,7 @@ function toggleMonitorMode() {
       setRefresh();
     }
   } else {
-    btn.textContent = 'Monitor UI Changes';
+    btn.textContent = 'Monitor';
     btn.classList.remove('active');
     addDebugMessage("UI Monitor deactivated");
   }
@@ -699,6 +733,81 @@ function updateCanvasDimensionsDisplay() {
   $("canvasDimensions").textContent = `${width}×${height}`;
 }
 
+// Simple debounce helper
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+// Debounced function for saving settings
+const debouncedSaveSettings = debounce(() => {
+  try {
+    const settingsToSave = {
+      pixelWidth: displaySettings.pixelWidth,
+      pixelHeight: displaySettings.pixelHeight,
+      foregroundColor: displaySettings.foregroundColor,
+      backgroundColor: displaySettings.backgroundColor
+    };
+    localStorage.setItem('DExDisplaySettings', JSON.stringify(settingsToSave));
+  } catch (error) {
+    console.error("Error saving display settings:", error);
+    addDebugMessage("Error saving display settings");
+  }
+}, 300); // 300ms delay
+
+// Handle real-time setting changes
+function handleSettingChange() {
+  // Get values from input controls
+  const pixelWidth = parseInt($("pixelWidth").value, 10);
+  const pixelHeight = parseInt($("pixelHeight").value, 10);
+  const foregroundColor = $("foregroundColor").value;
+  const backgroundColor = $("backgroundColor").value;
+
+  // Validate values
+  if (isNaN(pixelWidth) || pixelWidth < displaySettings.minSize || pixelWidth > displaySettings.maxSize) {
+    addDebugMessage(`Invalid Pixel Width: ${$("pixelWidth").value}. Must be between ${displaySettings.minSize}-${displaySettings.maxSize}.`);
+    $("pixelWidth").value = displaySettings.pixelWidth; // Revert to last valid
+    return; 
+  }
+  if (isNaN(pixelHeight) || pixelHeight < displaySettings.minSize || pixelHeight > displaySettings.maxSize) {
+    addDebugMessage(`Invalid Pixel Height: ${$("pixelHeight").value}. Must be between ${displaySettings.minSize}-${displaySettings.maxSize}.`);
+    $("pixelHeight").value = displaySettings.pixelHeight; // Revert to last valid
+    return;
+  }
+
+  // Update settings object
+  displaySettings.pixelWidth = pixelWidth;
+  displaySettings.pixelHeight = pixelHeight;
+  displaySettings.foregroundColor = foregroundColor;
+  displaySettings.backgroundColor = backgroundColor;
+
+  // Save settings (debounced)
+  debouncedSaveSettings();
+
+  // Resize canvas 
+  const canvas = $("screenCanvas");
+  canvas.width = offx * 2 + 128 * displaySettings.pixelWidth;
+  canvas.height = offy * 2 + 48 * displaySettings.pixelHeight;
+
+  // Update resize button states
+  updateResizeButtonStates();
+
+  // Update dimensions display
+  updateCanvasDimensionsDisplay();
+
+  // Redraw the display with new settings
+  if (oledData && oledData.length > 0) {
+    drawOleddata(oledData);
+  }
+}
+
 function applyDisplaySettings() {
   // Get values from input controls
   const pixelWidth = parseInt($("pixelWidth").value, 10);
@@ -775,7 +884,7 @@ function increaseCanvasSize() {
     $("pixelHeight").value = currentHeight + displaySettings.resizeStep;
     
     // Apply the settings to update the canvas and sync the changes
-    applyDisplaySettings();
+    handleSettingChange();
   }
   
   // Update button states
@@ -793,7 +902,7 @@ function decreaseCanvasSize() {
     $("pixelHeight").value = currentHeight - displaySettings.resizeStep;
     
     // Apply the settings to update the canvas and sync the changes
-    applyDisplaySettings();
+    handleSettingChange();
   }
   
   // Update button states
