@@ -1,0 +1,63 @@
+/* Theme Variables for DEx: Deluge Extensions
+   Created as part of dark theme support implementation */
+
+:root {
+  /* Default (Light Theme) */
+  --color-background: #ffffff;
+  --color-text-primary: #212529;
+  --color-text-secondary: #6c757d;
+  --color-primary: #007bff;
+  --color-border: #dee2e6;
+  --color-surface: #f9f9f9;
+  --color-surface-alt: #f8f8f8;
+  --color-surface-hover: #f0f0f0;
+  --color-surface-active: #e0e0e0;
+  --color-button: #4caf50;
+  --color-button-hover: #45a049;
+  --color-button-active: #2e7d32;
+  --color-settings-button: #555;
+  --color-settings-button-hover: #444;
+  --color-settings-button-active: #333;
+  --color-status-default: #999;
+  --color-status-connected: #4caf50;
+  --color-status-error: #f44336;
+  --color-drawer-shadow: rgba(0, 0, 0, 0.1);
+  --color-canvas-fg: #eeeeee;
+  --color-canvas-bg: #111111;
+  --color-disabled: #cccccc;
+  
+  /* Icon styling */
+  --icon-filter: none;
+  
+  /* Transition time for theme switching */
+  --theme-transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+body[data-theme='dark'] {
+  /* Dark Theme Overrides */
+  --color-background: linear-gradient(145deg, #1e0a47, #4f0f7a, #90189e); /* Synthwave Gradient */
+  --color-text-primary: #f8f9fa;
+  --color-text-secondary: #adb5bd;
+  --color-primary: #8a4fff; /* Adjusted primary for dark */
+  --color-border: #495057;
+  --color-surface: #2b2b2b;
+  --color-surface-alt: #333333;
+  --color-surface-hover: #404040;
+  --color-surface-active: #505050;
+  --color-button: #6a5acd;
+  --color-button-hover: #594fc9;
+  --color-button-active: #483daf;
+  --color-settings-button: #6a5acd;
+  --color-settings-button-hover: #594fc9;
+  --color-settings-button-active: #483daf;
+  --color-status-default: #adb5bd;
+  --color-status-connected: #4caf50;
+  --color-status-error: #f44336;
+  --color-drawer-shadow: rgba(0, 0, 0, 0.3);
+  
+  /* Icon styling for dark theme */
+  --icon-filter: brightness(0) invert(1);
+  
+  /* Keep gradient fixed during scroll */
+  background-attachment: fixed;
+} 

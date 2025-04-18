@@ -9,6 +9,9 @@ body {
   width: 100%;
   height: 100%;
   font-family: Arial, sans-serif;
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  transition: var(--theme-transition);
 }
 
 p {
@@ -24,8 +27,9 @@ p {
   justify-content: space-between;
   padding: 12px;
   margin-bottom: 10px;
-  background-color: #f9f9f9;
-  border-bottom: 1px solid #ddd;
+  background-color: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  transition: var(--theme-transition);
 }
 
 .logo-container {
@@ -67,7 +71,10 @@ p {
 .select-container select {
   padding: 4px;
   border-radius: 4px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface-alt);
+  color: var(--color-text-primary);
+  transition: var(--theme-transition);
 }
 
 .midi-auto {
@@ -96,7 +103,7 @@ p {
   display: inline-block;
   width: 40px;
   height: 20px;
-  background-color: #ccc;
+  background-color: var(--color-border);
   border-radius: 34px;
   transition: 0.4s;
 }
@@ -114,7 +121,7 @@ p {
 }
 
 input:checked + .slider {
-  background-color: #4caf50;
+  background-color: var(--color-button);
 }
 
 input:checked + .slider:before {
@@ -145,15 +152,15 @@ input:checked + .slider:before {
   top: 50%;
   transform: translateY(-50%);
   font-size: 16px;
-  color: #999; /* Default state */
+  color: var(--color-status-default); /* Default state */
 }
 
 .status-text.connected:before {
-  color: #4caf50; /* Connected state - green */
+  color: var(--color-status-connected); /* Connected state - green */
 }
 
 .status-text.error:before {
-  color: #f44336; /* Error state - red */
+  color: var(--color-status-error); /* Error state - red */
 }
 
 /* Display action buttons */
@@ -165,21 +172,22 @@ input:checked + .slider:before {
 
 .action-button {
   padding: 6px 10px;
-  background-color: #4caf50;
+  background-color: var(--color-button);
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   min-width: 80px;
   text-align: center;
+  transition: var(--theme-transition);
 }
 
 .action-button:hover {
-  background-color: #45a049;
+  background-color: var(--color-button-hover);
 }
 
 .action-button.active {
-  background-color: #2e7d32;
+  background-color: var(--color-button-active);
 }
 
 .settings-button {
@@ -189,18 +197,19 @@ input:checked + .slider:before {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #555;
+  background-color: var(--color-settings-button);
   border-radius: 4px;
   color: white;
   border: none;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: var(--theme-transition);
 }
 
 .settings-icon {
   width: 20px;
   height: 20px;
   transition: transform 0.3s ease;
+  filter: var(--icon-filter, none);
 }
 
 .settings-button.active .settings-icon {
@@ -208,11 +217,11 @@ input:checked + .slider:before {
 }
 
 .settings-button:hover {
-  background-color: #444;
+  background-color: var(--color-settings-button-hover);
 }
 
 .settings-button.active {
-  background-color: #333;
+  background-color: var(--color-settings-button-active);
   box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.3);
 }
 
@@ -254,11 +263,11 @@ input:checked + .slider:before {
   right: 0;
   width: 350px;
   height: 100vh;
-  background-color: #f8f8f8;
-  border-left: 1px solid #ccc;
-  box-shadow: -3px 0 6px rgba(0, 0, 0, 0.1);
+  background-color: var(--color-surface-alt);
+  border-left: 1px solid var(--color-border);
+  box-shadow: -3px 0 6px var(--color-drawer-shadow);
   transform: translateX(100%);
-  transition: transform 0.3s ease-in-out;
+  transition: transform 0.3s ease-in-out, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   padding: 20px;
   overflow-y: auto;
   z-index: 1000;
@@ -273,19 +282,18 @@ input:checked + .slider:before {
   width: 30px;
   height: 30px;
   padding: 0;
-
   background-color: transparent;
-  color: #333;
+  color: var(--color-text-primary);
   border: none;
   cursor: pointer;
-
 }
 
 .close-icon {
   width: 27px;
   height: 27px;
-  color: #555;
+  color: var(--color-text-secondary);
   transition: transform 0.3s ease;
+  filter: var(--icon-filter, none);
 }
 
 .close-button:hover {
@@ -294,7 +302,6 @@ input:checked + .slider:before {
 
 .close-button:hover .close-icon {
   transform: rotate(90deg);
-
 }
 
 .drawer-content {
@@ -314,11 +321,11 @@ input:checked + .slider:before {
 }
 
 #toggleDebugDrawerButton svg:hover {
-  background-color: #444;
+  background-color: var(--color-settings-button-hover);
 }
 
 #toggleDebugDrawerButton svg {
-  color: #555;
+  color: var(--color-text-secondary);
 }
 
 .canvas-resize-controls {
@@ -350,37 +357,40 @@ input:checked + .slider:before {
 
 #canvasIncreaseButton:disabled,
 #canvasDecreaseButton:disabled {
-  background-color: #cccccc;
+  background-color: var(--color-disabled);
   cursor: not-allowed;
   opacity: 0.6;
 }
 
 .outbox {
-  border: 1px solid #000000;
+  border: 1px solid var(--color-border);
   overflow-y: auto;
   padding: 10px;
   font-family: monospace;
   font-size: 12px;
   white-space: pre-wrap;
-  background-color: #f8f8f8;
+  background-color: var(--color-surface-alt);
+  color: var(--color-text-primary);
   height: 280px;
   margin-bottom: 10px;
   margin-right: 30px;
+  transition: var(--theme-transition);
 }
 
 button {
   padding: 5px 10px;
   margin-right: 5px;
   margin-bottom: 5px;
-  background-color: #4caf50;
+  background-color: var(--color-button);
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  transition: var(--theme-transition);
 }
 
 button:hover {
-  background-color: #45a049;
+  background-color: var(--color-button-hover);
 }
 
 #clearDebugButton,
@@ -404,20 +414,22 @@ button:hover {
 }
 
 .control-group {
-  border: 1px solid #ddd;
+  border: 1px solid var(--color-border);
   border-radius: 5px;
   padding: 10px;
-  background-color: #f9f9f9;
+  background-color: var(--color-surface);
   min-width: 250px;
+  transition: var(--theme-transition);
 }
 
 .control-group h3 {
   margin-top: 0;
   margin-bottom: 10px;
   font-size: 16px;
-  color: #333;
-  border-bottom: 1px solid #ddd;
+  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border);
   padding-bottom: 5px;
+  transition: var(--theme-transition);
 }
 
 .custom-sysex {
@@ -429,26 +441,30 @@ button:hover {
 #customSysExInput {
   flex: 1;
   padding: 5px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--color-border);
   border-radius: 4px;
   font-family: monospace;
+  background-color: var(--color-surface-alt);
+  color: var(--color-text-primary);
+  transition: var(--theme-transition);
 }
 
 .sysex-examples {
   font-size: 12px;
-  color: #666;
+  color: var(--color-text-secondary);
 }
 
 .sysex-example {
   cursor: pointer;
-  background-color: #f0f0f0;
+  background-color: var(--color-surface-hover);
   padding: 2px 4px;
   border-radius: 3px;
   font-family: monospace;
+  transition: var(--theme-transition);
 }
 
 .sysex-example:hover {
-  background-color: #e0e0e0;
+  background-color: var(--color-surface-active);
 }
 
 .display-section {
@@ -481,8 +497,11 @@ button:hover {
 .setting-row input {
   width: 70px;
   padding: 3px 5px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--color-border);
   border-radius: 4px;
+  background-color: var(--color-surface-alt);
+  color: var(--color-text-primary);
+  transition: var(--theme-transition);
 }
 
 .setting-row input[type="color"] {
@@ -495,19 +514,35 @@ button:hover {
 #applyDisplaySettings {
   margin-top: 8px;
   width: 100%;
-  background-color: #2196f3;
+  background-color: var(--color-primary);
 }
 
-#applyDisplaySettings:hover {
-  background-color: #0b7dda;
+/* Theme selection styles */
+.theme-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.debug-section {
-  margin-top: 20px;
+.theme-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.debug-section .outbox {
-  max-height: 300px;
-  width: 100%;
-  margin-right: 0;
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
 }
+
+.theme-option input[type="radio"] {
+  margin: 0;
+}
+
+.theme-option label {
+  cursor: pointer;
+}
+
+/* Remove duplicate icon filter definitions as they're in theme.css now */

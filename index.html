@@ -3,6 +3,7 @@
   <head>
     <script src="./scripts/unpack.js"></script>
     <script src="./scripts/app.js"></script>
+    <link rel="stylesheet" href="styles/theme.css" />
     <link rel="stylesheet" href="app.css" />
     <title>DEx: Deluge Extensions</title>
   </head>
@@ -88,6 +89,28 @@
         <button id="closeDebugDrawerButton" class="close-button">
           <img src="assets/close.svg" alt="Close" class="close-icon" />
         </button>
+        
+        <!-- Theme Controls -->
+        <div class="control-group">
+          <h3>Theme Settings</h3>
+          <div class="theme-controls">
+            <div class="theme-options">
+              <div class="theme-option">
+                <input type="radio" id="themeLight" name="theme-select" value="light" />
+                <label for="themeLight">Light</label>
+              </div>
+              <div class="theme-option">
+                <input type="radio" id="themeDark" name="theme-select" value="dark" />
+                <label for="themeDark">Dark</label>
+              </div>
+              <div class="theme-option">
+                <input type="radio" id="themeSystem" name="theme-select" value="system" checked />
+                <label for="themeSystem">System</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        
         <div class="control-group">
           <h3>OLED Display Settings</h3>
           <div class="display-settings">
@@ -109,6 +132,7 @@
             </div>
           </div>
         </div>
+        
         <div class="control-group">
           <h3>Display Controls</h3>
           <button type="button" id="pingButton">Ping Test</button>
@@ -187,5 +211,8 @@
         });
       });
     </script>
+    
+    <!-- Theme Manager -->
+    <script src="./scripts/themeManager.js"></script>
   </body>
 </html>
