@@ -14,6 +14,10 @@ No installation needed - just visit [dex.silicak.es](https://dex.silicak.es) in 
 
 https://github.com/user-attachments/assets/6e1f52ca-bdc9-4cdf-aa05-323fd8b2d7a9
 
+
+https://github.com/user-attachments/assets/f35c1b6b-8e0f-4e78-ba73-00d0e47a3b6b
+
+
 ## Key Features 🌟
 
 *   **👀 Dual Display Mirroring**: View *both* the OLED and the classic 7-Segment displays in real-time. Perfect for seeing intricate details or getting a quick overview.
