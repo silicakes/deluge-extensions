@@ -8,8 +8,7 @@ Unlock the full potential of your Synthstrom Deluge with **DEx**! This web-based
 
 **See your Deluge like never before!** Whether you're performing live, teaching, or just exploring, DEx mirrors the Deluge's displays directly in your browser.
 
-<!-- TODO: Add a better screenshot/GIF here -->
-![Screenshot Placeholder](https://github.com/user-attachments/assets/8f8c49c3-0ba3-42c3-81cf-0bc5a25296b2)
+https://github.com/user-attachments/assets/6e1f52ca-bdc9-4cdf-aa05-323fd8b2d7a9
 
 ## Key Features 🌟
 
