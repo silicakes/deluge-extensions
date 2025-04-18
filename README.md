@@ -1,6 +1,11 @@
+
+![DEx-4-18-2025](https://github.com/user-attachments/assets/f10ef2df-f569-49a0-a20c-0716f2e33579)
+
 # DEx: Deluge Extensions
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Web MIDI API](https://img.shields.io/badge/Web_MIDI_API-Compatible-green)](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API) [![Platform](https://img.shields.io/badge/Platform-Web-blue)](https://github.com/bfredl/delugeclient) [![Synthstrom Deluge](https://img.shields.io/badge/Synthstrom-Deluge-orange)](https://synthstrom.com/product/deluge/) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com) [![Made with JavaScript](https://img.shields.io/badge/Made_with-JavaScript-F7DF1E?logo=javascript)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+
+
 
 A web-based client application for interfacing with the Synthstrom Deluge synthesizer/sequencer through MIDI. This application allows you to view the OLED display and 7-segment displays from the Deluge, debug and monitor the device, and send custom SysEx commands.
 
