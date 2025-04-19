@@ -1,23 +1,47 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
     <!-- Open Graph Tags -->
-    <meta property="og:title" content="DEx: Deluge EXtensions - See Your Deluge Like Never Before">
-    <meta property="og:description" content="Unlock the full potential of your Synthstrom Deluge with DEx! A web-based tool offering display mirroring, debugging, and advanced control via WebMIDI. Try the live demo!">
-    <meta property="og:image" content="https://dex.silicak.es/assets/DEx-logo.png">
-    <meta property="og:url" content="https://dex.silicak.es">
-    <meta property="og:type" content="website">
-    <meta property="og:site_name" content="DEx: Deluge EXtensions">
-    
+    <meta
+      property="og:title"
+      content="DEx: Deluge EXtensions - See Your Deluge Like Never Before"
+    />
+    <meta
+      property="og:description"
+      content="Unlock the full potential of your Synthstrom Deluge with DEx! A web-based tool offering display mirroring, debugging, and advanced control via WebMIDI. Try the live demo!"
+    />
+    <meta
+      property="og:image"
+      content="https://dex.silicak.es/assets/DEx-logo.png"
+    />
+    <meta property="og:url" content="https://dex.silicak.es" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="DEx: Deluge EXtensions" />
+
     <!-- Twitter Card Tags -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="DEx: Deluge EXtensions - See Your Deluge Like Never Before">
-    <meta name="twitter:description" content="Unlock the full potential of your Synthstrom Deluge with DEx! A web-based tool offering display mirroring, debugging, and advanced control via WebMIDI.">
-    <meta name="twitter:image" content="https://dex.silicak.es/assets/DEx-logo.png">
-    
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="DEx: Deluge EXtensions - See Your Deluge Like Never Before"
+    />
+    <meta
+      name="twitter:description"
+      content="Unlock the full potential of your Synthstrom Deluge with DEx! A web-based tool offering display mirroring, debugging, and advanced control via WebMIDI."
+    />
+    <meta
+      name="twitter:image"
+      content="https://dex.silicak.es/assets/DEx-logo.png"
+    />
+    <!-- Cloudflare Web Analytics -->
+    <script
+      defer
+      src="https://static.cloudflareinsights.com/beacon.min.js"
+      data-cf-beacon='{"token": "007fc9fdbe2140d6b8bd89d98ac631d2"}'
+    ></script>
+    <!-- End Cloudflare Web Analytics -->
     <script src="./scripts/unpack.js"></script>
     <script src="./scripts/app.js"></script>
     <link rel="stylesheet" href="styles/theme.css" />
@@ -106,28 +130,44 @@
         <button id="closeDebugDrawerButton" class="close-button">
           <img src="assets/close.svg" alt="Close" class="close-icon" />
         </button>
-        
+
         <!-- Theme Controls -->
         <div class="control-group">
           <h3>Theme Settings</h3>
           <div class="theme-controls">
             <div class="theme-options">
               <div class="theme-option">
-                <input type="radio" id="themeLight" name="theme-select" value="light" />
+                <input
+                  type="radio"
+                  id="themeLight"
+                  name="theme-select"
+                  value="light"
+                />
                 <label for="themeLight">Light</label>
               </div>
               <div class="theme-option">
-                <input type="radio" id="themeDark" name="theme-select" value="dark" />
+                <input
+                  type="radio"
+                  id="themeDark"
+                  name="theme-select"
+                  value="dark"
+                />
                 <label for="themeDark">Dark</label>
               </div>
               <div class="theme-option">
-                <input type="radio" id="themeSystem" name="theme-select" value="system" checked />
+                <input
+                  type="radio"
+                  id="themeSystem"
+                  name="theme-select"
+                  value="system"
+                  checked
+                />
                 <label for="themeSystem">System</label>
               </div>
             </div>
           </div>
         </div>
-        
+
         <div class="control-group">
           <h3>OLED Display Settings</h3>
           <div class="display-settings">
@@ -153,7 +193,7 @@
             </div>
           </div>
         </div>
-        
+
         <div class="control-group">
           <h3>Display Controls</h3>
           <button type="button" id="pingButton">Ping Test</button>
@@ -232,7 +272,7 @@
         });
       });
     </script>
-    
+
     <!-- Theme Manager -->
     <script src="./scripts/themeManager.js"></script>
   </body>
