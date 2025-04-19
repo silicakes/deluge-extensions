@@ -12,7 +12,13 @@ Unlock the full potential of your Synthstrom Deluge with **DEx**! This web-based
 
 No installation needed - just visit [dex.silicak.es](https://dex.silicak.es) in a WebMIDI-compatible browser and connect your Deluge!
 
+### Web Demo
 https://github.com/user-attachments/assets/590b5b20-30ba-4cc3-8fdb-a0af7f2b97a2
+
+### Mobile (Android) Demo
+
+https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
+
 
 ## Key Features 🌟
 
