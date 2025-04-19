@@ -14,6 +14,7 @@ let previousPixelHeight = 0; // Store previous pixel height before fullscreen
 let lastOled = null;         // Store last OLED data for redrawing
 let lastSevenSeg = null;     // Store last 7-segment data for redrawing
 let lastDots = 0;            // Store last 7-segment dots for redrawing
+let screenWakeLockSentinel = null; // Store Wake Lock Sentinel for screen sleep prevention
 
 let did_oled = false;
 
@@ -235,6 +236,46 @@ window.addEventListener('load', function() {
   
   // Add keyboard shortcut for fullscreen toggle
   document.addEventListener('keydown', handleKeyDown);
+  
+  // Add visibility change listener for wake lock management
+  document.addEventListener('visibilitychange', async () => {
+    if (screenWakeLockSentinel !== null && document.visibilityState === 'hidden') {
+      // Release lock when tab becomes hidden
+      screenWakeLockSentinel.release()
+        .then(() => {
+          console.log("Screen Wake Lock released due to visibility change");
+          screenWakeLockSentinel = null;
+        })
+        .catch((err) => {
+          console.error(`Failed to release wake lock on visibility change: ${err.name}, ${err.message}`);
+        });
+    } else if (document.visibilityState === 'visible' && document.fullscreenElement) {
+      // Re-acquire lock if tab becomes visible again while still in fullscreen
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile && 'wakeLock' in navigator && screenWakeLockSentinel === null) {
+        try {
+          screenWakeLockSentinel = await navigator.wakeLock.request('screen');
+          screenWakeLockSentinel.addEventListener('release', () => {
+            console.log('Screen Wake Lock released');
+            screenWakeLockSentinel = null;
+          });
+          console.log('Screen Wake Lock re-acquired on visibility');
+          addDebugMessage("Screen Wake Lock re-acquired (Fullscreen)");
+        } catch (err) {
+          console.error(`Failed to re-acquire wake lock: ${err.name}, ${err.message}`);
+        }
+      }
+    }
+  });
+  
+  // Add beforeunload listener to release wake lock when page is closed
+  window.addEventListener('beforeunload', () => {
+    if (screenWakeLockSentinel !== null) {
+      screenWakeLockSentinel.release()
+        .catch(() => {}); // Silent catch - no need to log on page unload
+      screenWakeLockSentinel = null;
+    }
+  });
   
   return;
 });
@@ -1054,6 +1095,25 @@ function handleFullscreenChange() {
     fullscreenButton.setAttribute("aria-pressed", "true");
     body.classList.add("fullscreen-mode");
     
+    // Request wake lock to prevent screen sleep on mobile
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile && 'wakeLock' in navigator) {
+      navigator.wakeLock.request('screen')
+        .then((sentinel) => {
+          screenWakeLockSentinel = sentinel;
+          screenWakeLockSentinel.addEventListener('release', () => {
+            console.log('Screen Wake Lock released');
+            screenWakeLockSentinel = null; // Ensure sentinel is nullified if released externally
+          });
+          console.log('Screen Wake Lock acquired');
+          addDebugMessage("Screen Wake Lock active (Fullscreen)");
+        })
+        .catch((err) => {
+          console.error(`${err.name}, ${err.message}`);
+          addDebugMessage(`ERROR: Could not acquire screen wake lock: ${err.message}`);
+        });
+    }
+    
     // Resize canvas to fit screen
     resizeCanvasToFit();
     
@@ -1063,6 +1123,18 @@ function handleFullscreenChange() {
   } else {
     // Exited fullscreen mode
     fullscreenSettings.active = false;
+    
+    // Release wake lock if it exists
+    if (screenWakeLockSentinel !== null) {
+      screenWakeLockSentinel.release()
+        .then(() => {
+          console.log("Screen Wake Lock released on fullscreen exit");
+          screenWakeLockSentinel = null;
+        })
+        .catch((err) => {
+          console.error(`Failed to release wake lock: ${err.name}, ${err.message}`);
+        });
+    }
     
     fullscreenButton.textContent = "Full Screen";
     fullscreenButton.classList.remove("active");
