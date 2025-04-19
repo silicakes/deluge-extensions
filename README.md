@@ -71,10 +71,13 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 
 ### Mobile Usage Tips
 
+**  iOS currently doesn't support webMIDI in its common browsers (Safri, Chrome etc..).
+Although there are some browsers that were patched support it, I can't recomment any since I don't use iPhone. **
+
 *   For the best experience on mobile devices, use the **Full Screen** button to maximize the display.
 *   On Android, you may need a USB OTG (On-The-Go) adapter to connect your Deluge.
     Although for me, it works with a regular USB-C to USB-B cable.
-*   On iOS, use the appropriate USB adapter for your device (Lightning or USB-C).
+*  
 *   Rotate your device to landscape orientation for an optimal viewing experience.
 *   Press 'f' on external keyboards or tap the Full Screen button again to exit fullscreen mode.
 
