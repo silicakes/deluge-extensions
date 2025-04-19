@@ -71,6 +71,7 @@ https://github.com/user-attachments/assets/f35c1b6b-8e0f-4e78-ba73-00d0e47a3b6b
 
 *   For the best experience on mobile devices, use the **Full Screen** button to maximize the display.
 *   On Android, you may need a USB OTG (On-The-Go) adapter to connect your Deluge.
+    Although for me, it works with a regular USB-C to USB-B cable.
 *   On iOS, use the appropriate USB adapter for your device (Lightning or USB-C).
 *   Rotate your device to landscape orientation for an optimal viewing experience.
 *   Press 'f' on external keyboards or tap the Full Screen button again to exit fullscreen mode.
