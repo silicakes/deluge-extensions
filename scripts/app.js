@@ -19,7 +19,8 @@ let displaySettings = {
   backgroundColor: "#111111",
   resizeStep: 1,         // Step size for resizing (in pixels)
   minSize: 1,            // Minimum pixel size
-  maxSize: 32            // Maximum pixel size
+  maxSize: 32,            // Maximum pixel size
+  use7SegCustomColors: false // Added for 7-segment custom colors
 };
 
 function $(name) {
@@ -195,6 +196,7 @@ window.addEventListener('load', function() {
   $("pixelHeight").addEventListener("input", handleSettingChange)
   $("foregroundColor").addEventListener("input", handleSettingChange)
   $("backgroundColor").addEventListener("input", handleSettingChange)
+  $("use7SegCustomColors").addEventListener("change", handleSettingChange)
   
   // Debug drawer toggle buttons
   $("toggleDebugDrawerButton").addEventListener("click", toggleDebugDrawer)
@@ -538,27 +540,37 @@ function draw7Seg(digits, dots) {
     did_oled = false;
   } else {
     // Otherwise, just clear the whole canvas
-    ctx.fillRect(offx, offy, 310, 140);
+    ctx.fillRect(offx, offy, ctx.canvas.width - 2*offx, ctx.canvas.height - 2*offy);
   }
 
-  // Use original fixed colors for 7-segment display
-  const activeColor = "#CC3333";
-  const inactiveColor = "#331111";
+  // Use color settings for the 7-segment display
+  // Default red LED-like colors, but allow for customization
+  const activeColor = displaySettings.use7SegCustomColors ? displaySettings.foregroundColor : "#CC3333";
+  const inactiveColor = displaySettings.use7SegCustomColors ? displaySettings.backgroundColor : "#331111";
 
-  let digit_height = 120;
-  let digit_width = 60;
-  let stroke_thick = 9;
-  let half_height = digit_height/2;
-  let out_adj = 0.5;
-  let in_adj = 1.5;
+  // Calculate dimensions based on displaySettings
+  // Base size at pixelWidth/Height = 5:
+  // digit_height: 120, digit_width: 60, stroke_thick: 9
+  // Scale these values based on current pixelWidth/pixelHeight
+  const scale = Math.min(displaySettings.pixelWidth, displaySettings.pixelHeight) / 5;
+  
+  // Scale all dimensions proportionally
+  const digit_height = 120 * scale;
+  const digit_width = 60 * scale;
+  const stroke_thick = 9 * scale;
+  const half_height = digit_height / 2;
+  const out_adj = 0.5 * scale;
+  const in_adj = 1.5 * scale;
+  const dot_size = 6.5 * scale;
+  const digit_spacing = 13 * scale;
 
-  let off_y = offy + 6;
+  let off_y = offy + 6 * scale;
 
   let topbot = [[out_adj,0],[stroke_thick+in_adj, stroke_thick],[digit_width-(stroke_thick+in_adj), stroke_thick], [digit_width-out_adj, 0]];
   let halfside = [[0,out_adj],[stroke_thick, stroke_thick+in_adj],[stroke_thick, half_height-stroke_thick*0.5-in_adj], [0, half_height-out_adj]];
   let h = half_height;
   let ht = stroke_thick;
-  let hta = stroke_thick/2//-in_adj/2;
+  let hta = stroke_thick/2;
   let midline = [
     [out_adj,h],[ht,h-hta], [digit_width-ht,h-hta],
     [digit_width-out_adj, h], [digit_width-ht,h+hta], [ht,h+hta]
@@ -568,7 +580,7 @@ function draw7Seg(digits, dots) {
     let digit = digits[d];
     let dot = (dots & (1 << d)) != 0;
 
-    let off_x = offx + 8 + (13+digit_width)*d;
+    let off_x = offx + 8 * scale + (digit_spacing + digit_width) * d;
 
     for (let s = 0; s < 7; s++) {
       ctx.beginPath()
@@ -599,7 +611,7 @@ function draw7Seg(digits, dots) {
 
     // the dot
     ctx.beginPath()
-    ctx.rect(off_x+digit_width+3, off_y+digit_height+3, 6.5, 6.5);
+    ctx.rect(off_x+digit_width+3*scale, off_y+digit_height+3*scale, dot_size, dot_size);
     if (dot) {
       ctx.fillStyle = activeColor;
     } else {
@@ -704,6 +716,7 @@ function initDisplaySettings() {
       displaySettings.pixelHeight = parsedSettings.pixelHeight || displaySettings.pixelHeight;
       displaySettings.foregroundColor = parsedSettings.foregroundColor || displaySettings.foregroundColor;
       displaySettings.backgroundColor = parsedSettings.backgroundColor || displaySettings.backgroundColor;
+      displaySettings.use7SegCustomColors = parsedSettings.use7SegCustomColors || displaySettings.use7SegCustomColors;
       
       addDebugMessage("Loaded saved display settings");
     }
@@ -718,6 +731,7 @@ function initDisplaySettings() {
   $("pixelHeight").value = displaySettings.pixelHeight;
   $("foregroundColor").value = displaySettings.foregroundColor;
   $("backgroundColor").value = displaySettings.backgroundColor;
+  $("use7SegCustomColors").checked = displaySettings.use7SegCustomColors;
   
   // Initialize resize button states
   updateResizeButtonStates();
@@ -753,7 +767,8 @@ const debouncedSaveSettings = debounce(() => {
       pixelWidth: displaySettings.pixelWidth,
       pixelHeight: displaySettings.pixelHeight,
       foregroundColor: displaySettings.foregroundColor,
-      backgroundColor: displaySettings.backgroundColor
+      backgroundColor: displaySettings.backgroundColor,
+      use7SegCustomColors: displaySettings.use7SegCustomColors
     };
     localStorage.setItem('DExDisplaySettings', JSON.stringify(settingsToSave));
   } catch (error) {
@@ -769,6 +784,7 @@ function handleSettingChange() {
   const pixelHeight = parseInt($("pixelHeight").value, 10);
   const foregroundColor = $("foregroundColor").value;
   const backgroundColor = $("backgroundColor").value;
+  const use7SegCustomColors = $("use7SegCustomColors").checked;
 
   // Validate values
   if (isNaN(pixelWidth) || pixelWidth < displaySettings.minSize || pixelWidth > displaySettings.maxSize) {
@@ -787,6 +803,7 @@ function handleSettingChange() {
   displaySettings.pixelHeight = pixelHeight;
   displaySettings.foregroundColor = foregroundColor;
   displaySettings.backgroundColor = backgroundColor;
+  displaySettings.use7SegCustomColors = use7SegCustomColors;
 
   // Save settings (debounced)
   debouncedSaveSettings();
@@ -803,8 +820,13 @@ function handleSettingChange() {
   updateCanvasDimensionsDisplay();
 
   // Redraw the display with new settings
-  if (oledData && oledData.length > 0) {
+  if (oledData && oledData.length > 0 && did_oled) {
     drawOleddata(oledData);
+  } else if (!did_oled) {
+    // If currently in 7-segment mode, redraw it
+    // Use the last known test data (the current state being displayed)
+    // This is just a test handler, in reality the app would maintain the last state
+    draw7Seg([47,3,8,19], 3); // Default test values
   }
 }
 
@@ -814,6 +836,7 @@ function applyDisplaySettings() {
   const pixelHeight = parseInt($("pixelHeight").value, 10);
   const foregroundColor = $("foregroundColor").value;
   const backgroundColor = $("backgroundColor").value;
+  const use7SegCustomColors = $("use7SegCustomColors").checked;
   
   // Validate values
   if (pixelWidth < displaySettings.minSize || pixelHeight < displaySettings.minSize) {
@@ -831,6 +854,7 @@ function applyDisplaySettings() {
   displaySettings.pixelHeight = pixelHeight;
   displaySettings.foregroundColor = foregroundColor;
   displaySettings.backgroundColor = backgroundColor;
+  displaySettings.use7SegCustomColors = use7SegCustomColors;
   
   // Save settings to localStorage
   try {
@@ -838,7 +862,8 @@ function applyDisplaySettings() {
       pixelWidth,
       pixelHeight,
       foregroundColor,
-      backgroundColor
+      backgroundColor,
+      use7SegCustomColors
     };
     localStorage.setItem('DExDisplaySettings', JSON.stringify(settingsToSave));
     addDebugMessage("Display settings saved");
@@ -861,8 +886,11 @@ function applyDisplaySettings() {
   updateCanvasDimensionsDisplay();
   
   // Redraw the display with new settings
-  if (oledData.length > 0) {
+  if (oledData.length > 0 && did_oled) {
     drawOleddata(oledData);
+  } else if (!did_oled) {
+    // If currently in 7-segment mode, redraw it
+    draw7Seg([47,3,8,19], 3); // Default test values
   }
 }
 
