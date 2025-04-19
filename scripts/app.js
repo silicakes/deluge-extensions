@@ -201,6 +201,9 @@ window.addEventListener('load', function() {
   // Debug drawer toggle buttons
   $("toggleDebugDrawerButton").addEventListener("click", toggleDebugDrawer)
   $("closeDebugDrawerButton").addEventListener("click", closeDebugDrawer)
+  
+  // Add document click listener to detect clicks outside the debug drawer
+  document.addEventListener("click", handleClickOutside)
 
   $("chooseIn").addEventListener("change", onChangeIn)
   $("chooseOut").addEventListener("change", onChangeOut)
@@ -230,6 +233,20 @@ function closeDebugDrawer() {
   
   debugDrawer.classList.remove("visible");
   settingsBtn.classList.remove("active");
+}
+
+// Handle clicks outside the debug drawer
+function handleClickOutside(event) {
+  const debugDrawer = $("debugDrawer");
+  const toggleButton = $("toggleDebugDrawerButton");
+  
+  // Only act if the drawer is currently visible
+  if (debugDrawer.classList.contains("visible")) {
+    // Check if the click is outside the drawer and not on the toggle button
+    if (!debugDrawer.contains(event.target) && !toggleButton.contains(event.target)) {
+      closeDebugDrawer();
+    }
+  }
 }
 
 function pingTest() {
