@@ -8,6 +8,12 @@ let theInterval = null;
 let debugInterval = null;
 let monitorModeActive = false;
 let autoConnectEnabled = true; // Default state for auto-connect toggle
+let isFullscreenActive = false; // Track fullscreen state
+let previousPixelWidth = 0;  // Store previous pixel width before fullscreen
+let previousPixelHeight = 0; // Store previous pixel height before fullscreen
+let lastOled = null;         // Store last OLED data for redrawing
+let lastSevenSeg = null;     // Store last 7-segment data for redrawing
+let lastDots = 0;            // Store last 7-segment dots for redrawing
 
 let did_oled = false;
 
@@ -21,6 +27,15 @@ let displaySettings = {
   minSize: 1,            // Minimum pixel size
   maxSize: 32,            // Maximum pixel size
   use7SegCustomColors: false // Added for 7-segment custom colors
+};
+
+// Add fullscreen settings to track state
+let fullscreenSettings = {
+  active: false,
+  pixelWidth: 0,
+  pixelHeight: 0,
+  previousPixelWidth: 0,
+  previousPixelHeight: 0
 };
 
 function $(name) {
@@ -190,6 +205,7 @@ window.addEventListener('load', function() {
   $("monitorModeButton").addEventListener("click", toggleMonitorMode)
   $("canvasIncreaseButton").addEventListener("click", increaseCanvasSize)
   $("canvasDecreaseButton").addEventListener("click", decreaseCanvasSize)
+  $("fullscreenButton").addEventListener("click", toggleFullScreen)
   
   // Add input event listeners for OLED display settings
   $("pixelWidth").addEventListener("input", handleSettingChange)
@@ -213,6 +229,12 @@ window.addEventListener('load', function() {
   
   // Then set initial canvas size based on current settings (loaded or defaults)
   initCanvasSize();
+  
+  // Setup fullscreen change event listener
+  document.addEventListener('fullscreenchange', handleFullscreenChange);
+  
+  // Add keyboard shortcut for fullscreen toggle
+  document.addEventListener('keydown', handleKeyDown);
   
   return;
 });
@@ -510,17 +532,31 @@ function drawOledDelta(data) {
 let offx = 10;
 let offy = 5;
 
-function drawOleddata(data) {
+function drawOleddata(data, customPixelWidth, customPixelHeight) {
   /** @type {CanvasRenderingContext2D} */
-  let ctx = $("screenCanvas").getContext("2d")
+  let ctx = $("screenCanvas").getContext("2d");
 
-  let px_height = displaySettings.pixelHeight;
-  let px_width = displaySettings.pixelWidth;
+  // Determine which pixel size to use
+  let px_width, px_height;
+  if (customPixelWidth !== undefined && customPixelHeight !== undefined) {
+    // Explicit pixel sizes passed in
+    px_width = customPixelWidth;
+    px_height = customPixelHeight;
+  } else if (fullscreenSettings.active) {
+    // Use fullscreen settings if in fullscreen
+    px_width = fullscreenSettings.pixelWidth;
+    px_height = fullscreenSettings.pixelHeight;
+  } else {
+    // Use normal display settings
+    px_width = displaySettings.pixelWidth;
+    px_height = displaySettings.pixelHeight;
+  }
+  
   let indist = 0.5;
-
   let blk_width = 128;
+  
   ctx.fillStyle = displaySettings.backgroundColor;
-  ctx.fillRect(offx,offy,px_width*128,px_height*48)
+  ctx.fillRect(offx, offy, px_width*128, px_height*48);
   did_oled = true;
 
   ctx.fillStyle = displaySettings.foregroundColor;
@@ -536,23 +572,40 @@ function drawOleddata(data) {
         let y = blk*8 + rstride;
 
         if (idata > 0) {
-          ctx.fillRect(offx+j*px_width+indist,offy+y*px_height+indist, px_width-2*indist, px_height-2*indist);
+          ctx.fillRect(offx+j*px_width+indist, offy+y*px_height+indist, 
+                      px_width-2*indist, px_height-2*indist);
         }
-
       }
     }
   }
+  
+  // Store the last OLED data for later use
+  lastOled = data;
 }
 
-function draw7Seg(digits, dots) {
+function draw7Seg(digits, dots, customPixelWidth, customPixelHeight) {
   /** @type {CanvasRenderingContext2D} */
-  let ctx = $("screenCanvas").getContext("2d")
+  let ctx = $("screenCanvas").getContext("2d");
+
+  // Determine which pixel size to use
+  let px_width, px_height;
+  if (customPixelWidth !== undefined && customPixelHeight !== undefined) {
+    // Explicit pixel sizes passed in
+    px_width = customPixelWidth;
+    px_height = customPixelHeight;
+  } else if (fullscreenSettings.active) {
+    // Use fullscreen settings if in fullscreen
+    px_width = fullscreenSettings.pixelWidth;
+    px_height = fullscreenSettings.pixelHeight;
+  } else {
+    // Use normal display settings
+    px_width = displaySettings.pixelWidth;
+    px_height = displaySettings.pixelHeight;
+  }
 
   ctx.fillStyle = displaySettings.backgroundColor;
   if (did_oled) {
     // If we're switching from OLED to 7-segment, clear the previous display
-    const px_width = displaySettings.pixelWidth;
-    const px_height = displaySettings.pixelHeight;
     ctx.fillRect(offx, offy, px_width*128, px_height*48);
     did_oled = false;
   } else {
@@ -565,11 +618,8 @@ function draw7Seg(digits, dots) {
   const activeColor = displaySettings.use7SegCustomColors ? displaySettings.foregroundColor : "#CC3333";
   const inactiveColor = displaySettings.use7SegCustomColors ? displaySettings.backgroundColor : "#331111";
 
-  // Calculate dimensions based on displaySettings
-  // Base size at pixelWidth/Height = 5:
-  // digit_height: 120, digit_width: 60, stroke_thick: 9
-  // Scale these values based on current pixelWidth/pixelHeight
-  const scale = Math.min(displaySettings.pixelWidth, displaySettings.pixelHeight) / 5;
+  // Calculate dimensions based on pixel size
+  const scale = Math.min(px_width, px_height) / 5;
   
   // Scale all dimensions proportionally
   const digit_height = 120 * scale;
@@ -600,7 +650,7 @@ function draw7Seg(digits, dots) {
     let off_x = offx + 8 * scale + (digit_spacing + digit_width) * d;
 
     for (let s = 0; s < 7; s++) {
-      ctx.beginPath()
+      ctx.beginPath();
       let path;
       if (s == 0) { path = midline; }
       else if (s == 3 || s == 6) { path = topbot; }
@@ -616,26 +666,30 @@ function draw7Seg(digits, dots) {
         }
       }
 
-      ctx.closePath()
+      ctx.closePath();
 
       if (digit & (1<<s)) { 
         ctx.fillStyle = activeColor;
       } else {
         ctx.fillStyle = inactiveColor;
       }
-      ctx.fill()
+      ctx.fill();
     }
 
     // the dot
-    ctx.beginPath()
+    ctx.beginPath();
     ctx.rect(off_x+digit_width+3*scale, off_y+digit_height+3*scale, dot_size, dot_size);
     if (dot) {
       ctx.fillStyle = activeColor;
     } else {
       ctx.fillStyle = inactiveColor;
     }
-    ctx.fill()
+    ctx.fill();
   }
+  
+  // Store the last drawn state
+  lastSevenSeg = digits;
+  lastDots = dots;
 }
 
 let testdata = new Uint8Array([
@@ -962,4 +1016,196 @@ function updateResizeButtonStates() {
   
   // Disable the decrease button if at or below min size
   $("canvasDecreaseButton").disabled = (currentSize - displaySettings.resizeStep < displaySettings.minSize);
+}
+
+// Toggle fullscreen mode
+function toggleFullScreen() {
+  const elem = document.documentElement;
+  const fullscreenButton = $("fullscreenButton");
+  
+  if (!document.fullscreenElement) {
+    // Enter fullscreen
+    elem.requestFullscreen({ navigationUI: 'hide' }).catch(err => {
+      console.error('Fullscreen request failed:', err);
+      alert('Fullscreen mode failed to activate: ' + err.message);
+    });
+  } else {
+    // Exit fullscreen
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    }
+  }
+}
+
+// Handle fullscreen change event
+function handleFullscreenChange() {
+  const fullscreenButton = $("fullscreenButton");
+  const body = document.body;
+  const canvas = $("screenCanvas");
+  
+  if (document.fullscreenElement) {
+    // Entered fullscreen mode
+    fullscreenSettings.active = true;
+    fullscreenSettings.previousPixelWidth = displaySettings.pixelWidth;
+    fullscreenSettings.previousPixelHeight = displaySettings.pixelHeight;
+    
+    fullscreenButton.textContent = "Exit Full Screen";
+    fullscreenButton.classList.add("active");
+    fullscreenButton.setAttribute("aria-pressed", "true");
+    body.classList.add("fullscreen-mode");
+    
+    // Resize canvas to fit screen
+    resizeCanvasToFit();
+    
+    // Add resize listener only when in fullscreen
+    window.addEventListener('resize', resizeCanvasToFit);
+    
+  } else {
+    // Exited fullscreen mode
+    fullscreenSettings.active = false;
+    
+    fullscreenButton.textContent = "Full Screen";
+    fullscreenButton.classList.remove("active");
+    fullscreenButton.setAttribute("aria-pressed", "false");
+    body.classList.remove("fullscreen-mode");
+    
+    // Remove resize listener when not in fullscreen
+    window.removeEventListener('resize', resizeCanvasToFit);
+    
+    // COMPLETELY reset all canvas styles we added in fullscreen mode
+    canvas.removeAttribute('style');
+    
+    // Restore previous pixel sizes
+    if (fullscreenSettings.previousPixelWidth > 0 && fullscreenSettings.previousPixelHeight > 0) {
+      displaySettings.pixelWidth = fullscreenSettings.previousPixelWidth;
+      displaySettings.pixelHeight = fullscreenSettings.previousPixelHeight;
+      
+      // Update input field values
+      $("pixelWidth").value = displaySettings.pixelWidth;
+      $("pixelHeight").value = displaySettings.pixelHeight;
+      
+      // Update canvas dimensions with previous values
+      canvas.width = offx*2 + 128*displaySettings.pixelWidth;
+      canvas.height = offy*2 + 48*displaySettings.pixelHeight;
+      
+      // Redraw with restored settings
+      redrawDisplay();
+      
+      // Update dimensions display
+      updateCanvasDimensionsDisplay();
+      
+      // Update resize button states
+      updateResizeButtonStates();
+    }
+  }
+}
+
+// Resize canvas to fit screen in fullscreen mode
+function resizeCanvasToFit() {
+  if (!fullscreenSettings.active) return;
+  
+  const canvas = $("screenCanvas");
+  
+  // Detect mobile devices
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  
+  // Clear any previous styles
+  canvas.removeAttribute('style');
+  
+  // Log screen dimensions for debugging
+  console.log(`Window inner: ${window.innerWidth}x${window.innerHeight}`);
+  console.log(`Document client: ${document.documentElement.clientWidth}x${document.documentElement.clientHeight}`);
+  console.log(`Mobile: ${isMobile}`);
+  
+  // MOBILE: Use simpler fixed-size approach with CSS scaling
+  if (isMobile) {
+    // Set a fixed size for the canvas - make it BIG
+    canvas.width = 1280;  // 10x the Deluge screen width
+    canvas.height = 480;  // 10x the Deluge screen height
+    
+    // Use CSS to make it fit the screen properly
+    canvas.style.position = 'fixed';
+    canvas.style.left = '50%';
+    canvas.style.top = '50%';
+    canvas.style.transform = 'translate(-50%, -50%)';
+    canvas.style.maxWidth = '90vw';
+    canvas.style.maxHeight = '80vh';
+    canvas.style.width = 'auto';
+    canvas.style.height = 'auto';
+    
+    // Set the fullscreen pixel size
+    fullscreenSettings.pixelWidth = 10;  // Works with our 10x canvas size
+    fullscreenSettings.pixelHeight = 10;
+  }
+  // DESKTOP: Calculate optimal size
+  else {
+    // Get screen dimensions
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+    
+    // Use available space with margins
+    const margin = 40;
+    const availableWidth = screenWidth - margin;
+    const availableHeight = screenHeight - margin;
+    
+    // Calculate pixel size
+    const pixelSizeFromWidth = Math.floor(availableWidth / 128);
+    const pixelSizeFromHeight = Math.floor(availableHeight / 48);
+    const pixelSize = Math.max(1, Math.min(pixelSizeFromWidth, pixelSizeFromHeight));
+    
+    console.log(`Desktop pixel size: ${pixelSize}`);
+    
+    // Set the fullscreen pixel size
+    fullscreenSettings.pixelWidth = pixelSize;
+    fullscreenSettings.pixelHeight = pixelSize;
+    
+    // Set canvas dimensions
+    canvas.width = 128 * pixelSize + 2 * offx;
+    canvas.height = 48 * pixelSize + 2 * offy;
+    
+    // Center canvas
+    canvas.style.position = 'absolute';
+    canvas.style.left = '50%';
+    canvas.style.top = '50%';
+    canvas.style.transform = 'translate(-50%, -50%)';
+  }
+  
+  // Redraw with fullscreen settings
+  redrawDisplay();
+}
+
+// Centralized function to redraw the display
+function redrawDisplay() {
+  // Determine which pixel size to use
+  let pixelWidth, pixelHeight;
+  
+  if (fullscreenSettings.active) {
+    pixelWidth = fullscreenSettings.pixelWidth;
+    pixelHeight = fullscreenSettings.pixelHeight;
+  } else {
+    pixelWidth = displaySettings.pixelWidth;
+    pixelHeight = displaySettings.pixelHeight;
+  }
+  
+  // Draw with the appropriate settings
+  if (did_oled && lastOled) {
+    drawOleddata(lastOled, pixelWidth, pixelHeight);
+  } else if (lastSevenSeg && lastDots !== undefined) {
+    draw7Seg(lastSevenSeg, lastDots, pixelWidth, pixelHeight);
+  }
+}
+
+// Handle keyboard shortcuts
+function handleKeyDown(event) {
+  // Ignore if typing in text input
+  if (event.target.tagName === 'INPUT' && 
+      (event.target.type === 'text' || event.target.type === 'number')) {
+    return;
+  }
+  
+  // 'f' key to toggle fullscreen
+  if (event.key === 'f' || event.key === 'F') {
+    toggleFullScreen();
+    event.preventDefault();
+  }
 }

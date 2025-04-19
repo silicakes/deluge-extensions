@@ -546,3 +546,52 @@ button:hover {
 }
 
 /* Remove duplicate icon filter definitions as they're in theme.css now */
+
+/* Fullscreen Mode Styles */
+body.fullscreen-mode #topBar,
+body.fullscreen-mode .side-drawer,
+body.fullscreen-mode .canvas-resize-controls {
+  display: none !important;
+}
+
+body.fullscreen-mode {
+  overflow: hidden !important;
+  position: fixed;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-background);
+  touch-action: manipulation;
+}
+
+body.fullscreen-mode .display-section {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  background-color: var(--color-background);
+  animation: fadeIn 0.2s ease;
+}
+
+/* Direct styling for canvas in fullscreen mode */
+body.fullscreen-mode #screenCanvas {
+  display: block;
+  margin: auto;
+  max-width: 95vw;
+  max-height: 90vh;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0.7; }
+  to { opacity: 1; }
+}

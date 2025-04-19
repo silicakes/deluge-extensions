@@ -2,11 +2,11 @@
 
 # DEx: Deluge EXtensions ✨
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Web MIDI API](https://img.shields.io/badge/Web_MIDI_API-Compatible-green)](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API) [![Platform](https://img.shields.io/badge/Platform-Web-blue)](https://github.com/mikey/delugeclient) [![Synthstrom Deluge](https://img.shields.io/badge/Synthstrom-Deluge-orange)](https://synthstrom.com/product/deluge/) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com) [![Made with JavaScript](https://img.shields.io/badge/Made_with-JavaScript-F7DF1E?logo=javascript)](https://developer.mozilla.org/en-US/docs/Web/JavaScript) [![Live Demo](https://img.shields.io/badge/Live_Demo-Available-ff69b4)](https://dex.silicak.es)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Web MIDI API](https://img.shields.io/badge/Web_MIDI_API-Compatible-green)](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API) [![Platform](https://img.shields.io/badge/Platform-Web/Mobile-blue)](https://github.com/mikey/delugeclient) [![Synthstrom Deluge](https://img.shields.io/badge/Synthstrom-Deluge-orange)](https://synthstrom.com/product/deluge/) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com) [![Made with JavaScript](https://img.shields.io/badge/Made_with-JavaScript-F7DF1E?logo=javascript)](https://developer.mozilla.org/en-US/docs/Web/JavaScript) [![Live Demo](https://img.shields.io/badge/Live_Demo-Available-ff69b4)](https://dex.silicak.es)
 
 Unlock the full potential of your Synthstrom Deluge with **DEx**! This web-based powerhouse connects directly to your Deluge via USB MIDI, offering a crystal-clear view of its displays and a suite of tools for monitoring, debugging, and advanced control. 🚀
 
-**See your Deluge like never before!** Whether you're performing live, teaching, or just exploring, DEx mirrors the Deluge's displays directly in your browser.
+**See your Deluge like never before!** Whether you're performing live, teaching, or just exploring, DEx mirrors the Deluge's displays directly in your browser - on desktop or mobile devices!
 
 ## ✨ [Try the Live Demo at dex.silicak.es!](https://dex.silicak.es) ✨
 
@@ -21,6 +21,7 @@ https://github.com/user-attachments/assets/f35c1b6b-8e0f-4e78-ba73-00d0e47a3b6b
 ## Key Features 🌟
 
 *   **👀 Dual Display Mirroring**: View *both* the OLED and the classic 7-Segment displays in real-time. Perfect for seeing intricate details or getting a quick overview.
+*   **📱 Fullscreen Mode**: Enter a distraction-free fullscreen view that works beautifully on both desktop and mobile devices! Perfect for performances or when projecting your Deluge's display to an audience.
 *   **🎨 Customizable OLED View**: Tailor the OLED display to your liking! Adjust pixel scaling (size) and choose custom foreground/background colors. Settings are saved automatically!
 *   **↔️ Resizable Display**: Instantly resize the mirrored display canvas with dedicated buttons for the perfect fit on your screen.
 *   **⚙️ Advanced Settings Drawer**: Access technical controls like display customization, manual refresh triggers, ping tests, and decoding tests.
@@ -36,12 +37,13 @@ https://github.com/user-attachments/assets/f35c1b6b-8e0f-4e78-ba73-00d0e47a3b6b
 ### Prerequisites
 
 *   A modern web browser with **WebMIDI support** (like Chrome, Edge, or Opera).
-*   Your Synthstrom Deluge connected to your computer via **USB**.
+*   Your Synthstrom Deluge connected to your computer or mobile device via **USB**.
+*   For mobile use: An Android device with USB OTG support or iOS device (with appropriate adapters).
 
 ### Setup
 
-1.  🔌 Connect your Deluge to your computer via USB.
-2.  📂 Open the `index.html` file from this project in a compatible web browser.
+1.  🔌 Connect your Deluge to your computer or mobile device via USB.
+2.  📂 Open [dex.silicak.es](https://dex.silicak.es) in a compatible web browser.
 3.  🔐 When prompted by the browser, **Allow** MIDI access.
 4.  🖱️ Select your Deluge from the MIDI **input** and **output** dropdown menus.
     *   ✨ **Pro Tip:** If a device named `Deluge Port 3` is found, DEx will try to select it automatically if 'Connect Automatically' is checked!
@@ -54,6 +56,7 @@ https://github.com/user-attachments/assets/f35c1b6b-8e0f-4e78-ba73-00d0e47a3b6b
 *   **Switch Display Type**: Toggles the view between the OLED and 7-Segment displays.
 *   **Get Debug Messages**: Manually requests the latest debug info from the Deluge.
 *   **Monitor UI Changes**: Toggles the UI monitoring mode on/off.
+*   **Full Screen**: Enters a distraction-free fullscreen mode that optimizes the display for your current device and screen size. Press 'ESC' or tap the button again to exit.
 *   **⚙️ (Gear Icon)**: Opens the Advanced Settings Drawer.
 
 ### Advanced Settings Drawer
@@ -64,11 +67,20 @@ https://github.com/user-attachments/assets/f35c1b6b-8e0f-4e78-ba73-00d0e47a3b6b
 *   **Custom SysEx**: Input field and 'Send' button for arbitrary commands. Clickable examples provided!
 *   **Debug Output**: Shows incoming debug messages, version info, etc. Features 'Clear' and 'Auto Debug' buttons.
 
+### Mobile Usage Tips
+
+*   For the best experience on mobile devices, use the **Full Screen** button to maximize the display.
+*   On Android, you may need a USB OTG (On-The-Go) adapter to connect your Deluge.
+*   On iOS, use the appropriate USB adapter for your device (Lightning or USB-C).
+*   Rotate your device to landscape orientation for an optimal viewing experience.
+*   Press 'f' on external keyboards or tap the Full Screen button again to exit fullscreen mode.
+
 ## Technical Tidbits 🤓
 
 DEx leverages the **WebMIDI API** to communicate with the Deluge using MIDI System Exclusive (SysEx) messages. It sends commands to request information and receives data back, including display states and debug messages.
 
 *   **Display Rendering**: The OLED display (128×48 pixels) data is received in a compressed 7-to-8 bit RLE format. DEx unpacks this efficiently and renders it onto an HTML `<canvas>` element. Delta updates are used for smoother refreshes.
+*   **Responsive Design**: The fullscreen mode uses adaptive scaling to provide optimal visibility on displays of all sizes, from mobile phones to large projector screens.
 *   **SysEx Format**: Deluge commands generally follow the format `F0 7D [command] [parameters] F7`.
     *   Ping: `F0 7D 00 F7`
     *   Request OLED: `F0 7D 02 00 01 F7`
