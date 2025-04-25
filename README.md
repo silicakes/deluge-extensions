@@ -34,6 +34,7 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 *   **✉️ Custom SysEx Commands**: Send *any* SysEx command directly to your Deluge. Includes clickable examples for common commands!
 *   **✅ Ping Test**: Quickly check the connection status to your Deluge.
 *   **📸 Screenshot**: Capture the current display as a PNG image; click the camera button or press 's' to save.
+*   **📋 Copy Base64**: Instantly copy the current OLED display as a gzipped, base64-encoded string (in a markdown directive) for easy sharing or embedding. Use the copy icon or press 'c'.
 
 ## Getting Started 🚀
 
@@ -61,6 +62,7 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 *   **Monitor UI Changes**: Toggles the UI monitoring mode on/off.
 *   **Full Screen**: Enters a distraction-free fullscreen mode that optimizes the display for your current device and screen size. Press 'ESC' or tap the button again to exit.
 *   **📸 Screenshot**: Download a snapshot of the current canvas as a PNG by clicking the camera icon or pressing 's'.
+*   **📋 Copy Base64**: Copy the current OLED display as a gzipped, base64-encoded string (in a markdown directive) by clicking the copy icon or pressing 'c'.
 *   **⚙️ (Gear Icon)**: Opens the Advanced Settings Drawer.
 
 ### Advanced Settings Drawer
@@ -69,6 +71,7 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 *   **Display Controls**: Manually trigger OLED/7-Segment updates, run a Ping test, or test internal decoding functions.
 *   **Deluge Info**: Get Firmware Version and Features Status.
 *   **Custom SysEx**: Input field and 'Send' button for arbitrary commands. Clickable examples provided!
+*   **Copy Base64**: Use the copy icon or press 'c' to copy the current OLED display as a gzipped, base64-encoded string in a markdown directive (e.g., `::screen[...]{alt="Canvas Image"}`).
 *   **Debug Output**: Shows incoming debug messages, version info, etc. Features 'Clear' and 'Auto Debug' buttons.
 
 ### Mobile Usage Tips
@@ -88,6 +91,7 @@ Although there are some browsers that were patched support it, I can't recomment
 DEx leverages the **WebMIDI API** to communicate with the Deluge using MIDI System Exclusive (SysEx) messages. It sends commands to request information and receives data back, including display states and debug messages.
 
 *   **Display Rendering**: The OLED display (128×48 pixels) data is received in a compressed 7-to-8 bit RLE format. DEx unpacks this efficiently and renders it onto an HTML `<canvas>` element. Delta updates are used for smoother refreshes.
+*   **Copy Base64**: The OLED buffer can be copied as a gzipped, base64-encoded string (not a PNG) for sharing or embedding. The output is a markdown directive like `::screen[BASE64]{alt="Canvas Image"}`.
 *   **Responsive Design**: The fullscreen mode uses adaptive scaling to provide optimal visibility on displays of all sizes, from mobile phones to large projector screens.
 *   **SysEx Format**: Deluge commands generally follow the format `F0 7D [command] [parameters] F7`.
     *   Ping: `F0 7D 00 F7`
