@@ -33,6 +33,7 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 *   **🔌 Auto-Connect**: Remembers your MIDI device and connects automatically on load (toggleable).
 *   **✉️ Custom SysEx Commands**: Send *any* SysEx command directly to your Deluge. Includes clickable examples for common commands!
 *   **✅ Ping Test**: Quickly check the connection status to your Deluge.
+*   **📸 Screenshot**: Capture the current display as a PNG image; click the camera button or press 's' to save.
 
 ## Getting Started 🚀
 
@@ -59,6 +60,7 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 *   **Get Debug Messages**: Manually requests the latest debug info from the Deluge.
 *   **Monitor UI Changes**: Toggles the UI monitoring mode on/off.
 *   **Full Screen**: Enters a distraction-free fullscreen mode that optimizes the display for your current device and screen size. Press 'ESC' or tap the button again to exit.
+*   **📸 Screenshot**: Download a snapshot of the current canvas as a PNG by clicking the camera icon or pressing 's'.
 *   **⚙️ (Gear Icon)**: Opens the Advanced Settings Drawer.
 
 ### Advanced Settings Drawer

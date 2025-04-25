@@ -207,6 +207,11 @@ window.addEventListener('load', function() {
   $("canvasIncreaseButton").addEventListener("click", increaseCanvasSize)
   $("canvasDecreaseButton").addEventListener("click", decreaseCanvasSize)
   $("fullscreenButton").addEventListener("click", toggleFullScreen)
+  $("screenshotButton").addEventListener("click", captureScreenshot)
+  
+  // Add easter egg event listeners to canvas
+  $("screenCanvas").addEventListener('click', handleEasterEggTap);
+  $("screenCanvas").addEventListener('touchstart', handleEasterEggTap);
   
   // Add input event listeners for OLED display settings
   $("pixelWidth").addEventListener("input", handleSettingChange)
@@ -314,6 +319,44 @@ function handleClickOutside(event) {
 
 function pingTest() {
     delugeOut.send([0xf0, 0x7d, 0x00, 0xf7]);
+}
+
+function captureScreenshot() {
+    const canvas = $('screenCanvas');
+    if (!canvas) {
+        console.error('Canvas element not found for screenshot');
+        return;
+    }
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const fileName = `screenshot-DEx-${year}${month}${day}-${hours}${minutes}${seconds}.png`;
+    if (canvas.toBlob) {
+        canvas.toBlob(function(blob) {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            addDebugMessage(`Screenshot saved: ${fileName}`);
+        }, 'image/png');
+    } else {
+        const dataUrl = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        addDebugMessage(`Screenshot saved: ${fileName}`);
+    }
 }
 
 function oldCodes() {
@@ -1267,6 +1310,21 @@ function redrawDisplay() {
   }
 }
 
+// Easter egg handler
+function handleEasterEggTap(event) {
+  // Create a custom SysEx message for debug output
+  // Format: [SysEx start, Manufacturer ID, Category (debug), Command, Unused category, ASCII text bytes, SysEx end]
+  const customMessage = new Uint8Array([
+    240, 125, 3, 64, 0,      // SysEx header for debug message
+    // ASCII for "DEx by silicakes"
+    68, 69, 120, 32, 98, 121, 32, 115, 105, 108, 105, 99, 97, 107, 101, 115,
+    247                      // SysEx end
+  ]);
+  
+  // Process through the decoder
+  decode(customMessage);
+}
+
 // Handle keyboard shortcuts
 function handleKeyDown(event) {
   // Ignore if typing in text input
@@ -1278,6 +1336,11 @@ function handleKeyDown(event) {
   // 'f' key to toggle fullscreen
   if (event.key === 'f' || event.key === 'F') {
     toggleFullScreen();
+    event.preventDefault();
+  }
+  // 's' key to take screenshot
+  if (event.key === 's' || event.key === 'S') {
+    captureScreenshot();
     event.preventDefault();
   }
 }
