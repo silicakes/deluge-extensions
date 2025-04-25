@@ -625,3 +625,32 @@ body.fullscreen-mode #screenCanvas {
   transform: scale(1.1);
 }
 
+.copy-base64-button {
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  background: none;
+  font-size: 24px;
+  transition: transform 0.3s ease;
+  min-width: 0;
+}
+
+.copy-base64-button:hover {
+  background: none;
+  transform: scale(1.1);
+}
+
+.copy-icon {
+  width: 20px;
+  height: 20px;
+  position: relative;
+  top: 2px;
+  filter: var(--icon-filter, none);
+  transition: transform 0.3s ease;
+}
+
+.copy-base64-button:hover .copy-icon {
+  transform: scale(1.1);
+}
+

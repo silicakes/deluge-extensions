@@ -208,6 +208,7 @@ window.addEventListener('load', function() {
   $("canvasDecreaseButton").addEventListener("click", decreaseCanvasSize)
   $("fullscreenButton").addEventListener("click", toggleFullScreen)
   $("screenshotButton").addEventListener("click", captureScreenshot)
+  $("copyBase64Button").addEventListener("click", copyCanvasAsBase64)
   
   // Add easter egg event listeners to canvas
   $("screenCanvas").addEventListener('click', handleEasterEggTap);
@@ -357,6 +358,50 @@ function captureScreenshot() {
         document.body.removeChild(link);
         addDebugMessage(`Screenshot saved: ${fileName}`);
     }
+}
+
+// Copy canvas as gzipped Base64 string and put in markdown directive
+function copyCanvasAsBase64() {
+    if (!lastOled || !(lastOled instanceof Uint8Array)) {
+        addDebugMessage("Error: No OLED data available to copy.");
+        console.error('No OLED data available for base64 copy');
+        return;
+    }
+    if (!window.CompressionStream || !navigator.clipboard) {
+        addDebugMessage("Error: CompressionStream or Clipboard API not supported in this browser.");
+        console.error('CompressionStream or Clipboard API not supported');
+        return;
+    }
+    const reader = Object.assign(new FileReader(), {
+        onload: () => {
+            const base64Data = reader.result.split("data:application/octet-stream;base64,")[1];
+            if (!base64Data) {
+                addDebugMessage("Error: Could not extract base64 data.");
+                console.error("Failed to extract base64 data from Data URL:", reader.result);
+                return;
+            }
+            const markdownString = `::screen[${base64Data}]{alt=\"Canvas Image\"}`;
+            navigator.clipboard.writeText(markdownString).then(() => {
+                addDebugMessage("Base64 Gzip string copied to clipboard.");
+            }).catch(err => {
+                addDebugMessage("Error copying base64 string to clipboard.");
+                console.error('Failed to copy text: ', err);
+            });
+        },
+        onerror: () => {
+            addDebugMessage("Error reading gzipped OLED data.");
+            console.error(reader.error);
+        }
+    });
+    new Response(new Blob([lastOled]).stream().pipeThrough(new CompressionStream("gzip")))
+        .arrayBuffer()
+        .then(bytes => {
+            reader.readAsDataURL(new File([bytes], "", { type: "application/octet-stream" }));
+        })
+        .catch(err => {
+            addDebugMessage("Error compressing OLED data.");
+            console.error("Compression or ArrayBuffer conversion error:", err);
+        });
 }
 
 function oldCodes() {
@@ -1341,6 +1386,11 @@ function handleKeyDown(event) {
   // 's' key to take screenshot
   if (event.key === 's' || event.key === 'S') {
     captureScreenshot();
+    event.preventDefault();
+  }
+  // 'c' key to copy base64
+  if (event.key === 'c' || event.key === 'C') {
+    copyCanvasAsBase64();
     event.preventDefault();
   }
 }
