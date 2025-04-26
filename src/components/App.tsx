@@ -1,32 +1,39 @@
 import { MidiDeviceSelector } from "./MidiDeviceSelector";
 import { DisplayControls } from "./DisplayControls";
-import { useEffect } from 'preact/hooks';
-import { captureScreenshot, copyCanvasToBase64, toggleFullScreen, increaseCanvasSize, decreaseCanvasSize } from '../lib/display';
-import { ThemeSwitcher } from './ThemeSwitcher';
-import { SysExConsole } from './SysExConsole';
-import { DisplayStylePicker } from './DisplayStylePicker';
+import { useEffect } from "preact/hooks";
+import {
+  captureScreenshot,
+  copyCanvasToBase64,
+  toggleFullScreen,
+  increaseCanvasSize,
+  decreaseCanvasSize,
+} from "../lib/display";
+import { Header } from "./Header";
+import { SysExConsole } from "./SysExConsole";
+import { DisplayStylePicker } from "./DisplayStylePicker";
 import { DisplayViewer } from "./DisplayViewer";
+import { Card } from "./Card";
 
 export function App() {
   // Register global keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.target && (e.target as HTMLElement).tagName === 'INPUT') return; // ignore typing in inputs
+      if (e.target && (e.target as HTMLElement).tagName === "INPUT") return; // ignore typing in inputs
       switch (e.key.toLowerCase()) {
-        case 's':
+        case "s":
           captureScreenshot();
           break;
-        case 'c':
+        case "c":
           copyCanvasToBase64();
           break;
-        case 'f':
+        case "f":
           toggleFullScreen();
           break;
-        case '+':
-        case '=': // usually same key with shift
+        case "+":
+        case "=": // usually same key with shift
           increaseCanvasSize();
           break;
-        case '-':
+        case "-":
           decreaseCanvasSize();
           break;
         default:
@@ -34,25 +41,32 @@ export function App() {
       }
       e.preventDefault();
     }
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   return (
-    <div className="p-6 text-center">
-      <img src="/DEx-logo.png" alt="DEX Logo" className="mx-auto mb-4" />
-      <h1 className="text-3xl font-bold mb-4">Deluge Client</h1>
-      <div className=" mx-auto space-y-4">
-        <MidiDeviceSelector />
-        <div className="flex justify-between items-center">
-          <DisplayControls />
-          <DisplayStylePicker compact={true} />
-        </div>
-        <DisplayViewer />
-        <ThemeSwitcher />
-        <DisplayStylePicker compact={false} />
-      </div>
-      <SysExConsole />
-    </div>
-  )
+    <>
+      <Header />
+      <main className="p-4 max-w-screen-lg mx-auto space-y-6">
+        <Card title="Connection">
+          <MidiDeviceSelector />
+        </Card>
+
+        <Card title="Display">
+          {/* Toolbar & canvas */}
+          <div className="flex flex-col gap-4">
+            <div className="flex justify-between items-center flex-wrap gap-2">
+              <DisplayControls />
+              <DisplayStylePicker compact={true} />
+            </div>
+            <DisplayViewer />
+            <DisplayStylePicker compact={false} />
+          </div>
+        </Card>
+
+        <SysExConsole />
+      </main>
+    </>
+  );
 }

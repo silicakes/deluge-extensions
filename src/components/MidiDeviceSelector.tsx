@@ -104,7 +104,7 @@ export function MidiDeviceSelector() {
   };
 
   return (
-    <div className="flex flex-col gap-2 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
+    <div className="flex flex-col gap-2 p-4 bg-[var(--color-bg-offset)] rounded-lg border border-[var(--color-border)]">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-semibold">Status:</span>
         <span className={`text-sm rounded-full px-2 py-1 ${onlineSignal.value ? (outputSignal.value ? 'bg-green-600 text-white' : 'bg-yellow-600 text-white') : 'bg-red-600 text-white'}`}>{statusText.value}</span>
@@ -113,7 +113,7 @@ export function MidiDeviceSelector() {
         <label htmlFor="midi-input-select" className="mr-2 font-medium">MIDI Input:</label>
         <select
           id="midi-input-select"
-          className="border rounded px-2 py-1 w-full"
+          className="border border-[var(--color-border)] rounded px-2 py-1 w-full bg-[var(--color-bg)] text-[var(--color-text)]"
           value={inputSignal.value?.id || ''}
           onChange={handleInputChange}
           aria-label="MIDI input device"
@@ -128,7 +128,7 @@ export function MidiDeviceSelector() {
         <label htmlFor="midi-output-select" className="mr-2 font-medium">MIDI Output:</label>
         <select
           id="midi-output-select"
-          className="border rounded px-2 py-1 w-full"
+          className="border border-[var(--color-border)] rounded px-2 py-1 w-full bg-[var(--color-bg)] text-[var(--color-text)]"
           value={outputSignal.value?.id || ''}
           onChange={handleOutputChange}
           aria-label="MIDI output device"

@@ -121,7 +121,7 @@ export function DisplayStylePicker({ compact = false }: DisplayStylePickerProps)
   }
 
   return (
-    <div className="display-style-picker bg-gray-100 dark:bg-gray-800 p-3 rounded-md shadow-md">
+    <div className="display-style-picker bg-[var(--color-bg-offset)] p-3 rounded-md shadow-md border border-[var(--color-border)]">
       {compact && (
         <div className="flex justify-between mb-2">
           <h3 className="text-md font-medium">Display Style</h3>

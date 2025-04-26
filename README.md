@@ -77,8 +77,8 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 
 ### Mobile Usage Tips
 
-**  iOS currently doesn't support webMIDI in its common browsers (Safri, Chrome etc..).
-Although there are some browsers that were patched support it, I can't recomment any since I don't use iPhone. **
+**iOS currently doesn't support WebMIDI in its common browsers (Safari, Chrome, etc.).
+Although some third-party browsers claim patched support, I can't recommend any because I don't use iPhone.**
 
 *   For the best experience on mobile devices, use the **Full Screen** button to maximize the display.
 *   On Android, you may need a USB OTG (On-The-Go) adapter to connect your Deluge.

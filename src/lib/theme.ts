@@ -29,8 +29,18 @@ effect(() => {
   // Update the global theme signal
   theme.value = actualTheme as 'light' | 'dark';
   
-  // Update DOM and localStorage
+  // Update DOM (both class and data attribute for flexibility)
+  const root = document.documentElement;
+  // Apply data-theme to both <html> and <body> so CSS overrides work regardless of selector
+  root.dataset.theme = actualTheme;
   document.body.dataset.theme = actualTheme;
+  if (actualTheme === 'dark') {
+    root.classList.add('dark');
+  } else {
+    root.classList.remove('dark');
+  }
+
+  // Persist user preference
   localStorage.setItem('dex-theme-preference', preference);
 });
 

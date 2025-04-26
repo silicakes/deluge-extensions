@@ -1,7 +1,6 @@
 import { ComponentChildren, JSX } from 'preact';
 import { useEffect } from 'preact/hooks';
 import { toggleTheme, cycleTheme } from '../lib/theme';
-import { ThemeSwitcher } from './ThemeSwitcher';
 
 type ThemeProviderProps = {
   children: ComponentChildren;
@@ -10,7 +9,6 @@ type ThemeProviderProps = {
 
 export function ThemeProvider({ 
   children, 
-  floatingSwitch = true 
 }: ThemeProviderProps): JSX.Element {
   // Set up keyboard shortcuts
   useEffect(() => {
@@ -41,14 +39,6 @@ export function ThemeProvider({
     };
   }, []);
 
-  return (
-    <>
-      {children}
-      {floatingSwitch && (
-        <div class="fixed bottom-4 right-4 z-50">
-          <ThemeSwitcher variant="icon" />
-        </div>
-      )}
-    </>
-  );
+  
+  return <>{children}</>;
 } 

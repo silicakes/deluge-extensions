@@ -102,10 +102,6 @@ let lastKind: FrameKind = "NONE";
 let lastDigits: number[] = [0, 0, 0, 0];
 let lastDots = 0;
 
-function getPixelSize(custom?: number) {
-  return custom && custom > 0 ? custom : displaySettings.value.pixelWidth;
-}
-
 /** Low-level pixel renderer shared by full & delta draws */
 function renderOledCanvas(
   ctx: CanvasRenderingContext2D,
