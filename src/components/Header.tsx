@@ -1,20 +1,37 @@
-import { ThemeSwitcher } from './ThemeSwitcher';
+import { ThemeSwitcher } from "./ThemeSwitcher";
+import { MidiDeviceNavbar } from "./MidiDeviceNavbar";
 
 export function Header() {
   return (
-    <header className="w-full px-4 py-2 flex items-center justify-between bg-[var(--color-bg-offset)] shadow-sm border-b border-[var(--color-border)] sticky top-0 z-20">
+    <header className="w-full px-4 py-2 flex items-center bg-[var(--color-bg-offset)] shadow-sm border-b border-[var(--color-border)] sticky top-0 z-20">
+      {/* Left: logo */}
       <div className="flex items-center gap-2">
-        <img src="/DEx-logo.png" alt="DEx Logo" className="h-8 w-auto md:h-10" />
-        <h1 className="text-xl md:text-2xl font-bold tracking-tight">Deluge Extensions</h1>
+        <img
+          src="/DEx-logo.png"
+          alt="DEx Logo"
+          className="h-8 w-auto md:h-10"
+        />
+        <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+          Deluge Extensions
+        </h1>
       </div>
-      <div className="flex items-center gap-3">
+
+      {/* Center: MIDI device navbar */}
+      <div className="flex-1 flex justify-center">
+        <MidiDeviceNavbar />
+      </div>
+
+      {/* Right: controls */}
+      <div className="flex items-center gap-3 flex-wrap">
         <ThemeSwitcher />
         <a
           href="https://dex.silicak.es"
           target="_blank"
           rel="noopener noreferrer"
           className="text-sm text-blue-600 dark:text-blue-400 hover:underline hidden sm:inline"
-        >Live&nbsp;Demo</a>
+        >
+          Live&nbsp;Demo
+        </a>
         <a
           href="https://github.com/silicakes/deluge-extensions"
           target="_blank"
@@ -34,4 +51,4 @@ export function Header() {
       </div>
     </header>
   );
-} 
+}

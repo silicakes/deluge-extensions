@@ -1,4 +1,4 @@
-import { MidiDeviceSelector } from "./MidiDeviceSelector";
+// import { MidiDeviceSelector } from "./MidiDeviceSelector";
 import { DisplayControls } from "./DisplayControls";
 import { useEffect } from "preact/hooks";
 import {
@@ -49,9 +49,9 @@ export function App() {
     <>
       <Header />
       <main className="p-4 max-w-screen-lg mx-auto space-y-6">
-        <Card title="Connection">
+        {/* <Card title="Connection">
           <MidiDeviceSelector />
-        </Card>
+        </Card> */}
 
         <Card title="Display">
           {/* Toolbar & canvas */}
