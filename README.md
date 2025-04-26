@@ -56,7 +56,8 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 
 ### Main Controls
 
-*   **Start Display Refresh**: Begins polling the Deluge for display updates (OLED or 7-Segment).
+*   **Auto Display**: Automatically begins polling the Deluge display as soon as a valid MIDI output is connected (toggleable).
+*   **Start Display Refresh**: Manually begins polling the Deluge for display updates (OLED or 7-Segment).
 *   **Switch Display Type**: Toggles the view between the OLED and 7-Segment displays.
 *   **Get Debug Messages**: Manually requests the latest debug info from the Deluge.
 *   **Monitor UI Changes**: Toggles the UI monitoring mode on/off.

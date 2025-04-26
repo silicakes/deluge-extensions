@@ -1,0 +1,361 @@
+/** display.ts - Display rendering helpers ported from legacy code */
+
+import * as midi from './midi';
+import { displaySettings } from '../state';
+
+/**
+ * Unpacks data encoded with a 7-to-8 bit RLE scheme.
+ * @param src The packed source data.
+ * @param estimatedDstSize Optional estimate for destination size.
+ * @returns The unpacked 8-bit data.
+ */
+export function unpack7to8Rle(src: Uint8Array, estimatedDstSize?: number): Uint8Array {
+  // Ported from legacy-scripts/legacy-unpack.js – converts Synthstrom 7-bit RLE to raw 8-bit buffer
+  // The algorithm works on a byte-stream where each packet starts with a *marker* byte.
+  // If the marker < 64  → *dense* packet encoding 2-5 bytes of literal data.
+  // If the marker ≥ 64   → *run-length* packet encoding N repetitions of one byte.
+  // A dense marker encodes both the literal byte count (size) **and** the MSBs of each
+  // literal byte.  Run-length markers encode the high-bit of the value and the run count.
+
+  const ERROR = (msg: string) => new Error(`unpack7to8Rle: ${msg}`);
+
+  // Heuristic – full OLED frame is 6×128 = 768 bytes. We default to x32 expansion like legacy.
+  let dst = new Uint8Array(estimatedDstSize ?? src.length * 32);
+  let di = 0;
+  let si = 0;
+
+  const ensureCap = (need: number) => {
+    if (di + need <= dst.length) return;
+    const next = Math.max(dst.length * 2, di + need + 1024);
+    const bigger = new Uint8Array(next);
+    bigger.set(dst, 0);
+    dst = bigger;
+  };
+
+  while (si < src.length) {
+    const first = src[si++];
+
+    if (first < 64) {
+      // Dense packet – literal bytes 2-5 in length
+      let size = 0;
+      let off = 0;
+      if (first < 4) {
+        size = 2;
+        off = 0;
+      } else if (first < 12) {
+        size = 3;
+        off = 4;
+      } else if (first < 28) {
+        size = 4;
+        off = 12;
+      } else if (first < 60) {
+        size = 5;
+        off = 28;
+      } else {
+        throw ERROR(`invalid dense marker ${first}`);
+      }
+      if (si + size > src.length) throw ERROR('incomplete dense packet');
+
+      ensureCap(size);
+      const highBits = first - off;
+      for (let j = 0; j < size; j++) {
+        const byte = src[si + j] & 0x7f;
+        if ((highBits & (1 << j)) !== 0) dst[di + j] = byte | 0x80;
+        else dst[di + j] = byte;
+      }
+      si += size;
+      di += size;
+    } else {
+      // RLE packet
+      const marker = first - 64;
+      const high = (marker & 1) !== 0;
+      let runLen = marker >> 1;
+      if (runLen === 31) {
+        if (si >= src.length) throw ERROR('missing extended runlen');
+        runLen = 31 + src[si++];
+      }
+      if (si >= src.length) throw ERROR('missing value byte');
+      const value = (src[si++] & 0x7f) | (high ? 0x80 : 0);
+
+      ensureCap(runLen);
+      dst.fill(value, di, di + runLen);
+      di += runLen;
+    }
+  }
+  return dst.subarray(0, di);
+}
+
+// -------------------- Display drawing helpers --------------------
+
+// Internal buffer to keep the current OLED frame so deltas can be applied
+const OLED_WIDTH = 128;
+const OLED_PAGES = 6; // 6×8 = 48 rows
+const FRAME_BYTES = OLED_WIDTH * OLED_PAGES; // 768
+let oledFrame = new Uint8Array(FRAME_BYTES);
+
+// Track what content is currently drawn so we can redraw after a scale change
+type FrameKind = 'NONE' | 'OLED' | 'SEG7';
+let lastKind: FrameKind = 'NONE';
+let lastDigits: number[] = [0, 0, 0, 0];
+let lastDots = 0;
+
+function getPixelSize(custom?: number) {
+  return custom && custom > 0 ? custom : displaySettings.value.pixelWidth;
+}
+
+/** Low-level pixel renderer shared by full & delta draws */
+function renderOledCanvas(
+  ctx: CanvasRenderingContext2D,
+  frame: Uint8Array,
+  pxW: number,
+  pxH: number
+) {
+  const indist = 0.5; // visually pleasing inset so individual pixels have gaps
+  ctx.fillStyle = displaySettings.value.backgroundColor;
+  ctx.fillRect(0, 0, OLED_WIDTH * pxW, 48 * pxH);
+  ctx.fillStyle = displaySettings.value.foregroundColor;
+  for (let page = 0; page < OLED_PAGES; page++) {
+    for (let bit = 0; bit < 8; bit++) {
+      const mask = 1 << bit;
+      for (let x = 0; x < OLED_WIDTH; x++) {
+        const byte = frame[page * OLED_WIDTH + x];
+        if ((byte & mask) !== 0) {
+          const y = page * 8 + bit;
+          ctx.fillRect(
+            x * pxW + indist,
+            y * pxH + indist,
+            pxW - 2 * indist,
+            pxH - 2 * indist
+          );
+        }
+      }
+    }
+  }
+}
+
+export function drawOled(
+  canvas: HTMLCanvasElement,
+  sysEx: Uint8Array,
+  customPixelWidth?: number,
+  customPixelHeight?: number
+): void {
+  if (sysEx.length < 8) return;
+  const packed = sysEx.subarray(6, sysEx.length - 1);
+  const unpacked = unpack7to8Rle(packed);
+  if (unpacked.length !== FRAME_BYTES) return; // ignore malformed
+  oledFrame = unpacked;
+
+  const pxW = customPixelWidth ?? displaySettings.value.pixelWidth;
+  const pxH = customPixelHeight ?? displaySettings.value.pixelHeight;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  renderOledCanvas(ctx, oledFrame, pxW, pxH);
+  // TAG current frame so it can be redrawn later
+  lastKind = 'OLED';
+}
+
+export function drawOledDelta(
+  canvas: HTMLCanvasElement,
+  sysEx: Uint8Array,
+  customPixelWidth?: number,
+  customPixelHeight?: number
+): void {
+  if (sysEx.length < 8) return;
+  const first = sysEx[5];
+  // const len = sysEx[6]; // Not used but kept for documentation
+  const packed = sysEx.subarray(7, sysEx.length - 1);
+  const unpacked = unpack7to8Rle(packed);
+
+  oledFrame.set(unpacked, first * 8);
+
+  const pxW = customPixelWidth ?? displaySettings.value.pixelWidth;
+  const pxH = customPixelHeight ?? displaySettings.value.pixelHeight;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  renderOledCanvas(ctx, oledFrame, pxW, pxH);
+  // TAG current frame so it can be redrawn later
+  lastKind = 'OLED';
+}
+
+export function draw7Seg(
+  canvas: HTMLCanvasElement,
+  digits: number[],
+  dots: number,
+  customPixelWidth?: number,
+  customPixelHeight?: number
+): void {
+  // Cache values so we can redraw when size changes
+  lastDigits = digits.slice(0, 4);
+  lastDots = dots;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const pxW = customPixelWidth ?? displaySettings.value.pixelWidth;
+  const pxH = customPixelHeight ?? displaySettings.value.pixelHeight;
+  
+  // Use color settings for the 7-segment display
+  // Default red LED-like colors, but allow for customization
+  const activeColor = displaySettings.value.use7SegCustomColors ? 
+    displaySettings.value.foregroundColor : "#CC3333";
+  const inactiveColor = displaySettings.value.use7SegCustomColors ? 
+    displaySettings.value.backgroundColor : "#331111";
+    
+  // TAG current frame so it can be redrawn later
+  lastKind = 'SEG7';
+}
+
+// -----------------------------------------------------------------
+
+// Reference to the canvas element managed by DisplayViewer
+let canvasRef: HTMLCanvasElement | null = null;
+
+// Polling interval for display refresh
+export const pollingMs = 1000;
+let pollingId: number | null = null;
+
+export function startPolling() {
+  if (pollingId == null) {
+    pollingId = window.setInterval(() => midi.getDisplay(false), pollingMs);
+  }
+}
+
+export function stopPolling() {
+  if (pollingId != null) {
+    clearInterval(pollingId);
+    pollingId = null;
+  }
+}
+
+/**
+ * Register the canvas that display helpers will operate on.
+ * Should be called once by <DisplayViewer /> after the ref is available.
+ */
+export function registerCanvas(canvas: HTMLCanvasElement) {
+  canvasRef = canvas;
+  resizeCanvas(canvas);
+}
+
+/** Redraw the most recent frame buffer after canvas dimensions change */
+function redrawCurrentFrame() {
+  if (!canvasRef) return;
+  switch (lastKind) {
+    case 'OLED': {
+      const ctx = canvasRef.getContext('2d');
+      if (ctx) renderOledCanvas(
+        ctx, 
+        oledFrame, 
+        displaySettings.value.pixelWidth, 
+        displaySettings.value.pixelHeight
+      );
+      break;
+    }
+    case 'SEG7': {
+      draw7Seg(
+        canvasRef, 
+        lastDigits, 
+        lastDots, 
+        displaySettings.value.pixelWidth, 
+        displaySettings.value.pixelHeight
+      );
+      break;
+    }
+    default:
+      // nothing to redraw yet
+      break;
+  }
+}
+
+// Resize the canvas based on displaySettings
+export function resizeCanvas(canvas: HTMLCanvasElement): void {
+  if (!canvas) return;
+  
+  const { pixelWidth, pixelHeight } = displaySettings.value;
+  const offx = 10; // padding
+  const offy = 10; // padding
+  
+  canvas.width = offx * 2 + OLED_WIDTH * pixelWidth;
+  canvas.height = offy * 2 + 48 * pixelHeight;
+  
+  // Apply pixel rendering style
+  canvas.style.imageRendering = 'pixelated';
+  
+  // Redraw current frame with new size
+  redrawCurrentFrame();
+}
+
+/** Increase canvas pixel size by one step (up to maxSize). */
+export function increaseCanvasSize() {
+  const { pixelWidth, pixelHeight, resizeStep, minSize, maxSize } = displaySettings.value;
+  displaySettings.value = {
+    ...displaySettings.value,
+    pixelWidth: Math.max(minSize, Math.min(maxSize, pixelWidth + resizeStep)),
+    pixelHeight: Math.max(minSize, Math.min(maxSize, pixelHeight + resizeStep))
+  };
+  
+  if (canvasRef) {
+    resizeCanvas(canvasRef);
+  }
+}
+
+/** Decrease canvas pixel size by one step (down to minSize). */
+export function decreaseCanvasSize() {
+  const { pixelWidth, pixelHeight, resizeStep, minSize, maxSize } = displaySettings.value;
+  displaySettings.value = {
+    ...displaySettings.value,
+    pixelWidth: Math.max(minSize, Math.min(maxSize, pixelWidth - resizeStep)),
+    pixelHeight: Math.max(minSize, Math.min(maxSize, pixelHeight - resizeStep))
+  };
+  
+  if (canvasRef) {
+    resizeCanvas(canvasRef);
+  }
+}
+
+/** Toggle full-screen mode for the registered canvas. */
+export async function toggleFullScreen() {
+  if (!canvasRef) return;
+  try {
+    if (!document.fullscreenElement) {
+      await canvasRef.requestFullscreen();
+    } else {
+      await document.exitFullscreen();
+    }
+  } catch (err) {
+    console.error('Failed to toggle full-screen', err);
+  }
+}
+
+/**
+ * Capture the current canvas as PNG and trigger download with a timestamped filename.
+ */
+export function captureScreenshot() {
+  if (!canvasRef) {
+    console.warn('captureScreenshot: no canvas registered');
+    return;
+  }
+  const dataUrl = canvasRef.toDataURL('image/png');
+  const link = document.createElement('a');
+  link.href = dataUrl;
+  const ts = new Date().toISOString().replace(/[:.]/g, '-');
+  link.download = `deluge-screenshot-${ts}.png`;
+  link.click();
+}
+
+/**
+ * Copy the current canvas PNG (base64 string) to the clipboard.
+ */
+export async function copyCanvasToBase64() {
+  if (!canvasRef) {
+    console.warn('copyCanvasToBase64: no canvas registered');
+    return;
+  }
+  const base64 = canvasRef.toDataURL('image/png').split(',')[1];
+  try {
+    await navigator.clipboard.writeText(base64);
+  } catch (err) {
+    console.error('Failed to copy Base64 data to clipboard', err);
+  }
+}

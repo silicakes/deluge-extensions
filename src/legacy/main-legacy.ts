@@ -1,20 +1,19 @@
+// @ts-nocheck
+
 /** @type {MIDIAccess} */
-let midi = null;
+let midi: MIDIAccess | null = null;
 /** @type {MIDIInput} */
-let delugeIn = null;
+let delugeIn: MIDIInput | null = null;
 /** @type {MIDIOutput} */
-let delugeOut = null;
-let theInterval = null;
-let debugInterval = null;
+let delugeOut: MIDIOutput | null = null;
+let theInterval: number | null = null;
+let debugInterval: number | null = null;
 let monitorModeActive = false;
 let autoConnectEnabled = true; // Default state for auto-connect toggle
-let isFullscreenActive = false; // Track fullscreen state
-let previousPixelWidth = 0;  // Store previous pixel width before fullscreen
-let previousPixelHeight = 0; // Store previous pixel height before fullscreen
-let lastOled = null;         // Store last OLED data for redrawing
-let lastSevenSeg = null;     // Store last 7-segment data for redrawing
+let lastOled: Uint8Array | null = null;         // Store last OLED data for redrawing
+let lastSevenSeg: Uint8Array | null = null;     // Store last 7-segment data for redrawing
 let lastDots = 0;            // Store last 7-segment dots for redrawing
-let screenWakeLockSentinel = null; // Store Wake Lock Sentinel for screen sleep prevention
+let screenWakeLockSentinel: WakeLockSentinel | null = null; // Store Wake Lock Sentinel for screen sleep prevention
 
 let did_oled = false;
 
@@ -39,26 +38,29 @@ let fullscreenSettings = {
   previousPixelHeight: 0
 };
 
-function $(name) {
+function $(name: string) {
   return document.getElementById(name)
 }
 
-function setstatus(text) {
+function setStatus(text: string) {
   const midiStatus = $("midiStatus");
+  if (!midiStatus) return;
   midiStatus.innerText = text;
   
   // Remove any existing status classes
-  midiStatus.classList.remove('connected', 'error');
+  midiStatus.classList.remove('connected', 'error', 'offline');
   
   // Add appropriate class based on status text
   if (text === "webmidi ready") {
     midiStatus.classList.add('connected');
   } else if (text.includes("Failed") || text.includes("unavailable") || text.includes("error")) {
     midiStatus.classList.add('error');
+  } else if (text.includes("Offline")) {
+    midiStatus.classList.add('offline');
   }
 }
 
-function setInput(input) {
+function setInput(input: MIDIInput | null) {
   if (delugeIn == input) {
     return;
   }
@@ -90,18 +92,6 @@ function populateDevices() {
       delugeOut = port;
     }
   }
-}
-
-function onChangeIn(ev) {
-  const id = ev.target.value;
-  setInput(midi.inputs.get(id))
-}
-
-function onChangeOut(ev) {
-  const id = ev.target.value;
-  console.log("choose the id:" + id)
-  delugeOut = midi.outputs.get(id) || null;
-  console.log("choose the port:" + delugeOut)
 }
 
 function onStateChange(ev) {
@@ -153,64 +143,75 @@ function onStateChange(ev) {
 }
 
 function onMIDISuccess(midiAccess) {
-  setstatus("webmidi ready");
+  setStatus("webmidi ready");
   midi = midiAccess;
-  
-  // Load auto-connect setting from localStorage
-  const savedAutoConnect = localStorage.getItem('autoConnectEnabled');
-  if (savedAutoConnect !== null) {
-    autoConnectEnabled = (savedAutoConnect === 'true');
-    $('autoConnectToggle').checked = autoConnectEnabled;
-  }
   
   populateDevices();
   midi.addEventListener("statechange", onStateChange);
   
-  // Add event listener to the auto-connect toggle
-  $('autoConnectToggle').addEventListener('change', (event) => {
-    autoConnectEnabled = event.target.checked;
-    localStorage.setItem('autoConnectEnabled', autoConnectEnabled.toString());
-  });
-  
-  // Automatically start monitoring if auto-connect is enabled
-  if (autoConnectEnabled && delugeOut !== null && delugeIn !== null) {
-    // Start monitoring UI changes automatically
-    toggleMonitorMode();
-  }
+  updateOnlineStatus();
 }
 
 function onMIDIFailure(msg) {
-  setstatus(`Failed to get MIDI access :( - ${msg}`);
+  setStatus(`Failed to get MIDI access :( - ${msg}`);
+  
+  updateOnlineStatus();
 }
+
+function updateOnlineStatus() {
+  if (!navigator.onLine) {
+    setStatus("Offline - MIDI Unavailable");
+    disableMidiControls();
+    showOfflineCanvasMessage();
+  } else if (!delugeOut) {
+    setStatus("MIDI Output not selected");
+    disableMidiControls();
+    showOfflineCanvasMessage();
+  } else {
+    setStatus("webmidi ready");
+    enableMidiControls();
+    redrawDisplay();
+  }
+}
+
+function disableMidiControls() {
+  const ids = ["pingButton", "getOledButton", "get7segButton", "flipButton", "getDebugButton", "intervalButton", "monitorModeButton", "sendCustomSysExButton"];
+  ids.forEach(id => {
+    if ($(id)) $(id).disabled = true;
+  });
+}
+
+function enableMidiControls() {
+  const ids = ["pingButton", "getOledButton", "get7segButton", "flipButton", "getDebugButton", "intervalButton", "monitorModeButton", "sendCustomSysExButton"];
+  ids.forEach(id => {
+    if ($(id)) $(id).disabled = false;
+  });
+}
+
+function showOfflineCanvasMessage() {
+  const canvas = $("screenCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#222';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#fff';
+  ctx.font = '24px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(navigator.onLine ? 'Connect Deluge via MIDI' : 'Offline', canvas.width/2, canvas.height/2);
+}
+
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
 
 window.addEventListener('load', function() {
   if (navigator.requestMIDIAccess) {
     navigator.requestMIDIAccess({ sysex: true }).then( onMIDISuccess, onMIDIFailure );
   } else {
-    setstatus("webmidi unavailable, check browser permissions");
+    setStatus("webmidi unavailable, check browser permissions");
   }
 
-  $("pingButton").addEventListener("click", pingTest)
-  $("getOledButton").addEventListener("click", getOled)
-  $("get7segButton").addEventListener("click", get7seg)
-  $("flipButton").addEventListener("click", flipscreen)
-  $("getDebugButton").addEventListener("click", getDebug)
-  $("intervalButton").addEventListener("click", setRefresh)
-  $("testDecodeButton").addEventListener("click", () => decode(testdata))
-  $("test7segButton").addEventListener("click", () => draw7Seg([47,3,8,19], 3))
-  $("clearDebugButton").addEventListener("click", clearDebug)
-  $("autoDebugButton").addEventListener("click", toggleAutoDebug)
-  $("getFeaturesButton").addEventListener("click", getFeatures)
-  $("getVersionButton").addEventListener("click", getVersion)
-  $("sendCustomButton").addEventListener("click", sendCustomSysEx)
-  $("monitorModeButton").addEventListener("click", toggleMonitorMode)
-  $("canvasIncreaseButton").addEventListener("click", increaseCanvasSize)
-  $("canvasDecreaseButton").addEventListener("click", decreaseCanvasSize)
-  $("fullscreenButton").addEventListener("click", toggleFullScreen)
-  $("screenshotButton").addEventListener("click", captureScreenshot)
-  $("copyBase64Button").addEventListener("click", copyCanvasAsBase64)
-  
-  // Add easter egg event listeners to canvas
+  // Legacy display control event listeners removed; using Preact components instead
   $("screenCanvas").addEventListener('click', handleEasterEggTap);
   $("screenCanvas").addEventListener('touchstart', handleEasterEggTap);
   
@@ -227,9 +228,6 @@ window.addEventListener('load', function() {
   
   // Add document click listener to detect clicks outside the debug drawer
   document.addEventListener("click", handleClickOutside)
-
-  $("chooseIn").addEventListener("change", onChangeIn)
-  $("chooseOut").addEventListener("change", onChangeOut)
   
   // First load saved settings (if any)
   initDisplaySettings();
@@ -283,6 +281,18 @@ window.addEventListener('load', function() {
     }
   });
   
+  // Register Service Worker for offline support
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/service-worker.js')
+      .then(function(registration) {
+        console.log('Service Worker registered with scope:', registration.scope);
+      }).catch(function(error) {
+        console.log('Service Worker registration failed:', error);
+      });
+  }
+  
+  updateOnlineStatus();
+  
   return;
 });
 
@@ -319,6 +329,11 @@ function handleClickOutside(event) {
 }
 
 function pingTest() {
+    if (!delugeOut || !navigator.onLine) {
+        addDebugMessage("Offline or MIDI Output not selected. Cannot send command.");
+        setStatus("Offline - MIDI Unavailable");
+        return;
+    }
     delugeOut.send([0xf0, 0x7d, 0x00, 0xf7]);
 }
 
@@ -404,56 +419,72 @@ function copyCanvasAsBase64() {
         });
 }
 
-function oldCodes() {
-   for (const entry of midi.inputs) {
-    const input = entry[1];
-    console.log(
-      `Input port [type:'${input.type}']` +
-        ` id:'${input.id}'` +
-        ` manufacturer:'${input.manufacturer}'` +
-        ` name:'${input.name}'` +
-        ` version:'${input.version}'`,
-    );
-  }
-
-  for (const entry of midi.outputs) {
-    const output = entry[1];
-    console.log(
-      `Output port [type:'${output.type}'] id:'${output.id}' manufacturer:'${output.manufacturer}' name:'${output.name}' version:'${output.version}'`,
-    );
-  }
-}
 
 function getOled() {
+    if (!delugeOut || !navigator.onLine) {
+        addDebugMessage("Offline or MIDI Output not selected. Cannot send command.");
+        setStatus("Offline - MIDI Unavailable");
+        return;
+    }
     delugeOut.send([0xf0, 0x7d, 0x02, 0x00, 0x01, 0xf7]);
 }
 
 function get7seg() {
+    if (!delugeOut || !navigator.onLine) {
+        addDebugMessage("Offline or MIDI Output not selected. Cannot send command.");
+        setStatus("Offline - MIDI Unavailable");
+        return;
+    }
     delugeOut.send([0xf0, 0x7d, 0x02, 0x01, 0x00, 0xf7]);
 }
 
 function getDisplay(force) {
+    if (!delugeOut || !navigator.onLine) {
+        addDebugMessage("Offline or MIDI Output not selected. Cannot send command.");
+        setStatus("Offline - MIDI Unavailable");
+        return;
+    }
     delugeOut.send([0xf0, 0x7d, 0x02, 0x00, force ? 0x03 : 0x02, 0xf7]);
 }
 
 function getDebug() {
+    if (!delugeOut || !navigator.onLine) {
+        addDebugMessage("Offline or MIDI Output not selected. Cannot send command.");
+        setStatus("Offline - MIDI Unavailable");
+        return;
+    }
     delugeOut.send([0xf0, 0x7d, 0x03, 0x00, 0x01, 0xf7]);
     addDebugMessage("Requested debug messages from device");
 }
 
 function getFeatures() {
+    if (!delugeOut || !navigator.onLine) {
+        addDebugMessage("Offline or MIDI Output not selected. Cannot send command.");
+        setStatus("Offline - MIDI Unavailable");
+        return;
+    }
     // Request community features status
     addDebugMessage("Requesting community features status...");
     delugeOut.send([0xf0, 0x7d, 0x03, 0x01, 0x01, 0xf7]);
 }
 
 function getVersion() {
+    if (!delugeOut || !navigator.onLine) {
+        addDebugMessage("Offline or MIDI Output not selected. Cannot send command.");
+        setStatus("Offline - MIDI Unavailable");
+        return;
+    }
     // Request firmware version
     addDebugMessage("Requesting firmware version...");
     delugeOut.send([0xf0, 0x7d, 0x03, 0x02, 0x01, 0xf7]);
 }
 
 function sendCustomSysEx() {
+    if (!delugeOut || !navigator.onLine) {
+        addDebugMessage("Offline or MIDI Output not selected. Cannot send command.");
+        setStatus("Offline - MIDI Unavailable");
+        return;
+    }
     const customCmd = $('customSysExInput').value;
     
     if (!customCmd.trim()) {
@@ -514,6 +545,11 @@ function scrollDebugToBottom() {
 }
 
 function flipscreen() {
+    if (!delugeOut || !navigator.onLine) {
+        addDebugMessage("Offline or MIDI Output not selected. Cannot send command.");
+        setStatus("Offline - MIDI Unavailable");
+        return;
+    }
     delugeOut.send([0xf0, 0x7d, 0x02, 0x00, 0x04, 0xf7]);
     addDebugMessage("Display orientation flipped");
 }
@@ -662,6 +698,10 @@ let offx = 10;
 let offy = 5;
 
 function drawOleddata(data, customPixelWidth, customPixelHeight) {
+  if (!navigator.onLine || !delugeOut) {
+    showOfflineCanvasMessage();
+    return;
+  }
   /** @type {CanvasRenderingContext2D} */
   let ctx = $("screenCanvas").getContext("2d");
 
@@ -713,6 +753,10 @@ function drawOleddata(data, customPixelWidth, customPixelHeight) {
 }
 
 function draw7Seg(digits, dots, customPixelWidth, customPixelHeight) {
+  if (!navigator.onLine || !delugeOut) {
+    showOfflineCanvasMessage();
+    return;
+  }
   /** @type {CanvasRenderingContext2D} */
   let ctx = $("screenCanvas").getContext("2d");
 
@@ -1030,69 +1074,6 @@ function handleSettingChange() {
   }
 }
 
-function applyDisplaySettings() {
-  // Get values from input controls
-  const pixelWidth = parseInt($("pixelWidth").value, 10);
-  const pixelHeight = parseInt($("pixelHeight").value, 10);
-  const foregroundColor = $("foregroundColor").value;
-  const backgroundColor = $("backgroundColor").value;
-  const use7SegCustomColors = $("use7SegCustomColors").checked;
-  
-  // Validate values
-  if (pixelWidth < displaySettings.minSize || pixelHeight < displaySettings.minSize) {
-    addDebugMessage(`ERROR: Pixel dimensions must be at least ${displaySettings.minSize}`);
-    return;
-  }
-  
-  if (pixelWidth > displaySettings.maxSize || pixelHeight > displaySettings.maxSize) {
-    addDebugMessage(`ERROR: Pixel dimensions must not exceed ${displaySettings.maxSize}`);
-    return;
-  }
-  
-  // Update settings
-  displaySettings.pixelWidth = pixelWidth;
-  displaySettings.pixelHeight = pixelHeight;
-  displaySettings.foregroundColor = foregroundColor;
-  displaySettings.backgroundColor = backgroundColor;
-  displaySettings.use7SegCustomColors = use7SegCustomColors;
-  
-  // Save settings to localStorage
-  try {
-    const settingsToSave = {
-      pixelWidth,
-      pixelHeight,
-      foregroundColor,
-      backgroundColor,
-      use7SegCustomColors
-    };
-    localStorage.setItem('DExDisplaySettings', JSON.stringify(settingsToSave));
-    addDebugMessage("Display settings saved");
-  } catch (error) {
-    console.error("Error saving display settings:", error);
-    addDebugMessage("Error saving display settings");
-  }
-  
-  // Resize canvas based on new pixel dimensions
-  const canvas = $("screenCanvas");
-  canvas.width = offx * 2 + 128 * pixelWidth;
-  canvas.height = offy * 2 + 48 * pixelHeight;
-  
-  addDebugMessage(`Applied display settings: ${pixelWidth}×${pixelHeight} pixels, FG: ${foregroundColor}, BG: ${backgroundColor}`);
-  
-  // Update resize button states
-  updateResizeButtonStates();
-  
-  // Update dimensions display
-  updateCanvasDimensionsDisplay();
-  
-  // Redraw the display with new settings
-  if (oledData.length > 0 && did_oled) {
-    drawOleddata(oledData);
-  } else if (!did_oled) {
-    // If currently in 7-segment mode, redraw it
-    draw7Seg([47,3,8,19], 3); // Default test values
-  }
-}
 
 // Initialize the canvas size based on display settings
 function initCanvasSize() {
@@ -1150,7 +1131,6 @@ function updateResizeButtonStates() {
 // Toggle fullscreen mode
 function toggleFullScreen() {
   const elem = document.documentElement;
-  const fullscreenButton = $("fullscreenButton");
   
   if (!document.fullscreenElement) {
     // Enter fullscreen

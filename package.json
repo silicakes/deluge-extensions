@@ -1,0 +1,30 @@
+{
+  "name": "delugeclient",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@preact/signals": "^2.0.4",
+    "@tailwindcss/vite": "^4.1.4",
+    "preact": "^10.26.4",
+    "tailwindcss": "^4.1.4"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.1",
+    "@testing-library/preact": "^3.2.4",
+    "jsdom": "^26.1.0",
+    "prettier": "^3.5.3",
+    "typescript": "~5.7.2",
+    "vite": "^6.3.1",
+    "vitest": "^3.1.2"
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+}

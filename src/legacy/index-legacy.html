@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Open Graph Tags -->
+    <meta
+      property="og:title"
+      content="DEx: Deluge EXtensions - See Your Deluge Like Never Before"
+    />
+    <meta
+      property="og:description"
+      content="Unlock the full potential of your Synthstrom Deluge with DEx! A web-based tool offering display mirroring, debugging, and advanced control via WebMIDI. Try the live demo!"
+    />
+    <meta
+      property="og:image"
+      content="https://dex.silicak.es/assets/DEx-logo.png"
+    />
+    <meta property="og:url" content="https://dex.silicak.es" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="DEx: Deluge EXtensions" />
+
+    <!-- Twitter Card Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="DEx: Deluge EXtensions - See Your Deluge Like Never Before"
+    />
+    <meta
+      name="twitter:description"
+      content="Unlock the full potential of your Synthstrom Deluge with DEx! A web-based tool offering display mirroring, debugging, and advanced control via WebMIDI."
+    />
+    <meta
+      name="twitter:image"
+      content="https://dex.silicak.es/assets/DEx-logo.png"
+    />
+
+    <script src="./scripts/unpack.js"></script>
+    <script src="./scripts/app.js"></script>
+    <link rel="stylesheet" href="styles/theme.css" />
+    <link rel="stylesheet" href="app.css" />
+    <title>DEx: Deluge Extensions</title>
+  </head>
+
+  <body>
+    <header id="topBar" class="control-group top-bar">
+      <div class="bar-section logo-container">
+        <img src="assets/DEx-logo.png" alt="DEx Logo" class="app-logo" />
+      </div>
+      <div class="bar-section midi-select">
+        <label>MIDI Devices</label>
+        <div class="select-container">
+          <label for="chooseIn">In:</label>
+          <select id="chooseIn">
+            <option label="(none)" value="" id="noneInput" />
+          </select>
+        </div>
+        <div class="select-container">
+          <label for="chooseOut">Out:</label>
+          <select id="chooseOut">
+            <option label="(none)" value="" id="noneOutput" />
+          </select>
+        </div>
+      </div>
+      <div class="bar-section midi-auto">
+        <label class="toggle">
+          <input type="checkbox" id="autoConnectToggle" checked />
+          <span class="slider"></span>
+          <span class="toggle-label">Auto-connect</span>
+        </label>
+        <div class="status-indicator">
+          <span id="midiStatus" class="status-text">loading...</span>
+        </div>
+      </div>
+      <div class="bar-section display-actions">
+        <button type="button" id="intervalButton" class="action-button">
+          Refresh
+        </button>
+        <button type="button" id="flipButton" class="action-button">
+          Switch Display Type
+        </button>
+        <button type="button" id="getDebugButton" class="action-button">
+          Debug Msgs
+        </button>
+        <button type="button" id="monitorModeButton" class="action-button">
+          Monitor
+        </button>
+        <button
+          type="button"
+          id="fullscreenButton"
+          class="action-button"
+          title="Full Screen"
+          aria-pressed="false"
+        >
+          Full Screen
+        </button>
+        <button type="button" id="screenshotButton" class="action-button screenshot-button" title="Screenshot or press 's' to save" aria-label="Download canvas screenshot">
+          <img src="assets/camera.svg" alt="Screenshot" class="screenshot-icon" />
+        </button>
+        <button
+          type="button"
+          id="copyBase64Button"
+          class="action-button copy-base64-button"
+          title="Copy Base64 or press 'c'"
+          aria-label="Copy canvas as gzipped Base64 string"
+        >
+          <img src="assets/copy.svg" alt="Copy Base64" class="copy-icon" />
+        </button>
+        <button
+          type="button"
+          id="toggleDebugDrawerButton"
+          class="settings-button"
+          title="Advanced Settings"
+        >
+          <img src="assets/cog.svg" alt="Settings" class="settings-icon" />
+        </button>
+      </div>
+    </header>
+
+    <section class="display-section">
+      <div class="canvas-resize-controls">
+        <button
+          type="button"
+          id="canvasDecreaseButton"
+          title="Decrease canvas size"
+        >
+          −
+        </button>
+        <span id="canvasDimensions" class="canvas-dimensions"></span>
+        <button
+          type="button"
+          id="canvasIncreaseButton"
+          title="Increase canvas size"
+        >
+          +
+        </button>
+      </div>
+      <canvas id="screenCanvas" width="670" height="258"></canvas>
+    </section>
+
+    <!-- Debug Drawer -->
+    <div id="debugDrawer" class="side-drawer">
+      <div class="drawer-content">
+        <button id="closeDebugDrawerButton" class="close-button">
+          <img src="assets/close.svg" alt="Close" class="close-icon" />
+        </button>
+
+        <!-- Theme Controls -->
+        <div class="control-group">
+          <h3>Theme Settings</h3>
+          <div class="theme-controls">
+            <div class="theme-options">
+              <div class="theme-option">
+                <input
+                  type="radio"
+                  id="themeLight"
+                  name="theme-select"
+                  value="light"
+                />
+                <label for="themeLight">Light</label>
+              </div>
+              <div class="theme-option">
+                <input
+                  type="radio"
+                  id="themeDark"
+                  name="theme-select"
+                  value="dark"
+                />
+                <label for="themeDark">Dark</label>
+              </div>
+              <div class="theme-option">
+                <input
+                  type="radio"
+                  id="themeSystem"
+                  name="theme-select"
+                  value="system"
+                  checked
+                />
+                <label for="themeSystem">System</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <h3>OLED Display Settings</h3>
+          <div class="display-settings">
+            <div class="setting-row">
+              <label for="pixelWidth">Pixel Width:</label>
+              <input type="number" id="pixelWidth" min="1" value="5" />
+            </div>
+            <div class="setting-row">
+              <label for="pixelHeight">Pixel Height:</label>
+              <input type="number" id="pixelHeight" min="1" value="5" />
+            </div>
+            <div class="setting-row">
+              <label for="foregroundColor">Foreground:</label>
+              <input type="color" id="foregroundColor" value="#eeeeee" />
+            </div>
+            <div class="setting-row">
+              <label for="backgroundColor">Background:</label>
+              <input type="color" id="backgroundColor" value="#111111" />
+            </div>
+            <div class="setting-row">
+              <label for="use7SegCustomColors">Use colors for 7-Segment:</label>
+              <input type="checkbox" id="use7SegCustomColors" />
+            </div>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <h3>Display Controls</h3>
+          <button type="button" id="pingButton">Ping Test</button>
+          <button type="button" id="getOledButton">Get OLED</button>
+          <button type="button" id="get7segButton">Get 7-Segment</button>
+          <button type="button" id="testDecodeButton">Decode Test Data</button>
+          <button type="button" id="test7segButton">Test 7-Segment</button>
+        </div>
+
+        <div class="control-group">
+          <h3>Deluge Info</h3>
+          <button type="button" id="getVersionButton">
+            Get Firmware Version
+          </button>
+          <button type="button" id="getFeaturesButton">
+            Get Features Status
+          </button>
+        </div>
+
+        <div class="control-group">
+          <h3>Custom SysEx</h3>
+          <div class="custom-sysex">
+            <input
+              type="text"
+              id="customSysExInput"
+              placeholder="F0 7D ... F7"
+            />
+            <button type="button" id="sendCustomButton">Send</button>
+          </div>
+          <div class="sysex-examples">
+            Examples:
+            <span
+              class="sysex-example"
+              onclick="document.getElementById('customSysExInput').value='F0 7D 03 00 01 F7'"
+              >F0 7D 03 00 01 F7</span
+            >
+            (debug),
+            <span
+              class="sysex-example"
+              onclick="document.getElementById('customSysExInput').value='F0 7D 03 01 01 F7'"
+              >F0 7D 03 01 01 F7</span
+            >
+            (features),
+            <span
+              class="sysex-example"
+              onclick="document.getElementById('customSysExInput').value='F0 7D 03 02 01 F7'"
+              >F0 7D 03 02 01 F7</span
+            >
+            (version),
+            <span
+              class="sysex-example"
+              onclick="document.getElementById('customSysExInput').value='F0 7D 00 F7'"
+              >F0 7D 00 F7</span
+            >
+            (ping)
+          </div>
+        </div>
+
+        <div class="debug-section">
+          <p>
+            debug output:
+            <button type="button" id="clearDebugButton">Clear</button>
+            <button type="button" id="autoDebugButton">Auto Debug</button>
+          </p>
+          <div id="debugOutput" class="outbox"></div>
+        </div>
+        <div id="dataLog"></div>
+      </div>
+    </div>
+
+    <script>
+      // Helper for example clicks
+      document.querySelectorAll(".sysex-example").forEach((el) => {
+        el.addEventListener("click", function () {
+          document.getElementById("customSysExInput").value = this.textContent;
+        });
+      });
+    </script>
+
+    <!-- Theme Manager -->
+    <script src="./scripts/themeManager.js"></script>
+        <!-- Cloudflare Web Analytics -->
+        <script
+        defer
+        src="https://static.cloudflareinsights.com/beacon.min.js"
+        data-cf-beacon='{"token": "007fc9fdbe2140d6b8bd89d98ac631d2"}'
+      ></script>
+      <!-- End Cloudflare Web Analytics -->
+  </body>
+</html>
