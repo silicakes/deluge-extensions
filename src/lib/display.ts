@@ -94,7 +94,7 @@ const FRAME_BYTES = OLED_WIDTH * OLED_PAGES; // 768
 let oledFrame = new Uint8Array(FRAME_BYTES);
 
 // Track what content is currently drawn so we can redraw after a scale change
-type FrameKind = 'NONE' | 'OLED' | 'SEG7';
+type FrameKind = 'NONE' | 'OLED' | '7SEG';
 let lastKind: FrameKind = 'NONE';
 let lastDigits: number[] = [0, 0, 0, 0];
 let lastDots = 0;
@@ -204,7 +204,7 @@ export function draw7Seg(
     displaySettings.value.backgroundColor : "#331111";
     
   // TAG current frame so it can be redrawn later
-  lastKind = 'SEG7';
+  lastKind = '7SEG';
 }
 
 // -----------------------------------------------------------------
@@ -252,7 +252,7 @@ function redrawCurrentFrame() {
       );
       break;
     }
-    case 'SEG7': {
+    case '7SEG': {
       draw7Seg(
         canvasRef, 
         lastDigits, 
@@ -273,11 +273,10 @@ export function resizeCanvas(canvas: HTMLCanvasElement): void {
   if (!canvas) return;
   
   const { pixelWidth, pixelHeight } = displaySettings.value;
-  const offx = 10; // padding
-  const offy = 10; // padding
   
-  canvas.width = offx * 2 + OLED_WIDTH * pixelWidth;
-  canvas.height = offy * 2 + 48 * pixelHeight;
+  // Set canvas dimensions exactly to display size without padding
+  canvas.width = OLED_WIDTH * pixelWidth;
+  canvas.height = 48 * pixelHeight;
   
   // Apply pixel rendering style
   canvas.style.imageRendering = 'pixelated';

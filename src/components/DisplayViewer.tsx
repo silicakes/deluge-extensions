@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'preact/hooks';
 import { registerCanvas, drawOled, drawOledDelta, draw7Seg, resizeCanvas } from '../lib/display';
-import { subscribeMidiListener } from '../lib/midi';
+import { subscribeMidiListener } from '@/lib/midi';
 import { displaySettings } from '../state';
 
 /**
@@ -56,7 +56,7 @@ export function DisplayViewer() {
   }, []);
 
   return (
-    <div className="border mx-auto inline-block">
+    <div className="border mx-auto inline-block p-0">
       <canvas ref={canvasRef} />
     </div>
   );
