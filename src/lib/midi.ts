@@ -4,6 +4,26 @@ import { addDebugMessage } from './debug';
 let midiAccess: MIDIAccess | null = null;
 let monitorInterval: number | null = null;
 
+const SYSEX_COMMANDS = {
+  PING: [0xf0, 0x7d, 0x00, 0xf7],
+  GET_OLED: [0xf0, 0x7d, 0x02, 0x00, 0x01, 0xf7],
+  GET_7SEG: [0xf0, 0x7d, 0x02, 0x01, 0x00, 0xf7],
+  GET_DISPLAY: [0xf0, 0x7d, 0x02, 0x00, 0x02, 0xf7],
+  GET_DISPLAY_FORCE: [0xf0, 0x7d, 0x02, 0x00, 0x03, 0xf7],
+  FLIP: [0xf0, 0x7d, 0x02, 0x00, 0x04, 0xf7],
+  GET_DEBUG: [0xf0, 0x7d, 0x03, 0x00, 0x01, 0xf7],
+  GET_FEATURES: [0xf0, 0x7d, 0x03, 0x01, 0x01, 0xf7],
+  GET_VERSION: [0xf0, 0x7d, 0x03, 0x02, 0x01, 0xf7],
+}
+
+const sendSysEx = (command: keyof typeof SYSEX_COMMANDS) => {
+  if (!midiOut.value || !navigator.onLine) {
+    console.error('Offline or MIDI Output not selected. Cannot send SysEx command.');
+    return;
+  }
+  midiOut.value.send(SYSEX_COMMANDS[command]);
+}
+
 // Observer pattern so other modules can react to raw MIDI data (e.g. DisplayViewer)
 const midiListeners = new Set<(e: MIDIMessageEvent) => void>();
 
@@ -137,7 +157,7 @@ export function get7Seg() {
     console.error('Offline or MIDI Output not selected. Cannot send 7-seg command.');
     return;
   }
-  midiOut.value.send([0xf0, 0x7d, 0x02, 0x01, 0x00, 0xf7]);
+  sendSysEx('GET_7SEG');
 }
 
 /** Flip the screen orientation */
@@ -146,7 +166,7 @@ export function flipScreen() {
     console.error('Offline or MIDI Output not selected. Cannot send flip-screen command.');
     return;
   }
-  midiOut.value.send([0xf0, 0x7d, 0x02, 0x00, 0x04, 0xf7]);
+  sendSysEx('FLIP');
 }
 
 /** Request raw display update (force full or delta) */
@@ -155,8 +175,8 @@ export function getDisplay(force: boolean = false) {
     console.error('Offline or MIDI Output not selected. Cannot send display command.');
     return;
   }
-  const code = force ? 0x03 : 0x02;
-  midiOut.value.send([0xf0, 0x7d, 0x02, 0x00, code, 0xf7]);
+  const command = force ? 'GET_DISPLAY_FORCE' : 'GET_DISPLAY';
+  sendSysEx(command);
 }
 
 /** Request debug messages from device */
@@ -166,7 +186,7 @@ export function getDebug() {
     addDebugMessage("Offline or MIDI Output not selected. Cannot request debug messages.");
     return false;
   }
-  midiOut.value.send([0xf0, 0x7d, 0x03, 0x00, 0x01, 0xf7]);
+  sendSysEx('GET_DEBUG');
   addDebugMessage("Requested debug messages from device");
   return true;
 }

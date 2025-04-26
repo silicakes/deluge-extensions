@@ -1,7 +1,7 @@
 /** display.ts - Display rendering helpers ported from legacy code */
 
-import * as midi from './midi';
-import { displaySettings } from '../state';
+import * as midi from "./midi";
+import { displaySettings } from "../state";
 
 /**
  * Unpacks data encoded with a 7-to-8 bit RLE scheme.
@@ -9,7 +9,10 @@ import { displaySettings } from '../state';
  * @param estimatedDstSize Optional estimate for destination size.
  * @returns The unpacked 8-bit data.
  */
-export function unpack7to8Rle(src: Uint8Array, estimatedDstSize?: number): Uint8Array {
+export function unpack7to8Rle(
+  src: Uint8Array,
+  estimatedDstSize?: number
+): Uint8Array {
   // Ported from legacy-scripts/legacy-unpack.js – converts Synthstrom 7-bit RLE to raw 8-bit buffer
   // The algorithm works on a byte-stream where each packet starts with a *marker* byte.
   // If the marker < 64  → *dense* packet encoding 2-5 bytes of literal data.
@@ -54,7 +57,7 @@ export function unpack7to8Rle(src: Uint8Array, estimatedDstSize?: number): Uint8
       } else {
         throw ERROR(`invalid dense marker ${first}`);
       }
-      if (si + size > src.length) throw ERROR('incomplete dense packet');
+      if (si + size > src.length) throw ERROR("incomplete dense packet");
 
       ensureCap(size);
       const highBits = first - off;
@@ -71,10 +74,10 @@ export function unpack7to8Rle(src: Uint8Array, estimatedDstSize?: number): Uint8
       const high = (marker & 1) !== 0;
       let runLen = marker >> 1;
       if (runLen === 31) {
-        if (si >= src.length) throw ERROR('missing extended runlen');
+        if (si >= src.length) throw ERROR("missing extended runlen");
         runLen = 31 + src[si++];
       }
-      if (si >= src.length) throw ERROR('missing value byte');
+      if (si >= src.length) throw ERROR("missing value byte");
       const value = (src[si++] & 0x7f) | (high ? 0x80 : 0);
 
       ensureCap(runLen);
@@ -94,8 +97,8 @@ const FRAME_BYTES = OLED_WIDTH * OLED_PAGES; // 768
 let oledFrame = new Uint8Array(FRAME_BYTES);
 
 // Track what content is currently drawn so we can redraw after a scale change
-type FrameKind = 'NONE' | 'OLED' | '7SEG';
-let lastKind: FrameKind = 'NONE';
+type FrameKind = "NONE" | "OLED" | "7SEG";
+let lastKind: FrameKind = "NONE";
 let lastDigits: number[] = [0, 0, 0, 0];
 let lastDots = 0;
 
@@ -148,11 +151,11 @@ export function drawOled(
   const pxW = customPixelWidth ?? displaySettings.value.pixelWidth;
   const pxH = customPixelHeight ?? displaySettings.value.pixelHeight;
 
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext("2d");
   if (!ctx) return;
   renderOledCanvas(ctx, oledFrame, pxW, pxH);
   // TAG current frame so it can be redrawn later
-  lastKind = 'OLED';
+  lastKind = "OLED";
 }
 
 export function drawOledDelta(
@@ -172,39 +175,155 @@ export function drawOledDelta(
   const pxW = customPixelWidth ?? displaySettings.value.pixelWidth;
   const pxH = customPixelHeight ?? displaySettings.value.pixelHeight;
 
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext("2d");
   if (!ctx) return;
   renderOledCanvas(ctx, oledFrame, pxW, pxH);
   // TAG current frame so it can be redrawn later
-  lastKind = 'OLED';
+  lastKind = "OLED";
 }
 
 export function draw7Seg(
   canvas: HTMLCanvasElement,
   digits: number[],
   dots: number,
-  customPixelWidth?: number,
-  customPixelHeight?: number
+  customPixelWidth: number = displaySettings.value.pixelWidth,
+  customPixelHeight: number = displaySettings.value.pixelHeight
 ): void {
+  const offsetX = 10;
+  const offsetY = 5;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  if (lastKind === "OLED") {
+    // If we're switching from OLED to 7-segment, clear the previous display
+    ctx.fillStyle = displaySettings.value.backgroundColor;
+    ctx.fillRect(
+      offsetX,
+      offsetY,
+      customPixelWidth * 128,
+      customPixelHeight * 48
+    );
+  } else {
+    // Otherwise, just clear the whole canvas
+    ctx.fillStyle = displaySettings.value.backgroundColor;
+    ctx.fillRect(
+      offsetX,
+      offsetY,
+      ctx.canvas.width - 2 * offsetX,
+      ctx.canvas.height - 2 * offsetY
+    );
+  }
+
+  // Use color settings for the 7-segment display
+  // Default red LED-like colors, but allow for customization
+  const activeColor = displaySettings.value.use7SegCustomColors
+    ? displaySettings.value.foregroundColor
+    : "#CC3333";
+  const inactiveColor = displaySettings.value.use7SegCustomColors
+    ? displaySettings.value.backgroundColor
+    : "#331111";
+
+  // Calculate dimensions based on pixel size
+  const scale = Math.min(customPixelWidth, customPixelHeight) / 5;
+
+  // Scale all dimensions proportionally
+  const digit_height = 120 * scale;
+  const digit_width = 60 * scale;
+  const stroke_thick = 9 * scale;
+  const half_height = digit_height / 2;
+  const out_adj = 0.5 * scale;
+  const in_adj = 1.5 * scale;
+  const dot_size = 6.5 * scale;
+  const digit_spacing = 13 * scale;
+
+  let off_y = offsetY + 6 * scale;
+
+  let topbot = [
+    [out_adj, 0],
+    [stroke_thick + in_adj, stroke_thick],
+    [digit_width - (stroke_thick + in_adj), stroke_thick],
+    [digit_width - out_adj, 0],
+  ];
+  let halfside = [
+    [0, out_adj],
+    [stroke_thick, stroke_thick + in_adj],
+    [stroke_thick, half_height - stroke_thick * 0.5 - in_adj],
+    [0, half_height - out_adj],
+  ];
+  let h = half_height;
+  let ht = stroke_thick;
+  let hta = stroke_thick / 2;
+  let midline = [
+    [out_adj, h],
+    [ht, h - hta],
+    [digit_width - ht, h - hta],
+    [digit_width - out_adj, h],
+    [digit_width - ht, h + hta],
+    [ht, h + hta],
+  ];
+
+  for (let d = 0; d < 4; d++) {
+    let digit = digits[d];
+    let dot = (dots & (1 << d)) != 0;
+
+    let off_x = offsetX + 8 * scale + (digit_spacing + digit_width) * d;
+
+    for (let s = 0; s < 7; s++) {
+      ctx.beginPath();
+      let path;
+      if (s == 0) {
+        path = midline;
+      } else if (s == 3 || s == 6) {
+        path = topbot;
+      } else {
+        path = halfside;
+      }
+      for (let i = 0; i < path.length; i++) {
+        let c = path[i];
+        if (s == 2 || s == 3 || s == 4) {
+          c = [c[0], digit_height - c[1]];
+        } // flip horiz
+        if (s == 4 || s == 5) {
+          c = [digit_width - c[0], c[1]];
+        } // flip vert
+        if (i == 0) {
+          ctx.moveTo(off_x + c[0], off_y + c[1]);
+        } else {
+          ctx.lineTo(off_x + c[0], off_y + c[1]);
+        }
+      }
+
+      ctx.closePath();
+
+      if (digit & (1 << s)) {
+        ctx.fillStyle = activeColor;
+      } else {
+        ctx.fillStyle = inactiveColor;
+      }
+      ctx.fill();
+    }
+
+    // the dot
+    ctx.beginPath();
+    ctx.rect(
+      off_x + digit_width + 3 * scale,
+      off_y + digit_height + 3 * scale,
+      dot_size,
+      dot_size
+    );
+    if (dot) {
+      ctx.fillStyle = activeColor;
+    } else {
+      ctx.fillStyle = inactiveColor;
+    }
+    ctx.fill();
+  }
+  // TAG current frame so it can be redrawn later
+  lastKind = "7SEG";
   // Cache values so we can redraw when size changes
   lastDigits = digits.slice(0, 4);
   lastDots = dots;
-
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-
-  const pxW = customPixelWidth ?? displaySettings.value.pixelWidth;
-  const pxH = customPixelHeight ?? displaySettings.value.pixelHeight;
-  
-  // Use color settings for the 7-segment display
-  // Default red LED-like colors, but allow for customization
-  const activeColor = displaySettings.value.use7SegCustomColors ? 
-    displaySettings.value.foregroundColor : "#CC3333";
-  const inactiveColor = displaySettings.value.use7SegCustomColors ? 
-    displaySettings.value.backgroundColor : "#331111";
-    
-  // TAG current frame so it can be redrawn later
-  lastKind = '7SEG';
 }
 
 // -----------------------------------------------------------------
@@ -242,22 +361,23 @@ export function registerCanvas(canvas: HTMLCanvasElement) {
 function redrawCurrentFrame() {
   if (!canvasRef) return;
   switch (lastKind) {
-    case 'OLED': {
-      const ctx = canvasRef.getContext('2d');
-      if (ctx) renderOledCanvas(
-        ctx, 
-        oledFrame, 
-        displaySettings.value.pixelWidth, 
-        displaySettings.value.pixelHeight
-      );
+    case "OLED": {
+      const ctx = canvasRef.getContext("2d");
+      if (ctx)
+        renderOledCanvas(
+          ctx,
+          oledFrame,
+          displaySettings.value.pixelWidth,
+          displaySettings.value.pixelHeight
+        );
       break;
     }
-    case '7SEG': {
+    case "7SEG": {
       draw7Seg(
-        canvasRef, 
-        lastDigits, 
-        lastDots, 
-        displaySettings.value.pixelWidth, 
+        canvasRef,
+        lastDigits,
+        lastDots,
+        displaySettings.value.pixelWidth,
         displaySettings.value.pixelHeight
       );
       break;
@@ -271,29 +391,30 @@ function redrawCurrentFrame() {
 // Resize the canvas based on displaySettings
 export function resizeCanvas(canvas: HTMLCanvasElement): void {
   if (!canvas) return;
-  
+
   const { pixelWidth, pixelHeight } = displaySettings.value;
-  
+
   // Set canvas dimensions exactly to display size without padding
   canvas.width = OLED_WIDTH * pixelWidth;
   canvas.height = 48 * pixelHeight;
-  
+
   // Apply pixel rendering style
-  canvas.style.imageRendering = 'pixelated';
-  
+  canvas.style.imageRendering = "pixelated";
+
   // Redraw current frame with new size
   redrawCurrentFrame();
 }
 
 /** Increase canvas pixel size by one step (up to maxSize). */
 export function increaseCanvasSize() {
-  const { pixelWidth, pixelHeight, resizeStep, minSize, maxSize } = displaySettings.value;
+  const { pixelWidth, pixelHeight, resizeStep, minSize, maxSize } =
+    displaySettings.value;
   displaySettings.value = {
     ...displaySettings.value,
     pixelWidth: Math.max(minSize, Math.min(maxSize, pixelWidth + resizeStep)),
-    pixelHeight: Math.max(minSize, Math.min(maxSize, pixelHeight + resizeStep))
+    pixelHeight: Math.max(minSize, Math.min(maxSize, pixelHeight + resizeStep)),
   };
-  
+
   if (canvasRef) {
     resizeCanvas(canvasRef);
   }
@@ -301,13 +422,14 @@ export function increaseCanvasSize() {
 
 /** Decrease canvas pixel size by one step (down to minSize). */
 export function decreaseCanvasSize() {
-  const { pixelWidth, pixelHeight, resizeStep, minSize, maxSize } = displaySettings.value;
+  const { pixelWidth, pixelHeight, resizeStep, minSize, maxSize } =
+    displaySettings.value;
   displaySettings.value = {
     ...displaySettings.value,
     pixelWidth: Math.max(minSize, Math.min(maxSize, pixelWidth - resizeStep)),
-    pixelHeight: Math.max(minSize, Math.min(maxSize, pixelHeight - resizeStep))
+    pixelHeight: Math.max(minSize, Math.min(maxSize, pixelHeight - resizeStep)),
   };
-  
+
   if (canvasRef) {
     resizeCanvas(canvasRef);
   }
@@ -323,7 +445,7 @@ export async function toggleFullScreen() {
       await document.exitFullscreen();
     }
   } catch (err) {
-    console.error('Failed to toggle full-screen', err);
+    console.error("Failed to toggle full-screen", err);
   }
 }
 
@@ -332,13 +454,13 @@ export async function toggleFullScreen() {
  */
 export function captureScreenshot() {
   if (!canvasRef) {
-    console.warn('captureScreenshot: no canvas registered');
+    console.warn("captureScreenshot: no canvas registered");
     return;
   }
-  const dataUrl = canvasRef.toDataURL('image/png');
-  const link = document.createElement('a');
+  const dataUrl = canvasRef.toDataURL("image/png");
+  const link = document.createElement("a");
   link.href = dataUrl;
-  const ts = new Date().toISOString().replace(/[:.]/g, '-');
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
   link.download = `deluge-screenshot-${ts}.png`;
   link.click();
 }
@@ -348,13 +470,13 @@ export function captureScreenshot() {
  */
 export async function copyCanvasToBase64() {
   if (!canvasRef) {
-    console.warn('copyCanvasToBase64: no canvas registered');
+    console.warn("copyCanvasToBase64: no canvas registered");
     return;
   }
-  const base64 = canvasRef.toDataURL('image/png').split(',')[1];
+  const base64 = canvasRef.toDataURL("image/png").split(",")[1];
   try {
     await navigator.clipboard.writeText(base64);
   } catch (err) {
-    console.error('Failed to copy Base64 data to clipboard', err);
+    console.error("Failed to copy Base64 data to clipboard", err);
   }
 }
