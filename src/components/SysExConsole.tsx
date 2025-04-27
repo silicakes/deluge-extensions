@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect } from "preact/hooks";
 import { sendCustomSysEx, getDebug } from "../lib/midi";
 import { copyCanvasToBase64 } from "../lib/display";
 import { clearDebug, useDebugLog } from "../lib/debug";
+import { fullscreenActive } from "../state";
 
 export const SysExConsole = () => {
   // State
@@ -75,6 +76,11 @@ export const SysExConsole = () => {
   const handleClearDebug = () => {
     clearDebug();
   };
+
+  // Don't render when in fullscreen mode
+  if (fullscreenActive.value) {
+    return null;
+  }
 
   return (
     <>

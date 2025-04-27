@@ -4,10 +4,10 @@ import { useEffect } from "preact/hooks";
 import {
   captureScreenshot,
   copyCanvasToBase64,
-  toggleFullScreen,
   increaseCanvasSize,
   decreaseCanvasSize,
 } from "../lib/display";
+import * as fullscreen from "../lib/fullscreen";
 import { Header } from "./Header";
 import { SysExConsole } from "./SysExConsole";
 import { DisplayStylePicker } from "./DisplayStylePicker";
@@ -33,7 +33,7 @@ export function App() {
           copyCanvasToBase64();
           break;
         case "f":
-          toggleFullScreen();
+          fullscreen.toggle();
           break;
         case "+":
         case "=": // usually same key with shift
@@ -55,22 +55,25 @@ export function App() {
   }, []);
 
   return (
-    <>
+    <div className="app-container">
       <Header />
       <main className="p-4 max-w-screen-lg mx-auto space-y-6">
-        {/* <Card title="Connection">
-          <MidiDeviceSelector />
-        </Card> */}
+        {/* Canvas placed outside of any container for fullscreen freedom */}
+        <div className="canvas-wrapper flex justify-center mb-6">
+          <DisplayViewer />
+        </div>
 
-        <Card title="Display">
-          {/* Toolbar & canvas */}
+        {/* Display controls and settings */}
+        <Card title="Display Controls">
+          {/* Toolbar & controls */}
           <div className="flex flex-col gap-4">
-            <div className="flex justify-between items-center flex-wrap gap-2">
+            <div className="flex justify-between items-center flex-wrap gap-2 controls">
               <DisplayControls />
               <DisplayStylePicker compact={true} />
             </div>
-            <DisplayViewer />
-            <DisplayStylePicker compact={false} />
+            <div className="settings">
+              <DisplayStylePicker compact={false} />
+            </div>
           </div>
         </Card>
 
@@ -79,6 +82,6 @@ export function App() {
 
       {/* Render the ShortcutHelpOverlay */}
       <ShortcutHelpOverlay />
-    </>
+    </div>
   );
 }

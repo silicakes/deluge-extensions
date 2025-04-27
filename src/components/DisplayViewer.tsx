@@ -1,16 +1,23 @@
-import { useEffect, useRef } from 'preact/hooks';
-import { registerCanvas, drawOled, drawOledDelta, draw7Seg, resizeCanvas } from '../lib/display';
-import { subscribeMidiListener } from '@/lib/midi';
-import { displaySettings } from '../state';
+import { useEffect, useRef } from "preact/hooks";
+import {
+  registerCanvas,
+  drawOled,
+  drawOledDelta,
+  draw7Seg,
+  resizeCanvas,
+  enterFullscreenScale,
+  exitFullscreenScale,
+} from "../lib/display";
+import { subscribeMidiListener } from "@/lib/midi";
+import { displaySettings, fullscreenActive } from "../state";
 
 /**
  * DisplayViewer – renders the Deluge OLED / 7-segment output onto a canvas.
- * At this stage it simply registers the canvas with display.ts helpers and
- * clears it on every incoming display packet. Detailed drawing logic will be
- * implemented inside the helpers later.
+ * Now positioned outside the Card container to enable proper fullscreen behavior.
  */
 export function DisplayViewer() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Register the canvas with display helpers on mount
   useEffect(() => {
@@ -25,6 +32,29 @@ export function DisplayViewer() {
       resizeCanvas(canvasRef.current);
     }
   }, [displaySettings.value]);
+
+  // Handle fullscreen changes
+  useEffect(() => {
+    if (!canvasRef.current) return;
+
+    if (fullscreenActive.value) {
+      // Apply integer scaling when entering fullscreen
+      enterFullscreenScale(canvasRef.current);
+      // Add fullscreen-mode class to body
+      document.body.classList.add("fullscreen-mode");
+      // Make sure container is visible
+      if (containerRef.current) {
+        containerRef.current.style.display = "block";
+        containerRef.current.style.visibility = "visible";
+        containerRef.current.style.opacity = "1";
+      }
+    } else {
+      // Restore original scale when exiting fullscreen
+      exitFullscreenScale(canvasRef.current);
+      // Remove fullscreen-mode class from body
+      document.body.classList.remove("fullscreen-mode");
+    }
+  }, [fullscreenActive.value]);
 
   // Subscribe to raw MIDI messages so we can feed display helpers later
   useEffect(() => {
@@ -56,8 +86,12 @@ export function DisplayViewer() {
   }, []);
 
   return (
-    <div className="border mx-auto inline-block p-0">
-      <canvas ref={canvasRef} />
+    <div
+      ref={containerRef}
+      className="screen-container border inline-block p-0 transition-all"
+      style={{ visibility: "visible", opacity: 1 }}
+    >
+      <canvas ref={canvasRef} className="image-rendering-pixelated" />
     </div>
   );
-} 
+}

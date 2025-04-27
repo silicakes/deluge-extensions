@@ -102,6 +102,11 @@ let lastKind: FrameKind = "NONE";
 let lastDigits: number[] = [0, 0, 0, 0];
 let lastDots = 0;
 
+// Add these variables near the top of the file, after existing variable declarations
+// Store previous pixel dimensions when entering fullscreen
+let previousPixelWidth = 0;
+let previousPixelHeight = 0;
+
 /** Low-level pixel renderer shared by full & delta draws */
 function renderOledCanvas(
   ctx: CanvasRenderingContext2D,
@@ -431,18 +436,80 @@ export function decreaseCanvasSize() {
   }
 }
 
-/** Toggle full-screen mode for the registered canvas. */
-export async function toggleFullScreen() {
-  if (!canvasRef) return;
-  try {
-    if (!document.fullscreenElement) {
-      await canvasRef.requestFullscreen();
-    } else {
-      await document.exitFullscreen();
-    }
-  } catch (err) {
-    console.error("Failed to toggle full-screen", err);
+/**
+ * Calculate the largest integer scale that fits the screen dimensions
+ * @returns The optimal integer scale for fullscreen
+ */
+function calculateOptimalScale(): number {
+  const screenWidth = window.innerWidth;
+  const screenHeight = window.innerHeight;
+
+  // Calculate maximum possible integer scale that fits the screen
+  // accounting for the 128×48 logical pixels of the Deluge screen
+  const scaleX = Math.floor(screenWidth / OLED_WIDTH);
+  const scaleY = Math.floor(screenHeight / 48); // 48 rows (6 pages * 8 pixels)
+
+  // Use the smaller of the two scales to ensure the entire canvas fits
+  return Math.max(1, Math.min(scaleX, scaleY));
+}
+
+/**
+ * Set the pixel scale for fullscreen mode
+ * @param canvas The canvas element to resize
+ */
+export function enterFullscreenScale(canvas: HTMLCanvasElement): void {
+  // Store current pixel dimensions
+  previousPixelWidth = displaySettings.value.pixelWidth;
+  previousPixelHeight = displaySettings.value.pixelHeight;
+
+  // Calculate optimal integer scale for fullscreen
+  const optimalScale = calculateOptimalScale();
+
+  // Update settings with the new scale
+  displaySettings.value = {
+    ...displaySettings.value,
+    pixelWidth: optimalScale,
+    pixelHeight: optimalScale,
+  };
+
+  // Apply the new dimensions
+  resizeCanvas(canvas);
+
+  // Redraw with the new scale
+  redrawCurrentFrame();
+}
+
+/**
+ * Restore the pixel scale after exiting fullscreen
+ * @param canvas The canvas element to resize
+ */
+export function exitFullscreenScale(canvas: HTMLCanvasElement): void {
+  // Restore previous pixel dimensions
+  if (previousPixelWidth > 0 && previousPixelHeight > 0) {
+    displaySettings.value = {
+      ...displaySettings.value,
+      pixelWidth: previousPixelWidth,
+      pixelHeight: previousPixelHeight,
+    };
+
+    // Reset the stored values
+    previousPixelWidth = 0;
+    previousPixelHeight = 0;
+
+    // Apply the restored dimensions
+    resizeCanvas(canvas);
+
+    // Redraw with the restored scale
+    redrawCurrentFrame();
   }
+}
+
+// Replace the existing toggleFullScreen function with this improved one
+export async function toggleFullScreen(): Promise<void> {
+  // NOTE: This function is kept for backward compatibility
+  // The actual functionality has been moved to lib/fullscreen.ts
+  const { toggle } = await import("./fullscreen");
+  toggle();
 }
 
 /**

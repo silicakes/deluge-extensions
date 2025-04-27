@@ -1,5 +1,6 @@
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import { MidiDeviceNavbar } from "./MidiDeviceNavbar";
+import { FullscreenToggleButton } from "./FullscreenToggleButton";
 
 export function Header() {
   return (
@@ -23,6 +24,7 @@ export function Header() {
 
       {/* Right: controls */}
       <div className="flex items-center gap-3 flex-wrap">
+        <FullscreenToggleButton />
         <ThemeSwitcher />
         <a
           href="https://dex.silicak.es"

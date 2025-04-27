@@ -9,6 +9,7 @@ export const autoDisplay = signal<boolean>(
   localStorage.getItem("dex-auto-display") !== "false"
 );
 export const helpOpen = signal(false);
+export const fullscreenActive = signal(false);
 
 export interface DisplaySettings {
   pixelWidth: number;
