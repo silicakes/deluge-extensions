@@ -1,6 +1,6 @@
 import { useEffect } from "preact/hooks";
 import { useSignal, useComputed } from "@preact/signals";
-import { midiIn, midiOut } from "../state";
+import { midiIn, midiOut, autoEnabled } from "../state";
 import {
   initMidi,
   getMidiInputs,
@@ -16,9 +16,6 @@ export function MidiDeviceNavbar() {
   const outputSignal = midiOut;
 
   // local UI state
-  const autoSignal = useSignal(
-    localStorage.getItem("autoConnectEnabled") === "true"
-  );
   const inputs = useSignal<MIDIInput[]>([]);
   const outputs = useSignal<MIDIOutput[]>([]);
   const online = useSignal<boolean>(navigator.onLine);
@@ -26,7 +23,7 @@ export function MidiDeviceNavbar() {
   // initialise WebMIDI and populate lists
   useEffect(() => {
     (async () => {
-      const access = await initMidi(autoSignal.value);
+      const access = await initMidi(autoEnabled.value);
       if (!access) return;
       inputs.value = getMidiInputs();
       outputs.value = getMidiOutputs();
@@ -35,12 +32,7 @@ export function MidiDeviceNavbar() {
         outputs.value = getMidiOutputs();
       };
     })();
-  }, [autoSignal.value]);
-
-  // persist auto-connect preference
-  useEffect(() => {
-    localStorage.setItem("autoConnectEnabled", autoSignal.value.toString());
-  }, [autoSignal.value]);
+  }, [autoEnabled.value]);
 
   // online/offline indicator
   useEffect(() => {
@@ -87,7 +79,7 @@ export function MidiDeviceNavbar() {
   };
   const onAutoToggle = (e: Event) => {
     const checked = (e.target as HTMLInputElement).checked;
-    autoSignal.value = checked;
+    autoEnabled.value = checked;
     if (checked) {
       autoConnectDefaultPorts();
       inputs.value = getMidiInputs();
@@ -134,7 +126,7 @@ export function MidiDeviceNavbar() {
           <input
             id="navbar-auto"
             type="checkbox"
-            checked={autoSignal.value}
+            checked={autoEnabled.value}
             onChange={onAutoToggle}
             className="sr-only peer"
           />
@@ -143,7 +135,12 @@ export function MidiDeviceNavbar() {
           {/* Switch knob */}
           <div className="absolute top-0.5 left-0.5 h-4 w-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
         </div>
-        <span className="ml-2 select-none">Auto</span>
+        <span
+          className="ml-2 select-none"
+          title="Auto-connect ports and start display polling"
+        >
+          Auto (Connect + Display)
+        </span>
       </label>
       <span
         className={`h-2 w-2 rounded-full ml-2 ${ready.value ? "bg-green-500" : "bg-red-500"}`}

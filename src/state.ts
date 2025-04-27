@@ -5,8 +5,9 @@ export const midiOut = signal<MIDIOutput | null>(null);
 export const monitorMode = signal(false);
 export const debugLog = signal<string[]>([]);
 export const theme = signal<"light" | "dark">("light");
-export const autoDisplay = signal<boolean>(
-  localStorage.getItem("dex-auto-display") !== "false"
+export const autoEnabled = signal<boolean>(
+  localStorage.getItem("autoConnectEnabled") === "true" ||
+    localStorage.getItem("dex-auto-display") !== "false"
 );
 export const helpOpen = signal(false);
 export const fullscreenActive = signal(false);

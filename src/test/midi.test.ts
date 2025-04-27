@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { sendCustomSysEx } from "@/lib/midi";
+import { sendCustomSysEx } from "../lib/midi";
 import { midiOut } from "../state";
 
 describe("sendCustomSysEx", () => {

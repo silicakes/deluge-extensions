@@ -10,7 +10,7 @@ import {
   startMonitor,
   stopMonitor,
 } from "../lib/midi";
-import { midiOut, monitorMode, autoDisplay, helpOpen } from "../state";
+import { midiOut, monitorMode, autoEnabled, helpOpen } from "../state";
 import { Button } from "./Button";
 import {
   captureScreenshot,
@@ -64,18 +64,9 @@ export function DisplayControls() {
     const newValue = !refreshSignal.value;
     refreshSignal.value = newValue;
 
-    // When manually turning off refresh, also turn off auto-display
+    // When manually turning off refresh, also turn off auto-enabled
     if (!newValue) {
-      autoDisplay.value = false;
-    }
-  };
-
-  const toggleAutoDisplay = () => {
-    autoDisplay.value = !autoDisplay.value;
-
-    // When turning off auto-display, also turn off refresh if it's running
-    if (!autoDisplay.value && refreshSignal.value) {
-      refreshSignal.value = false;
+      autoEnabled.value = false;
     }
   };
 
@@ -122,25 +113,6 @@ export function DisplayControls() {
       <Button onClick={toggleRefresh} disabled={disabled}>
         {refreshSignal.value ? "Pause" : "Refresh"}
       </Button>
-      <div
-        className="flex items-center ml-1 mr-1"
-        title="Auto-display when device connects"
-      >
-        <input
-          type="checkbox"
-          id="autoDisplayToggle"
-          checked={autoDisplay.value}
-          onChange={toggleAutoDisplay}
-          disabled={disabled}
-          className="mr-1"
-        />
-        <label
-          htmlFor="autoDisplayToggle"
-          className={disabled ? "text-gray-500" : ""}
-        >
-          Auto Display
-        </label>
-      </div>
       <Button onClick={toggleMonitor} disabled={disabled}>
         {monitorMode.value ? "Stop Monitoring" : "Monitor"}
       </Button>
