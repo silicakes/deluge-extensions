@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useRef, useCallback } from "preact/hooks";
 import {
   registerCanvas,
   drawOled,
@@ -7,9 +7,12 @@ import {
   resizeCanvas,
   enterFullscreenScale,
   exitFullscreenScale,
+  copyCanvasToBase64,
+  oledFrame,
 } from "../lib/display";
-import { subscribeMidiListener } from "@/lib/midi";
+import { subscribeMidiListener } from "../lib/midi";
 import { displaySettings, fullscreenActive } from "../state";
+import { addDebugMessage } from "../lib/debug";
 
 /**
  * DisplayViewer – renders the Deluge OLED / 7-segment output onto a canvas.
@@ -18,6 +21,7 @@ import { displaySettings, fullscreenActive } from "../state";
 export function DisplayViewer() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const lastBufferRef = useRef<Uint8Array | null>(null);
 
   // Register the canvas with display helpers on mount
   useEffect(() => {
@@ -55,6 +59,45 @@ export function DisplayViewer() {
       document.body.classList.remove("fullscreen-mode");
     }
   }, [fullscreenActive.value]);
+
+  // Handle Base64 copy action
+  const handleCopyBase64 = useCallback(async () => {
+    try {
+      if (!lastBufferRef.current) {
+        throw new Error("No display data available to copy");
+      }
+      await copyCanvasToBase64(lastBufferRef.current);
+      addDebugMessage("Base64 Gzip string copied to clipboard.");
+    } catch (err) {
+      addDebugMessage(
+        `Error: ${err instanceof Error ? err.message : String(err)}`
+      );
+      console.error("Copy to Base64 failed:", err);
+    }
+  }, []);
+
+  // Handle keyboard shortcut for copy (c/C)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip if inside an input element
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+
+      // 'c' or 'C' key to copy
+      if (e.key === "c" || e.key === "C") {
+        handleCopyBase64();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleCopyBase64]);
 
   // Listen for display:resized events to sync wrapper dimensions
   useEffect(() => {
@@ -94,10 +137,17 @@ export function DisplayViewer() {
 
       // OLED full frame
       if (data[2] === 0x02 && data[3] === 0x40 && data[4] === 1) {
+        // Store the last buffer for Base64 copy feature
         drawOled(view, data);
+        // After drawing, store a reference to the updated oledFrame
+        lastBufferRef.current = new Uint8Array(oledFrame);
       }
       // OLED delta
       else if (data[2] === 0x02 && data[3] === 0x40 && data[4] === 2) {
+        // For deltas, we still keep track of the last buffer for copy feature
+        // Just create a copy of the current oledFrame before it gets updated
+        lastBufferRef.current = new Uint8Array(oledFrame);
+
         drawOledDelta(view, data);
       }
       // 7-seg packet
@@ -121,6 +171,18 @@ export function DisplayViewer() {
         ref={canvasRef}
         className="image-rendering-pixelated border block"
       />
+
+      {/* Copy Base64 button (hidden in fullscreen mode) */}
+      {!fullscreenActive.value && (
+        <button
+          onClick={handleCopyBase64}
+          className="absolute bottom-2 right-2 px-3 py-1 bg-purple-700 hover:bg-purple-600 rounded text-sm text-white"
+          aria-label="Copy Base64 of OLED buffer"
+          title="Copy screen as Base64 (shortcut: c)"
+        >
+          Copy Base64
+        </button>
+      )}
     </div>
   );
 }

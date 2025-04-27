@@ -1,9 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/preact";
 import { DisplayViewer } from "../components/DisplayViewer";
-import { displaySettings } from "../state";
 
-// Mock the canvas registration and drawing functions
+// Mock the necessary functions
+vi.mock("../lib/debug", () => ({
+  addDebugMessage: vi.fn(),
+}));
+
 vi.mock("../lib/display", () => ({
   registerCanvas: vi.fn(),
   drawOled: vi.fn(),
@@ -12,11 +15,12 @@ vi.mock("../lib/display", () => ({
   resizeCanvas: vi.fn(),
   enterFullscreenScale: vi.fn(),
   exitFullscreenScale: vi.fn(),
+  copyCanvasToBase64: vi.fn(),
+  oledFrame: new Uint8Array(128 * 6),
 }));
 
-// Mock the MIDI listener
-vi.mock("@/lib/midi", () => ({
-  subscribeMidiListener: vi.fn(() => () => {}),
+vi.mock("../lib/midi", () => ({
+  subscribeMidiListener: vi.fn().mockReturnValue(() => {}),
 }));
 
 describe("DisplayViewer", () => {
@@ -39,6 +43,11 @@ describe("DisplayViewer", () => {
     expect(canvas).toHaveClass("border");
     expect(canvas).toHaveClass("image-rendering-pixelated");
     expect(canvas).toHaveClass("block");
+
+    // Ensure the button exists when not in fullscreen mode
+    const button = screen.getByText("Copy Base64");
+    expect(button).toBeInTheDocument();
+    expect(button).toHaveAttribute("aria-label", "Copy Base64 of OLED buffer");
   });
 
   it("listens for display:resized events", () => {

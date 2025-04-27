@@ -34,7 +34,7 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 - **✉️ Custom SysEx Commands**: Send _any_ SysEx command directly to your Deluge. Includes clickable examples for common commands!
 - **✅ Ping Test**: Quickly check the connection status to your Deluge.
 - **📸 Screenshot**: Capture the current display as a PNG image; click the camera button or press 's' to save.
-- **📋 Copy Base64**: Instantly copy the current OLED display as a gzipped, base64-encoded string (in a markdown directive) for easy sharing or embedding. Use the copy icon or press 'c'.
+- **📋 Copy Base64**: Copy the current OLED display as a gzipped, base64-encoded string (in a markdown directive) by clicking the copy icon or pressing 'c'.
 - **❓ Keyboard Shortcuts Help**: Quickly view all available keyboard shortcuts by pressing '?' or clicking the help button.
 
 ## Getting Started 🚀
@@ -85,7 +85,6 @@ DEx provides convenient keyboard shortcuts for common actions:
 - **Display Controls**: Manually trigger OLED/7-Segment updates, run a Ping test, or test internal decoding functions.
 - **Deluge Info**: Get Firmware Version and Features Status.
 - **Custom SysEx**: Input field and 'Send' button for arbitrary commands. Clickable examples provided!
-- **Copy Base64**: Use the copy icon or press 'c' to copy the current OLED display as a gzipped, base64-encoded string in a markdown directive (e.g., `::screen[...]{alt="Canvas Image"}`).
 - **Debug Output**: Shows incoming debug messages, version info, etc. Features 'Clear' and 'Auto Debug' buttons.
 
 ### Mobile Usage Tips

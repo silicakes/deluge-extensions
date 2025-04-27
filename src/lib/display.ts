@@ -94,7 +94,7 @@ export function unpack7to8Rle(
 const OLED_WIDTH = 128;
 const OLED_PAGES = 6; // 6×8 = 48 rows
 const FRAME_BYTES = OLED_WIDTH * OLED_PAGES; // 768
-let oledFrame = new Uint8Array(FRAME_BYTES);
+export let oledFrame = new Uint8Array(FRAME_BYTES);
 
 // Track what content is currently drawn so we can redraw after a scale change
 type FrameKind = "NONE" | "OLED" | "7SEG";
@@ -539,17 +539,69 @@ export function captureScreenshot() {
 }
 
 /**
- * Copy the current canvas PNG (base64 string) to the clipboard.
+ * Copy the provided OLED buffer as a gzipped Base64 string to the clipboard in the format "::screen[<base64>]".
+ * This is a low-level utility that handles compression and clipboard operations.
+ * @param buffer The OLED buffer as Uint8Array to compress and convert to Base64
+ * @returns Promise that resolves when clipboard write is complete or rejects with an error
  */
-export async function copyCanvasToBase64() {
-  if (!canvasRef) {
-    console.warn("copyCanvasToBase64: no canvas registered");
-    return;
+export async function copyBufferToClipboard(buffer: Uint8Array): Promise<void> {
+  if (!buffer || !(buffer instanceof Uint8Array)) {
+    throw new Error("No OLED data available to copy.");
   }
-  const base64 = canvasRef.toDataURL("image/png").split(",")[1];
+
+  if (!window.CompressionStream || !navigator.clipboard) {
+    throw new Error(
+      "CompressionStream or Clipboard API not supported in this browser."
+    );
+  }
+
   try {
-    await navigator.clipboard.writeText(base64);
+    // Compress the buffer with gzip
+    const compressed = await new Response(
+      new Blob([buffer]).stream().pipeThrough(new CompressionStream("gzip"))
+    ).arrayBuffer();
+
+    // Convert to base64
+    const base64Data = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split("data:application/octet-stream;base64,")[1];
+        if (!base64) {
+          reject(new Error("Could not extract base64 data"));
+          return;
+        }
+        resolve(base64);
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(
+        new File([compressed], "", { type: "application/octet-stream" })
+      );
+    });
+
+    // Create the markdown-style directive and copy to clipboard
+    const markdownString = `::screen[${base64Data}]`;
+    await navigator.clipboard.writeText(markdownString);
+
+    return;
   } catch (err) {
-    console.error("Failed to copy Base64 data to clipboard", err);
+    throw new Error(
+      `Failed to copy OLED data: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+}
+
+/**
+ * Copy the current canvas as a gzipped Base64 string to the clipboard.
+ * @param lastOled Optional OLED buffer to use; if not provided, uses the current oledFrame
+ */
+export async function copyCanvasToBase64(lastOled?: Uint8Array): Promise<void> {
+  try {
+    // Use provided buffer or fall back to the current frame
+    const buffer = lastOled || oledFrame;
+    await copyBufferToClipboard(buffer);
+  } catch (err) {
+    console.error("Copy to Base64 failed:", err);
+    throw err;
   }
 }

@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect } from "preact/hooks";
 import { sendCustomSysEx, getDebug } from "../lib/midi";
-import { copyCanvasToBase64 } from "../lib/display";
 import { clearDebug, useDebugLog } from "../lib/debug";
 import { fullscreenActive, midiOut } from "../state";
 
@@ -70,10 +69,6 @@ export const SysExConsole = () => {
 
   const handleToggleAutoDebug = () => {
     setAutoDebug((prev) => !prev);
-  };
-
-  const handleCopyBase64 = () => {
-    copyCanvasToBase64();
   };
 
   const handleClearDebug = () => {
@@ -175,15 +170,6 @@ export const SysExConsole = () => {
           <span className="ml-2 text-sm">
             Status: {autoDebug ? "ON" : "OFF"}
           </span>
-
-          <button
-            onClick={handleCopyBase64}
-            className="ml-auto px-3 py-1 bg-purple-700 hover:bg-purple-600 rounded text-sm text-white"
-            aria-label="Copy Base64 of OLED buffer"
-            disabled={disabled}
-          >
-            Copy Base64
-          </button>
         </div>
 
         {/* Custom SysEx Input */}
