@@ -13,12 +13,18 @@ import { SysExConsole } from "./SysExConsole";
 import { DisplayStylePicker } from "./DisplayStylePicker";
 import { DisplayViewer } from "./DisplayViewer";
 import { Card } from "./Card";
+import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
+import { helpOpen } from "../state";
 
 export function App() {
   // Register global keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.target && (e.target as HTMLElement).tagName === "INPUT") return; // ignore typing in inputs
+      if (
+        (e.target && (e.target as HTMLElement).tagName === "INPUT") ||
+        (e.target as HTMLElement).tagName === "TEXTAREA"
+      )
+        return; // ignore typing in inputs
       switch (e.key.toLowerCase()) {
         case "s":
           captureScreenshot();
@@ -35,6 +41,9 @@ export function App() {
           break;
         case "-":
           decreaseCanvasSize();
+          break;
+        case "?":
+          helpOpen.value = !helpOpen.value;
           break;
         default:
           return;
@@ -67,6 +76,9 @@ export function App() {
 
         <SysExConsole />
       </main>
+
+      {/* Render the ShortcutHelpOverlay */}
+      <ShortcutHelpOverlay />
     </>
   );
 }

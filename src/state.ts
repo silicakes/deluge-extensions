@@ -1,11 +1,14 @@
-import { signal } from '@preact/signals';
+import { signal } from "@preact/signals";
 
 export const midiIn = signal<MIDIInput | null>(null);
 export const midiOut = signal<MIDIOutput | null>(null);
 export const monitorMode = signal(false);
 export const debugLog = signal<string[]>([]);
-export const theme = signal<'light' | 'dark'>('light'); 
-export const autoDisplay = signal<boolean>(localStorage.getItem('dex-auto-display') !== 'false'); 
+export const theme = signal<"light" | "dark">("light");
+export const autoDisplay = signal<boolean>(
+  localStorage.getItem("dex-auto-display") !== "false"
+);
+export const helpOpen = signal(false);
 
 export interface DisplaySettings {
   pixelWidth: number;
@@ -26,5 +29,5 @@ export const displaySettings = signal<DisplaySettings>({
   use7SegCustomColors: false,
   minSize: 1,
   maxSize: 32,
-  resizeStep: 1
-}); 
+  resizeStep: 1,
+});

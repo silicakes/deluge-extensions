@@ -35,6 +35,7 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 - **✅ Ping Test**: Quickly check the connection status to your Deluge.
 - **📸 Screenshot**: Capture the current display as a PNG image; click the camera button or press 's' to save.
 - **📋 Copy Base64**: Instantly copy the current OLED display as a gzipped, base64-encoded string (in a markdown directive) for easy sharing or embedding. Use the copy icon or press 'c'.
+- **❓ Keyboard Shortcuts Help**: Quickly view all available keyboard shortcuts by pressing '?' or clicking the help button.
 
 ## Getting Started 🚀
 
@@ -64,7 +65,19 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 - **Full Screen**: Enters a distraction-free fullscreen mode that optimizes the display for your current device and screen size. Press 'ESC' or tap the button again to exit.
 - **📸 Screenshot**: Download a snapshot of the current canvas as a PNG by clicking the camera icon or pressing 's'.
 - **📋 Copy Base64**: Copy the current OLED display as a gzipped, base64-encoded string (in a markdown directive) by clicking the copy icon or pressing 'c'.
+- **❓ Keyboard Help**: View all available keyboard shortcuts by clicking the question mark icon or pressing '?'.
 - **⚙️ (Gear Icon)**: Opens the Advanced Settings Drawer.
+
+### Keyboard Shortcuts
+
+DEx provides convenient keyboard shortcuts for common actions:
+
+- **S**: Capture screenshot
+- **C**: Copy canvas as base64
+- **F**: Toggle fullscreen
+- **+ / =**: Increase canvas size
+- **-**: Decrease canvas size
+- **?**: Toggle keyboard shortcuts help overlay
 
 ### Advanced Settings Drawer
 
