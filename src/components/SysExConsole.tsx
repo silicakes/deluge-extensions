@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect } from "preact/hooks";
 import { sendCustomSysEx, getDebug } from "../lib/midi";
 import { copyCanvasToBase64 } from "../lib/display";
 import { clearDebug, useDebugLog } from "../lib/debug";
-import { fullscreenActive } from "../state";
+import { fullscreenActive, midiOut } from "../state";
 
 export const SysExConsole = () => {
   // State
@@ -12,6 +12,9 @@ export const SysExConsole = () => {
   const debugLogRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const debugLog = useDebugLog();
+
+  // Disable controls if no MIDI out or offline
+  const disabled = !midiOut.value || !navigator.onLine;
 
   // Auto debug polling effect
   useEffect(() => {
@@ -77,6 +80,10 @@ export const SysExConsole = () => {
     clearDebug();
   };
 
+  const handleFetchDebug = () => {
+    getDebug();
+  };
+
   // Don't render when in fullscreen mode
   if (fullscreenActive.value) {
     return null;
@@ -115,13 +122,23 @@ export const SysExConsole = () => {
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b border-[var(--color-border)]">
           <h2 className="text-lg font-semibold">SysEx Console</h2>
-          <button
-            onClick={() => setIsOpen(false)}
-            className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-            aria-label="Close SysEx Console"
-          >
-            &times;
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleFetchDebug}
+              className="px-3 py-1 bg-blue-700 hover:bg-blue-600 rounded text-sm text-white"
+              disabled={disabled}
+              aria-label="Fetch debug data once"
+            >
+              Fetch once
+            </button>
+            <button
+              onClick={() => setIsOpen(false)}
+              className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              aria-label="Close SysEx Console"
+            >
+              &times;
+            </button>
+          </div>
         </div>
 
         {/* Debug Log */}
@@ -150,6 +167,7 @@ export const SysExConsole = () => {
             onClick={handleToggleAutoDebug}
             className={`px-3 py-1 rounded text-sm text-white ${autoDebug ? "bg-green-700 hover:bg-green-600" : "bg-blue-700 hover:bg-blue-600"}`}
             aria-label={autoDebug ? "Stop auto-debug" : "Start auto-debug"}
+            disabled={disabled}
           >
             {autoDebug ? "Stop Auto" : "Auto"}
           </button>
@@ -162,6 +180,7 @@ export const SysExConsole = () => {
             onClick={handleCopyBase64}
             className="ml-auto px-3 py-1 bg-purple-700 hover:bg-purple-600 rounded text-sm text-white"
             aria-label="Copy Base64 of OLED buffer"
+            disabled={disabled}
           >
             Copy Base64
           </button>
@@ -184,6 +203,7 @@ export const SysExConsole = () => {
             onClick={handleSendCustomSysEx}
             className="px-3 py-1 bg-blue-700 hover:bg-blue-600 rounded text-white"
             aria-label="Send custom SysEx command"
+            disabled={disabled}
           >
             Send
           </button>

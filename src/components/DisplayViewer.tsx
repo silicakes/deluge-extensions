@@ -56,6 +56,31 @@ export function DisplayViewer() {
     }
   }, [fullscreenActive.value]);
 
+  // Listen for display:resized events to sync wrapper dimensions
+  useEffect(() => {
+    const handleDisplayResized = (e: CustomEvent) => {
+      if (containerRef.current) {
+        containerRef.current.style.width = `${e.detail.width}px`;
+        containerRef.current.style.height = `${e.detail.height}px`;
+      }
+    };
+
+    // Use capture to get event before anyone else
+    window.addEventListener(
+      "display:resized",
+      handleDisplayResized as EventListener,
+      true
+    );
+
+    return () => {
+      window.removeEventListener(
+        "display:resized",
+        handleDisplayResized as EventListener,
+        true
+      );
+    };
+  }, []);
+
   // Subscribe to raw MIDI messages so we can feed display helpers later
   useEffect(() => {
     const unsubscribe = subscribeMidiListener((e) => {
@@ -87,11 +112,15 @@ export function DisplayViewer() {
 
   return (
     <div
+      id="display-wrapper"
       ref={containerRef}
-      className="screen-container border inline-block p-0 transition-all"
+      className="screen-container inline-block p-0 transition-all"
       style={{ visibility: "visible", opacity: 1 }}
     >
-      <canvas ref={canvasRef} className="image-rendering-pixelated" />
+      <canvas
+        ref={canvasRef}
+        className="image-rendering-pixelated border block"
+      />
     </div>
   );
 }

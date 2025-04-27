@@ -396,11 +396,21 @@ export function resizeCanvas(canvas: HTMLCanvasElement): void {
   const { pixelWidth, pixelHeight } = displaySettings.value;
 
   // Set canvas dimensions exactly to display size without padding
-  canvas.width = OLED_WIDTH * pixelWidth;
-  canvas.height = 48 * pixelHeight;
+  const width = OLED_WIDTH * pixelWidth;
+  const height = 48 * pixelHeight;
+
+  canvas.width = width;
+  canvas.height = height;
 
   // Apply pixel rendering style
   canvas.style.imageRendering = "pixelated";
+
+  // Emit a custom event with new dimensions for wrapper to listen to
+  window.dispatchEvent(
+    new CustomEvent("display:resized", {
+      detail: { width, height },
+    })
+  );
 
   // Redraw current frame with new size
   redrawCurrentFrame();

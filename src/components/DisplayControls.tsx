@@ -5,7 +5,6 @@ import {
   getOled,
   get7Seg,
   flipScreen,
-  getDebug,
   getDisplay,
   startMonitor,
   stopMonitor,
@@ -14,7 +13,6 @@ import { midiOut, monitorMode, autoEnabled, helpOpen } from "../state";
 import { Button } from "./Button";
 import {
   captureScreenshot,
-  copyCanvasToBase64,
   toggleFullScreen,
   increaseCanvasSize,
   decreaseCanvasSize,
@@ -46,11 +44,9 @@ export function DisplayControls() {
   const handleOled = () => getOled();
   const handle7Seg = () => get7Seg();
   const handleFlip = () => flipScreen();
-  const handleDebug = () => getDebug();
 
   // Handlers for new controls
   const handleScreenshot = () => captureScreenshot();
-  const handleCopy = () => copyCanvasToBase64();
   const handleFullScreen = () => toggleFullScreen();
   const handleIncrease = () => increaseCanvasSize();
   const handleDecrease = () => decreaseCanvasSize();
@@ -107,9 +103,6 @@ export function DisplayControls() {
       <Button onClick={handleFlip} disabled={disabled}>
         Switch display type
       </Button>
-      <Button onClick={handleDebug} disabled={disabled}>
-        Get Debug
-      </Button>
       <Button onClick={toggleRefresh} disabled={disabled}>
         {refreshSignal.value ? "Pause" : "Refresh"}
       </Button>
@@ -118,9 +111,6 @@ export function DisplayControls() {
       </Button>
       <Button onClick={handleScreenshot} disabled={disabled}>
         📸 Screenshot
-      </Button>
-      <Button onClick={handleCopy} disabled={disabled}>
-        📋 Copy Base64
       </Button>
       <Button
         onClick={handleHelp}

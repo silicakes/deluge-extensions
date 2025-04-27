@@ -12,9 +12,6 @@ export function Header() {
           alt="DEx Logo"
           className="h-8 w-auto md:h-10"
         />
-        <h1 className="text-xl md:text-2xl font-bold tracking-tight">
-          Deluge Extensions
-        </h1>
       </div>
 
       {/* Center: MIDI device navbar */}

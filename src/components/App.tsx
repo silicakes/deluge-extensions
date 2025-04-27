@@ -57,23 +57,19 @@ export function App() {
   return (
     <div className="app-container">
       <Header />
-      <main className="p-4 max-w-screen-lg mx-auto space-y-6">
-        {/* Canvas placed outside of any container for fullscreen freedom */}
-        <div className="canvas-wrapper flex justify-center mb-6">
-          <DisplayViewer />
-        </div>
 
+      {/* Canvas placed outside the main container for unlimited growth in both directions */}
+      <div className="w-full flex justify-center my-6">
+        <DisplayViewer />
+      </div>
+
+      <main className="p-4 max-w-screen-lg mx-auto space-y-6">
         {/* Display controls and settings */}
         <Card title="Display Controls">
           {/* Toolbar & controls */}
-          <div className="flex flex-col gap-4">
-            <div className="flex justify-between items-center flex-wrap gap-2 controls">
-              <DisplayControls />
-              <DisplayStylePicker compact={true} />
-            </div>
-            <div className="settings">
-              <DisplayStylePicker compact={false} />
-            </div>
+          <div className="flex justify-between items-center flex-wrap gap-2 controls">
+            <DisplayControls />
+            <DisplayStylePicker compact={true} />
           </div>
         </Card>
 
