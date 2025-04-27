@@ -176,7 +176,7 @@ export function DisplayViewer() {
       {!fullscreenActive.value && (
         <button
           onClick={handleCopyBase64}
-          className="absolute bottom-2 right-2 px-3 py-1 bg-purple-700 hover:bg-purple-600 rounded text-sm text-white"
+          className="absolute bottom-4 right-4 px-3 py-1 bg-purple-700 hover:bg-purple-600 rounded text-sm text-white"
           aria-label="Copy Base64 of OLED buffer"
           title="Copy screen as Base64 (shortcut: c)"
         >
