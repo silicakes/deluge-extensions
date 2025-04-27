@@ -150,21 +150,6 @@ export function DisplayControls() {
       <Button onClick={handleCopy} disabled={disabled}>
         📋 Copy Base64
       </Button>
-      <Button onClick={handleFullScreen} disabled={disabled}>
-        {fullScreenSignal.value ? "Exit Full" : "Full Screen"}
-      </Button>
-      <Button
-        onClick={handleIncrease}
-        disabled={disabled || fullScreenSignal.value}
-      >
-        ＋ Size
-      </Button>
-      <Button
-        onClick={handleDecrease}
-        disabled={disabled || fullScreenSignal.value}
-      >
-        － Size
-      </Button>
       <Button
         onClick={handleHelp}
         aria-label="Keyboard help (?)"
