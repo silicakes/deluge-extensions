@@ -1,4 +1,4 @@
-import { useSignal, useComputed } from "@preact/signals";
+import { useSignal } from "@preact/signals";
 import { useEffect } from "preact/hooks";
 import { fullscreenActive } from "../state";
 import * as fullscreen from "../lib/fullscreen";

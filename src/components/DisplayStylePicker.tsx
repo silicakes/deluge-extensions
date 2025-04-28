@@ -6,7 +6,7 @@ import { displaySettings, DisplaySettings } from "../state";
 /**
  * A custom hook for debouncing function calls
  */
-function useDebouncedCallback<T extends (...args: any[]) => void>(
+function useDebouncedCallback<T extends (...args: unknown[]) => void>(
   callback: T,
   delay: number
 ) {

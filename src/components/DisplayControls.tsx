@@ -11,14 +11,7 @@ import {
 } from "../lib/midi";
 import { midiOut, monitorMode, autoEnabled, helpOpen } from "../state";
 import { Button } from "./Button";
-import {
-  captureScreenshot,
-  toggleFullScreen,
-  increaseCanvasSize,
-  decreaseCanvasSize,
-  startPolling,
-  stopPolling,
-} from "../lib/display";
+import { captureScreenshot, startPolling, stopPolling } from "../lib/display";
 
 export function DisplayControls() {
   // Local signal for refresh toggle
@@ -47,9 +40,6 @@ export function DisplayControls() {
 
   // Handlers for new controls
   const handleScreenshot = () => captureScreenshot();
-  const handleFullScreen = () => toggleFullScreen();
-  const handleIncrease = () => increaseCanvasSize();
-  const handleDecrease = () => decreaseCanvasSize();
 
   // Handler for help
   const handleHelp = () => {

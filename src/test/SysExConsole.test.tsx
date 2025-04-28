@@ -25,7 +25,7 @@ describe("SysExConsole", () => {
     vi.clearAllMocks();
 
     // Reset midiOut state before each test
-    midiOut.value = { send: vi.fn() } as any;
+    midiOut.value = { send: vi.fn() } as unknown as MIDIOutput;
   });
 
   it("renders debug console toggle button", () => {

@@ -1,5 +1,5 @@
 // Setup for Vitest environment
-import { vi, expect } from "vitest";
+import { vi } from "vitest";
 import "@testing-library/jest-dom"; // Add custom DOM matchers
 
 // Mock navigator.requestMIDIAccess

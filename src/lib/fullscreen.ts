@@ -22,7 +22,9 @@ export async function request(): Promise<void> {
     // Request wake lock on mobile if supported
     if (isMobile && "wakeLock" in navigator) {
       try {
-        wakeLockSentinel = await (navigator as any).wakeLock.request("screen");
+        wakeLockSentinel = await (navigator as Navigator).wakeLock.request(
+          "screen"
+        );
       } catch (err) {
         console.error("Failed to request wake lock:", err);
       }

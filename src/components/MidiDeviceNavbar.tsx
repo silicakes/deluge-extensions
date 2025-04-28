@@ -54,7 +54,6 @@ export function MidiDeviceNavbar() {
       setMidiInput(inputs.value.find((d) => d.id === inId) || null);
     if (outId && !outputSignal.value)
       setMidiOutput(outputs.value.find((d) => d.id === outId) || null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputs.value.length, outputs.value.length]);
 
   // persist selected ports

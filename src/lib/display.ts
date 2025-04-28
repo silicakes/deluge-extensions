@@ -1,7 +1,7 @@
 /** display.ts - Display rendering helpers ported from legacy code */
 
 import * as midi from "./midi";
-import { displaySettings } from "../state";
+import { displaySettings, displayType } from "../state";
 
 /**
  * Unpacks data encoded with a 7-to-8 bit RLE scheme.
@@ -94,6 +94,13 @@ export function unpack7to8Rle(
 const OLED_WIDTH = 128;
 const OLED_PAGES = 6; // 6×8 = 48 rows
 const FRAME_BYTES = OLED_WIDTH * OLED_PAGES; // 768
+
+// Display dimensions metadata - used for proper scaling
+export const DISPLAY_META = {
+  OLED: { w: 128, h: 48 }, // px
+  "7SEG": { w: 88, h: 40 }, // 4 digits (22px each) + 3 dot columns (2px)
+} as const;
+
 export let oledFrame = new Uint8Array(FRAME_BYTES);
 
 // Track what content is currently drawn so we can redraw after a scale change
@@ -102,10 +109,35 @@ let lastKind: FrameKind = "NONE";
 let lastDigits: number[] = [0, 0, 0, 0];
 let lastDots = 0;
 
-// Add these variables near the top of the file, after existing variable declarations
 // Store previous pixel dimensions when entering fullscreen
 let previousPixelWidth = 0;
 let previousPixelHeight = 0;
+
+/**
+ * Computes canvas dimensions based on display type and pixel size
+ * @param type Display type ("OLED" or "7SEG")
+ * @param pixelWidth Width of each logical pixel in CSS pixels
+ * @param pixelHeight Height of each logical pixel in CSS pixels
+ * @returns Canvas dimensions and offset for centering
+ */
+export function computeCanvasDims(
+  type: "OLED" | "7SEG",
+  pixelWidth: number,
+  pixelHeight: number
+): { cssW: number; cssH: number; offsetX: number; offsetY: number } {
+  const meta = DISPLAY_META[type];
+  const cssW = meta.w * pixelWidth;
+  const cssH = meta.h * pixelHeight;
+
+  // For now, we're not centering with offset,
+  // but the function is set up to support it in the future
+  return {
+    cssW,
+    cssH,
+    offsetX: 0,
+    offsetY: 0,
+  };
+}
 
 /** Low-level pixel renderer shared by full & delta draws */
 function renderOledCanvas(
@@ -152,10 +184,25 @@ export function drawOled(
   const pxW = customPixelWidth ?? displaySettings.value.pixelWidth;
   const pxH = customPixelHeight ?? displaySettings.value.pixelHeight;
 
+  // Always resize the canvas to match OLED dimensions
+  const width = DISPLAY_META.OLED.w * pxW;
+  const height = DISPLAY_META.OLED.h * pxH;
+  canvas.width = width;
+  canvas.height = height;
+
+  // Dispatch a resize event (important for container to adjust)
+  window.dispatchEvent(
+    new CustomEvent("display:resized", {
+      detail: { width, height, offsetX: 0, offsetY: 0 },
+    })
+  );
+
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   renderOledCanvas(ctx, oledFrame, pxW, pxH);
-  // TAG current frame so it can be redrawn later
+
+  // Update display type and last kind
+  displayType.value = "OLED";
   lastKind = "OLED";
 }
 
@@ -176,48 +223,54 @@ export function drawOledDelta(
   const pxW = customPixelWidth ?? displaySettings.value.pixelWidth;
   const pxH = customPixelHeight ?? displaySettings.value.pixelHeight;
 
+  // Always resize the canvas to match OLED dimensions
+  const width = DISPLAY_META.OLED.w * pxW;
+  const height = DISPLAY_META.OLED.h * pxH;
+  canvas.width = width;
+  canvas.height = height;
+
+  // Dispatch a resize event (important for container to adjust)
+  window.dispatchEvent(
+    new CustomEvent("display:resized", {
+      detail: { width, height, offsetX: 0, offsetY: 0 },
+    })
+  );
+
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   renderOledCanvas(ctx, oledFrame, pxW, pxH);
-  // TAG current frame so it can be redrawn later
+
+  // Update display type and last kind
+  displayType.value = "OLED";
   lastKind = "OLED";
 }
 
-export function draw7Seg(
-  canvas: HTMLCanvasElement,
+// 7-segment display segment mapping lookup table (0-F)
+
+/**
+ * Renders 7-segment display buffer to canvas with proper scaling
+ * @param ctx Canvas context to draw on
+ * @param digits Array of 4 digit values (0-F)
+ * @param dots Bitmap indicating which decimal points are active
+ * @param pixelWidth Width of each logical pixel in CSS pixels
+ * @param pixelHeight Height of each logical pixel in CSS pixels
+ */
+export function render7Seg(
+  ctx: CanvasRenderingContext2D,
   digits: number[],
   dots: number,
-  customPixelWidth: number = displaySettings.value.pixelWidth,
-  customPixelHeight: number = displaySettings.value.pixelHeight
+  pixelWidth: number,
+  pixelHeight: number
 ): void {
-  const offsetX = 10;
-  const offsetY = 5;
+  // Get canvas dimensions (or use default OLED dimensions for tests)
+  const canvasWidth = ctx.canvas?.width ?? DISPLAY_META.OLED.w * pixelWidth;
+  const canvasHeight = ctx.canvas?.height ?? DISPLAY_META.OLED.h * pixelHeight;
 
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-
-  if (lastKind === "OLED") {
-    // If we're switching from OLED to 7-segment, clear the previous display
-    ctx.fillStyle = displaySettings.value.backgroundColor;
-    ctx.fillRect(
-      offsetX,
-      offsetY,
-      customPixelWidth * 128,
-      customPixelHeight * 48
-    );
-  } else {
-    // Otherwise, just clear the whole canvas
-    ctx.fillStyle = displaySettings.value.backgroundColor;
-    ctx.fillRect(
-      offsetX,
-      offsetY,
-      ctx.canvas.width - 2 * offsetX,
-      ctx.canvas.height - 2 * offsetY
-    );
-  }
+  // Clear the entire canvas with the background color
+  ctx.fillStyle = displaySettings.value.backgroundColor;
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
   // Use color settings for the 7-segment display
-  // Default red LED-like colors, but allow for customization
   const activeColor = displaySettings.value.use7SegCustomColors
     ? displaySettings.value.foregroundColor
     : "#CC3333";
@@ -225,10 +278,10 @@ export function draw7Seg(
     ? displaySettings.value.backgroundColor
     : "#331111";
 
-  // Calculate dimensions based on pixel size
-  const scale = Math.min(customPixelWidth, customPixelHeight) / 5;
+  // Calculate scale factor based on pixel size - match original scaling
+  const scale = Math.min(pixelWidth, pixelHeight) / 5;
 
-  // Scale all dimensions proportionally
+  // Scale all dimensions proportionally (using exact values from original code)
   const digit_height = 120 * scale;
   const digit_width = 60 * scale;
   const stroke_thick = 9 * scale;
@@ -238,24 +291,32 @@ export function draw7Seg(
   const dot_size = 6.5 * scale;
   const digit_spacing = 13 * scale;
 
-  let off_y = offsetY + 6 * scale;
+  // Calculate total width of the 7-segment display to center it
+  const total_7seg_width = 4 * digit_width + 3 * digit_spacing + 16 * scale; // 4 digits + spacing + margins
 
-  let topbot = [
+  // Calculate centering offsets
+  const offset_x = Math.max(0, (canvasWidth - total_7seg_width) / 2);
+  const offset_y = Math.max(0, (canvasHeight - digit_height - 12 * scale) / 2);
+
+  // Define segment path arrays exactly as in the original
+  const topbot = [
     [out_adj, 0],
     [stroke_thick + in_adj, stroke_thick],
     [digit_width - (stroke_thick + in_adj), stroke_thick],
     [digit_width - out_adj, 0],
   ];
-  let halfside = [
+
+  const halfside = [
     [0, out_adj],
     [stroke_thick, stroke_thick + in_adj],
     [stroke_thick, half_height - stroke_thick * 0.5 - in_adj],
     [0, half_height - out_adj],
   ];
-  let h = half_height;
-  let ht = stroke_thick;
-  let hta = stroke_thick / 2;
-  let midline = [
+
+  const h = half_height;
+  const ht = stroke_thick;
+  const hta = stroke_thick / 2;
+  const midline = [
     [out_adj, h],
     [ht, h - hta],
     [digit_width - ht, h - hta],
@@ -264,67 +325,101 @@ export function draw7Seg(
     [ht, h + hta],
   ];
 
+  // Draw each digit
   for (let d = 0; d < 4; d++) {
-    let digit = digits[d];
-    let dot = (dots & (1 << d)) != 0;
+    const digit = digits[d];
+    const dot = (dots & (1 << d)) !== 0;
 
-    let off_x = offsetX + 8 * scale + (digit_spacing + digit_width) * d;
+    // X offset for this digit - add the centering offset
+    const off_x = offset_x + 8 * scale + (digit_spacing + digit_width) * d;
 
+    // Draw all 7 segments
     for (let s = 0; s < 7; s++) {
       ctx.beginPath();
+
+      // Select the appropriate path for this segment
       let path;
-      if (s == 0) {
+      if (s === 0) {
         path = midline;
-      } else if (s == 3 || s == 6) {
+      } else if (s === 3 || s === 6) {
         path = topbot;
       } else {
         path = halfside;
       }
+
+      // Draw the segment path exactly as in the original
       for (let i = 0; i < path.length; i++) {
-        let c = path[i];
-        if (s == 2 || s == 3 || s == 4) {
-          c = [c[0], digit_height - c[1]];
-        } // flip horiz
-        if (s == 4 || s == 5) {
-          c = [digit_width - c[0], c[1]];
-        } // flip vert
-        if (i == 0) {
-          ctx.moveTo(off_x + c[0], off_y + c[1]);
+        const c = [...path[i]]; // Clone the point to avoid modifying the original
+
+        // Apply transformations based on segment position (exact same as original)
+        if (s === 2 || s === 3 || s === 4) {
+          c[1] = digit_height - c[1]; // Flip horizontally
+        }
+        if (s === 4 || s === 5) {
+          c[0] = digit_width - c[0]; // Flip vertically
+        }
+
+        // Create the path with added vertical offset
+        if (i === 0) {
+          ctx.moveTo(off_x + c[0], offset_y + 6 * scale + c[1]);
         } else {
-          ctx.lineTo(off_x + c[0], off_y + c[1]);
+          ctx.lineTo(off_x + c[0], offset_y + 6 * scale + c[1]);
         }
       }
 
       ctx.closePath();
 
-      if (digit & (1 << s)) {
-        ctx.fillStyle = activeColor;
-      } else {
-        ctx.fillStyle = inactiveColor;
-      }
+      // Fill with active or inactive color
+      ctx.fillStyle = (digit & (1 << s)) !== 0 ? activeColor : inactiveColor;
       ctx.fill();
     }
 
-    // the dot
+    // Draw the decimal point - exactly as in original code
     ctx.beginPath();
     ctx.rect(
       off_x + digit_width + 3 * scale,
-      off_y + digit_height + 3 * scale,
+      offset_y + 6 * scale + digit_height + 3 * scale,
       dot_size,
       dot_size
     );
-    if (dot) {
-      ctx.fillStyle = activeColor;
-    } else {
-      ctx.fillStyle = inactiveColor;
-    }
+    ctx.fillStyle = dot ? activeColor : inactiveColor;
     ctx.fill();
   }
-  // TAG current frame so it can be redrawn later
+
+  // Track last state for redraw
   lastKind = "7SEG";
-  // Cache values so we can redraw when size changes
-  lastDigits = digits.slice(0, 4);
+  lastDigits = [...digits];
   lastDots = dots;
+}
+
+export function draw7Seg(
+  canvas: HTMLCanvasElement,
+  digits: number[],
+  dots: number,
+  customPixelWidth: number = displaySettings.value.pixelWidth,
+  customPixelHeight: number = displaySettings.value.pixelHeight
+): void {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  // Use the OLED dimensions for the canvas size to ensure consistent physical dimensions
+  const width = DISPLAY_META.OLED.w * customPixelWidth;
+  const height = DISPLAY_META.OLED.h * customPixelHeight;
+  canvas.width = width;
+  canvas.height = height;
+
+  // Dispatch a resize event (important for container to adjust)
+  window.dispatchEvent(
+    new CustomEvent("display:resized", {
+      detail: { width, height, offsetX: 0, offsetY: 0 },
+    })
+  );
+
+  // Render 7-segment display
+  render7Seg(ctx, digits, dots, customPixelWidth, customPixelHeight);
+
+  // Update display type
+  displayType.value = "7SEG";
 }
 
 // -----------------------------------------------------------------
@@ -361,26 +456,23 @@ export function registerCanvas(canvas: HTMLCanvasElement) {
 /** Redraw the most recent frame buffer after canvas dimensions change */
 function redrawCurrentFrame() {
   if (!canvasRef) return;
+
+  const { pixelWidth, pixelHeight } = displaySettings.value;
+
+  // Always use OLED dimensions for consistent sizing
+  const cssW = DISPLAY_META.OLED.w * pixelWidth;
+  const cssH = DISPLAY_META.OLED.h * pixelHeight;
+  canvasRef.width = cssW;
+  canvasRef.height = cssH;
+
   switch (lastKind) {
     case "OLED": {
       const ctx = canvasRef.getContext("2d");
-      if (ctx)
-        renderOledCanvas(
-          ctx,
-          oledFrame,
-          displaySettings.value.pixelWidth,
-          displaySettings.value.pixelHeight
-        );
+      if (ctx) renderOledCanvas(ctx, oledFrame, pixelWidth, pixelHeight);
       break;
     }
     case "7SEG": {
-      draw7Seg(
-        canvasRef,
-        lastDigits,
-        lastDots,
-        displaySettings.value.pixelWidth,
-        displaySettings.value.pixelHeight
-      );
+      draw7Seg(canvasRef, lastDigits, lastDots, pixelWidth, pixelHeight);
       break;
     }
     default:
@@ -394,13 +486,15 @@ export function resizeCanvas(canvas: HTMLCanvasElement): void {
   if (!canvas) return;
 
   const { pixelWidth, pixelHeight } = displaySettings.value;
+  const type = displayType.value; // Get current display type from signal
 
-  // Set canvas dimensions exactly to display size without padding
-  const width = OLED_WIDTH * pixelWidth;
-  const height = 48 * pixelHeight;
+  // Always use OLED dimensions for consistent sizing
+  const cssW = DISPLAY_META.OLED.w * pixelWidth;
+  const cssH = DISPLAY_META.OLED.h * pixelHeight;
 
-  canvas.width = width;
-  canvas.height = height;
+  // Set canvas dimensions
+  canvas.width = cssW;
+  canvas.height = cssH;
 
   // Apply pixel rendering style
   canvas.style.imageRendering = "pixelated";
@@ -408,9 +502,18 @@ export function resizeCanvas(canvas: HTMLCanvasElement): void {
   // Emit a custom event with new dimensions for wrapper to listen to
   window.dispatchEvent(
     new CustomEvent("display:resized", {
-      detail: { width, height },
+      detail: { width: cssW, height: cssH },
     })
   );
+
+  // If the current display type doesn't match lastKind, update lastKind to match
+  // This ensures we're always using the correct renderer when switching types
+  if (
+    (type === "OLED" && lastKind !== "OLED") ||
+    (type === "7SEG" && lastKind !== "7SEG")
+  ) {
+    lastKind = type;
+  }
 
   // Redraw current frame with new size
   redrawCurrentFrame();
@@ -453,11 +556,12 @@ export function decreaseCanvasSize() {
 function calculateOptimalScale(): number {
   const screenWidth = window.innerWidth;
   const screenHeight = window.innerHeight;
+  const type = displayType.value;
+  const meta = DISPLAY_META[type];
 
   // Calculate maximum possible integer scale that fits the screen
-  // accounting for the 128×48 logical pixels of the Deluge screen
-  const scaleX = Math.floor(screenWidth / OLED_WIDTH);
-  const scaleY = Math.floor(screenHeight / 48); // 48 rows (6 pages * 8 pixels)
+  const scaleX = Math.floor(screenWidth / meta.w);
+  const scaleY = Math.floor(screenHeight / meta.h);
 
   // Use the smaller of the two scales to ensure the entire canvas fits
   return Math.max(1, Math.min(scaleX, scaleY));

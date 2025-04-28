@@ -11,6 +11,7 @@ export const autoEnabled = signal<boolean>(
 );
 export const helpOpen = signal(false);
 export const fullscreenActive = signal(false);
+export const displayType = signal<"OLED" | "7SEG">("OLED");
 
 export interface DisplaySettings {
   pixelWidth: number;

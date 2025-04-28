@@ -68,7 +68,7 @@ export function setMidiOutput(output: MIDIOutput | null) {
 }
 
 /** Handle hot-plug state changes */
-function handleStateChange(_ev: MIDIConnectionEvent) {
+function handleStateChange() {
   updateDeviceLists();
 }
 
@@ -118,7 +118,7 @@ function handleMidiMessage(event: MIDIMessageEvent) {
           const textBytes = event.data.slice(5, event.data.length - 1); // Exclude F7 at the end
           const text = String.fromCharCode.apply(null, Array.from(textBytes));
           addDebugMessage(`Message from Deluge: ${text}`);
-        } catch (e) {
+        } catch {
           addDebugMessage(`Debug message received (binary): ${bytes}`);
         }
       } else {
