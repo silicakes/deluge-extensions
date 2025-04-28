@@ -24,7 +24,7 @@ effect(() => {
 
 // Auto-display behaviour
 effect(() => {
-  if (autoEnabled.value && navigator.onLine && midiOut.value) {
+  if (autoEnabled.value && midiOut.value) {
     getDisplay(true);
     startPolling();
   } else {

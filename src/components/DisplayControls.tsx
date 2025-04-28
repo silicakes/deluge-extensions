@@ -24,8 +24,8 @@ export function DisplayControls() {
   // Local signal for refresh toggle
   const refreshSignal = useSignal(false);
 
-  // Disable controls if no MIDI out or offline
-  const disabled = !midiOut.value || !navigator.onLine;
+  // Disable controls if no MIDI out
+  const disabled = !midiOut.value;
 
   // Add new signals for fullscreen state to disable size buttons accordingly
   const fullScreenSignal = useSignal<boolean>(!!document.fullscreenElement);

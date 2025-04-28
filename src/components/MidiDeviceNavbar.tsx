@@ -65,7 +65,7 @@ export function MidiDeviceNavbar() {
     localStorage.setItem("midiOutPortId", outputSignal.value?.id || "");
   }, [outputSignal.value]);
 
-  const ready = useComputed(() => online.value && !!outputSignal.value);
+  const ready = useComputed(() => !!outputSignal.value);
 
   const onInputChange = (e: Event) => {
     const id = (e.target as HTMLSelectElement).value;
@@ -142,10 +142,22 @@ export function MidiDeviceNavbar() {
           Auto (Connect + Display)
         </span>
       </label>
-      <span
-        className={`h-2 w-2 rounded-full ml-2 ${ready.value ? "bg-green-500" : "bg-red-500"}`}
-        title={ready.value ? "webmidi ready" : "offline"}
-      ></span>
+      <div className="flex items-center gap-1 ml-2">
+        {/* MIDI status indicator */}
+        <span
+          className={`h-2 w-2 rounded-full ${ready.value ? "bg-green-500" : "bg-red-500"}`}
+          title={ready.value ? "MIDI ready" : "No MIDI output selected"}
+        ></span>
+        {/* Network status indicator - only visible when offline */}
+        {!online.value && (
+          <span
+            className="text-xs px-1 py-0.5 bg-gray-700 text-gray-300 rounded ml-1"
+            title="App is in offline mode"
+          >
+            offline
+          </span>
+        )}
+      </div>
     </div>
   );
 }

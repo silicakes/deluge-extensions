@@ -2,7 +2,7 @@
 
 # DEx: Deluge EXtensions ✨
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Web MIDI API](https://img.shields.io/badge/Web_MIDI_API-Compatible-green)](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API) [![Platform](https://img.shields.io/badge/Platform-Web/Mobile-blue)](https://github.com/silicakes/deluge-extensions) [![Synthstrom Deluge](https://img.shields.io/badge/Synthstrom-Deluge-orange)](https://synthstrom.com/product/deluge/) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com) [![Made with JavaScript](https://img.shields.io/badge/Made_with-JavaScript-F7DF1E?logo=javascript)](https://developer.mozilla.org/en-US/docs/Web/JavaScript) [![Live Demo](https://img.shields.io/badge/Live_Demo-Available-ff69b4)](https://dex.silicak.es)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Web MIDI API](https://img.shields.io/badge/Web_MIDI_API-Compatible-green)](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API) [![Platform](https://img.shields.io/badge/Platform-Web/Mobile-blue)](https://github.com/silicakes/deluge-extensions) [![Synthstrom Deluge](https://img.shields.io/badge/Synthstrom-Deluge-orange)](https://synthstrom.com/product/deluge/) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com) [![Made with JavaScript](https://img.shields.io/badge/Made_with-JavaScript-F7DF1E?logo=javascript)](https://developer.mozilla.org/en-US/docs/Web/JavaScript) [![Live Demo](https://img.shields.io/badge/Live_Demo-Available-ff69b4)](https://dex.silicak.es) [![PWA](https://img.shields.io/badge/PWA-Enabled-5E35B1)](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps)
 
 Unlock the full potential of your Synthstrom Deluge with **DEx**! This web-based powerhouse connects directly to your Deluge via USB MIDI, offering a crystal-clear view of its displays and a suite of tools for monitoring, debugging, and advanced control. 🚀
 
@@ -36,6 +36,8 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 - **📸 Screenshot**: Capture the current display as a PNG image; click the camera button or press 's' to save.
 - **📋 Copy Base64**: Copy the current OLED display as a gzipped, base64-encoded string (in a markdown directive) by clicking the copy icon or pressing 'c'.
 - **❓ Keyboard Shortcuts Help**: Quickly view all available keyboard shortcuts by pressing '?' or clicking the help button.
+- **📱 Progressive Web App**: Install DEx directly to your home screen and use it offline. UI components work without an internet connection!
+- **🔄 Update Notifications**: When a new version is available, you'll get a notification allowing you to update instantly.
 
 ## Getting Started 🚀
 
@@ -52,6 +54,7 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 3.  🔐 When prompted by the browser, **Allow** MIDI access.
 4.  🖱️ Select your Deluge from the MIDI **input** and **output** dropdown menus.
     - ✨ **Pro Tip:** If a device named `Deluge Port 3` is found, DEx will try to select it automatically if 'Connect Automatically' is checked!
+5.  📱 **PWA Installation** (Optional): On compatible browsers, look for the "Add to Home Screen" prompt or use the browser's install option to install DEx as a standalone app.
 
 ## How to Use 🎛️
 
@@ -99,6 +102,24 @@ Although some third-party browsers claim patched support, I can't recommend any 
 - Rotate your device to landscape orientation for an optimal viewing experience.
 - Press 'f' on external keyboards or tap the Full Screen button again to exit fullscreen mode.
 
+### PWA & Offline Features
+
+DEx is built as a Progressive Web App (PWA), providing these benefits:
+
+- **📴 Offline Access**: The app's interface will load even without an internet connection.
+- **⚡ Faster Loading**: Assets are cached for quicker startup times on subsequent visits.
+- **🏠 Installable**: Add DEx to your home screen for app-like access without opening a browser.
+- **🔔 Update Notifications**: When a new version is available, you'll see a prompt to update.
+- **💻 Desktop Support**: Install on desktop computers too for quick access.
+
+To install:
+
+1. In Chrome/Edge (desktop): Click the install icon in the address bar
+2. On Android: Select "Add to Home Screen" from the browser menu
+3. On iOS: Use Safari's share menu and select "Add to Home Screen"
+
+Note: While the UI works offline, MIDI connectivity naturally requires your Deluge to be physically connected.
+
 ## Technical Tidbits 🤓
 
 DEx leverages the **WebMIDI API** to communicate with the Deluge using MIDI System Exclusive (SysEx) messages. It sends commands to request information and receives data back, including display states and debug messages.
@@ -106,6 +127,7 @@ DEx leverages the **WebMIDI API** to communicate with the Deluge using MIDI Syst
 - **Display Rendering**: The OLED display (128×48 pixels) data is received in a compressed 7-to-8 bit RLE format. DEx unpacks this efficiently and renders it onto an HTML `<canvas>` element. Delta updates are used for smoother refreshes.
 - **Copy Base64**: The OLED buffer can be copied as a gzipped, base64-encoded string (not a PNG) for sharing or embedding. The output is a markdown directive like `::screen[BASE64]{alt="Canvas Image"}`.
 - **Responsive Design**: The fullscreen mode uses adaptive scaling to provide optimal visibility on displays of all sizes, from mobile phones to large projector screens.
+- **Progressive Web App**: DEx uses service workers and a web app manifest to enable offline capabilities, app installation, and background updates.
 - **SysEx Format**: Deluge commands generally follow the format `F0 7D [command] [parameters] F7`.
   - Ping: `F0 7D 00 F7`
   - Request OLED: `F0 7D 02 00 01 F7`

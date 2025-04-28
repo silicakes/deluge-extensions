@@ -15,6 +15,7 @@ import { DisplayViewer } from "./DisplayViewer";
 import { Card } from "./Card";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { helpOpen } from "../state";
+import { PwaUpdatePrompt } from "./PwaUpdatePrompt";
 
 export function App() {
   // Register global keyboard shortcuts
@@ -56,6 +57,7 @@ export function App() {
 
   return (
     <div className="app-container">
+      <PwaUpdatePrompt />
       <Header />
 
       {/* Canvas placed outside the main container for unlimited growth in both directions */}

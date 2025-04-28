@@ -1,15 +1,16 @@
 {
-  "name": "deluge-extenstions",
+  "name": "deluge-extension",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "pwa-check": "vite build && [ -f dist/sw.js ] && [ -f dist/manifest.webmanifest ] && echo 'PWA files successfully generated'"
   },
   "dependencies": {
     "@preact/signals": "^2.0.4",
@@ -26,8 +27,15 @@
     "prettier": "^3.5.3",
     "typescript": "~5.7.2",
     "vite": "^6.3.1",
+    "vite-plugin-pwa": "^1.0.0",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^3.1.2"
+    "vitest": "^3.1.2",
+    "workbox-build": "^7.3.0",
+    "workbox-expiration": "^7.3.0",
+    "workbox-precaching": "^7.3.0",
+    "workbox-routing": "^7.3.0",
+    "workbox-strategies": "^7.3.0",
+    "workbox-window": "^7.3.0"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

@@ -1,5 +1,5 @@
-import { midiIn, midiOut } from '../state';
-import { addDebugMessage } from './debug';
+import { midiIn, midiOut } from "../state";
+import { addDebugMessage } from "./debug";
 
 let midiAccess: MIDIAccess | null = null;
 let monitorInterval: number | null = null;
@@ -14,23 +14,25 @@ const SYSEX_COMMANDS = {
   GET_DEBUG: [0xf0, 0x7d, 0x03, 0x00, 0x01, 0xf7],
   GET_FEATURES: [0xf0, 0x7d, 0x03, 0x01, 0x01, 0xf7],
   GET_VERSION: [0xf0, 0x7d, 0x03, 0x02, 0x01, 0xf7],
-}
+};
 
 const sendSysEx = (command: keyof typeof SYSEX_COMMANDS) => {
-  if (!midiOut.value || !navigator.onLine) {
-    console.error('Offline or MIDI Output not selected. Cannot send SysEx command.');
+  if (!midiOut.value) {
+    console.error("MIDI Output not selected. Cannot send SysEx command.");
     return;
   }
   midiOut.value.send(SYSEX_COMMANDS[command]);
-}
+};
 
 // Observer pattern so other modules can react to raw MIDI data (e.g. DisplayViewer)
 const midiListeners = new Set<(e: MIDIMessageEvent) => void>();
 
 /** Initialize Web MIDI access and set up event listeners */
-export async function initMidi(autoConnect: boolean = false): Promise<MIDIAccess | null> {
+export async function initMidi(
+  autoConnect: boolean = false
+): Promise<MIDIAccess | null> {
   if (!navigator.requestMIDIAccess) {
-    console.error('Web MIDI API not supported');
+    console.error("Web MIDI API not supported");
     return null;
   }
   midiAccess = await navigator.requestMIDIAccess({ sysex: true });
@@ -52,11 +54,11 @@ function updateDeviceLists() {
 export function setMidiInput(input: MIDIInput | null) {
   if (midiIn.value === input) return;
   if (midiIn.value) {
-    midiIn.value.removeEventListener('midimessage', handleMidiMessage);
+    midiIn.value.removeEventListener("midimessage", handleMidiMessage);
   }
   midiIn.value = input;
   if (input) {
-    input.addEventListener('midimessage', handleMidiMessage);
+    input.addEventListener("midimessage", handleMidiMessage);
   }
 }
 
@@ -74,13 +76,13 @@ function handleStateChange(_ev: MIDIConnectionEvent) {
 export function autoConnectDefaultPorts() {
   if (!midiAccess) return;
   for (const input of midiAccess.inputs.values()) {
-    if (input.name?.includes('Deluge Port 3')) {
+    if (input.name?.includes("Deluge Port 3")) {
       setMidiInput(input);
       break;
     }
   }
   for (const output of midiAccess.outputs.values()) {
-    if (output.name?.includes('Deluge Port 3')) {
+    if (output.name?.includes("Deluge Port 3")) {
       setMidiOutput(output);
       break;
     }
@@ -96,13 +98,19 @@ export function subscribeMidiListener(listener: (e: MIDIMessageEvent) => void) {
 function handleMidiMessage(event: MIDIMessageEvent) {
   // forward to listeners
   midiListeners.forEach((fn) => fn(event));
-  console.debug('MIDI message', event.data);
-  
+  console.debug("MIDI message", event.data);
+
   // Log SysEx messages to debug console
-  if (event.data && event.data.length > 0 && event.data[0] === 0xF0) {
-    const bytes = Array.from(event.data).map(b => '0x' + b.toString(16).toUpperCase().padStart(2, '0')).join(' ');
+  if (event.data && event.data.length > 0 && event.data[0] === 0xf0) {
+    const bytes = Array.from(event.data)
+      .map((b) => "0x" + b.toString(16).toUpperCase().padStart(2, "0"))
+      .join(" ");
     // If this is a debug message from the Deluge (category 0x03)
-    if (event.data.length > 2 && event.data[1] === 0x7D && event.data[2] === 0x03) {
+    if (
+      event.data.length > 2 &&
+      event.data[1] === 0x7d &&
+      event.data[2] === 0x03
+    ) {
       // Check if data length is enough to contain text (at least 7 bytes including F0, mfr ID, etc)
       if (event.data.length > 6) {
         try {
@@ -135,8 +143,8 @@ export function getMidiOutputs(): MIDIOutput[] {
 
 /** Send ping test command to Deluge */
 export function ping() {
-  if (!midiOut.value || !navigator.onLine) {
-    console.error('Offline or MIDI Output not selected. Cannot send ping command.');
+  if (!midiOut.value) {
+    console.error("MIDI Output not selected. Cannot send ping command.");
     return;
   }
   midiOut.value.send([0xf0, 0x7d, 0x00, 0xf7]);
@@ -144,8 +152,8 @@ export function ping() {
 
 /** Request full OLED display data */
 export function getOled() {
-  if (!midiOut.value || !navigator.onLine) {
-    console.error('Offline or MIDI Output not selected. Cannot send OLED command.');
+  if (!midiOut.value) {
+    console.error("MIDI Output not selected. Cannot send OLED command.");
     return;
   }
   midiOut.value.send([0xf0, 0x7d, 0x02, 0x00, 0x01, 0xf7]);
@@ -153,49 +161,53 @@ export function getOled() {
 
 /** Request full 7-segment display data */
 export function get7Seg() {
-  if (!midiOut.value || !navigator.onLine) {
-    console.error('Offline or MIDI Output not selected. Cannot send 7-seg command.');
+  if (!midiOut.value) {
+    console.error("MIDI Output not selected. Cannot send 7-seg command.");
     return;
   }
-  sendSysEx('GET_7SEG');
+  sendSysEx("GET_7SEG");
 }
 
 /** Flip the screen orientation */
 export function flipScreen() {
-  if (!midiOut.value || !navigator.onLine) {
-    console.error('Offline or MIDI Output not selected. Cannot send flip-screen command.');
+  if (!midiOut.value) {
+    console.error("MIDI Output not selected. Cannot send flip-screen command.");
     return;
   }
-  sendSysEx('FLIP');
+  sendSysEx("FLIP");
 }
 
 /** Request raw display update (force full or delta) */
 export function getDisplay(force: boolean = false) {
-  if (!midiOut.value || !navigator.onLine) {
-    console.error('Offline or MIDI Output not selected. Cannot send display command.');
+  if (!midiOut.value) {
+    console.error("MIDI Output not selected. Cannot send display command.");
     return;
   }
-  const command = force ? 'GET_DISPLAY_FORCE' : 'GET_DISPLAY';
+  const command = force ? "GET_DISPLAY_FORCE" : "GET_DISPLAY";
   sendSysEx(command);
 }
 
 /** Request debug messages from device */
 export function getDebug() {
-  if (!midiOut.value || !navigator.onLine) {
-    console.error('Offline or MIDI Output not selected. Cannot send debug command.');
-    addDebugMessage("Offline or MIDI Output not selected. Cannot request debug messages.");
+  if (!midiOut.value) {
+    console.error("MIDI Output not selected. Cannot send debug command.");
+    addDebugMessage("MIDI Output not selected. Cannot request debug messages.");
     return false;
   }
-  sendSysEx('GET_DEBUG');
+  sendSysEx("GET_DEBUG");
   addDebugMessage("Requested debug messages from device");
   return true;
 }
 
 /** Request features status from device */
 export function getFeatures() {
-  if (!midiOut.value || !navigator.onLine) {
-    console.error('Offline or MIDI Output not selected. Cannot send features status command.');
-    addDebugMessage("Offline or MIDI Output not selected. Cannot request features status.");
+  if (!midiOut.value) {
+    console.error(
+      "MIDI Output not selected. Cannot send features status command."
+    );
+    addDebugMessage(
+      "MIDI Output not selected. Cannot request features status."
+    );
     return false;
   }
   midiOut.value.send([0xf0, 0x7d, 0x03, 0x01, 0x01, 0xf7]);
@@ -205,9 +217,9 @@ export function getFeatures() {
 
 /** Request version information from device */
 export function getVersion() {
-  if (!midiOut.value || !navigator.onLine) {
-    console.error('Offline or MIDI Output not selected. Cannot send version command.');
-    addDebugMessage("Offline or MIDI Output not selected. Cannot request version info.");
+  if (!midiOut.value) {
+    console.error("MIDI Output not selected. Cannot send version command.");
+    addDebugMessage("MIDI Output not selected. Cannot request version info.");
     return false;
   }
   midiOut.value.send([0xf0, 0x7d, 0x03, 0x02, 0x01, 0xf7]);
@@ -221,42 +233,40 @@ export function getVersion() {
  * @returns true if sent successfully, false otherwise
  */
 export function sendCustomSysEx(hexString: string): boolean {
-  if (!midiOut.value || !navigator.onLine) {
-    console.error('Offline or MIDI Output not selected. Cannot send custom SysEx.');
-    addDebugMessage("Offline or MIDI Output not selected. Cannot send command.");
+  if (!midiOut.value) {
+    console.error("MIDI Output not selected. Cannot send custom SysEx.");
+    addDebugMessage("MIDI Output not selected. Cannot send command.");
     return false;
   }
-  
+
   if (!hexString.trim()) {
-    console.error('ERROR: Please enter a valid SysEx command');
+    console.error("ERROR: Please enter a valid SysEx command");
     addDebugMessage("ERROR: Please enter a valid SysEx command");
     return false;
   }
-  
+
   try {
     // Parse hex string into bytes
     const parts = hexString.trim().split(/\s+/);
-    const bytes = parts.map(p => parseInt(p, 16));
-    
+    const bytes = parts.map((p) => parseInt(p, 16));
+
     if (bytes.some(isNaN)) {
       throw new Error("Invalid hex values");
     }
-    
+
     // Ensure it starts with F0 and ends with F7
-    if (bytes[0] !== 0xF0 || bytes[bytes.length - 1] !== 0xF7) {
+    if (bytes[0] !== 0xf0 || bytes[bytes.length - 1] !== 0xf7) {
       throw new Error("SysEx must start with F0 and end with F7");
     }
-    
-    // Format bytes as hex for logging
-    const bytesFormatted = bytes.map(b => '0x' + b.toString(16).toUpperCase().padStart(2, '0')).join(' ');
-    addDebugMessage(`Sending SysEx: ${bytesFormatted}`);
-    
+
     midiOut.value.send(bytes);
+    addDebugMessage(`Sent: ${parts.join(" ")}`);
     return true;
   } catch (e) {
-    const errorMessage = e instanceof Error ? e.message : String(e);
-    console.error(`Error sending custom SysEx: ${errorMessage}`);
-    addDebugMessage(`ERROR: ${errorMessage}`);
+    console.error("Error sending SysEx", e);
+    if (e instanceof Error) {
+      addDebugMessage(`ERROR: ${e.message}`);
+    }
     return false;
   }
 }

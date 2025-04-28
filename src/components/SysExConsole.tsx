@@ -12,8 +12,8 @@ export const SysExConsole = () => {
   const drawerRef = useRef<HTMLDivElement>(null);
   const debugLog = useDebugLog();
 
-  // Disable controls if no MIDI out or offline
-  const disabled = !midiOut.value || !navigator.onLine;
+  // Disable controls if no MIDI out
+  const disabled = !midiOut.value;
 
   // Auto debug polling effect
   useEffect(() => {
