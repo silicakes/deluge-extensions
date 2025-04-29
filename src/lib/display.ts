@@ -1,7 +1,7 @@
 /** display.ts - Display rendering helpers ported from legacy code */
 
 import * as midi from "./midi";
-import { displaySettings, displayType } from "../state";
+import { displaySettings, displayType, fullscreenActive } from "../state";
 
 /**
  * Unpacks data encoded with a 7-to-8 bit RLE scheme.
@@ -11,7 +11,7 @@ import { displaySettings, displayType } from "../state";
  */
 export function unpack7to8Rle(
   src: Uint8Array,
-  estimatedDstSize?: number
+  estimatedDstSize?: number,
 ): Uint8Array {
   // Ported from legacy-scripts/legacy-unpack.js – converts Synthstrom 7-bit RLE to raw 8-bit buffer
   // The algorithm works on a byte-stream where each packet starts with a *marker* byte.
@@ -113,6 +113,9 @@ let lastDots = 0;
 let previousPixelWidth = 0;
 let previousPixelHeight = 0;
 
+// Declare a variable to hold the resize listener so we can remove it later
+let fullscreenResizeListener: (() => void) | null = null;
+
 /**
  * Computes canvas dimensions based on display type and pixel size
  * @param type Display type ("OLED" or "7SEG")
@@ -123,7 +126,7 @@ let previousPixelHeight = 0;
 export function computeCanvasDims(
   type: "OLED" | "7SEG",
   pixelWidth: number,
-  pixelHeight: number
+  pixelHeight: number,
 ): { cssW: number; cssH: number; offsetX: number; offsetY: number } {
   const meta = DISPLAY_META[type];
   const cssW = meta.w * pixelWidth;
@@ -144,7 +147,7 @@ function renderOledCanvas(
   ctx: CanvasRenderingContext2D,
   frame: Uint8Array,
   pxW: number,
-  pxH: number
+  pxH: number,
 ) {
   const indist = 0.5; // visually pleasing inset so individual pixels have gaps
   ctx.fillStyle = displaySettings.value.backgroundColor;
@@ -161,7 +164,7 @@ function renderOledCanvas(
             x * pxW + indist,
             y * pxH + indist,
             pxW - 2 * indist,
-            pxH - 2 * indist
+            pxH - 2 * indist,
           );
         }
       }
@@ -173,7 +176,7 @@ export function drawOled(
   canvas: HTMLCanvasElement,
   sysEx: Uint8Array,
   customPixelWidth?: number,
-  customPixelHeight?: number
+  customPixelHeight?: number,
 ): void {
   if (sysEx.length < 8) return;
   const packed = sysEx.subarray(6, sysEx.length - 1);
@@ -194,7 +197,7 @@ export function drawOled(
   window.dispatchEvent(
     new CustomEvent("display:resized", {
       detail: { width, height, offsetX: 0, offsetY: 0 },
-    })
+    }),
   );
 
   const ctx = canvas.getContext("2d");
@@ -210,7 +213,7 @@ export function drawOledDelta(
   canvas: HTMLCanvasElement,
   sysEx: Uint8Array,
   customPixelWidth?: number,
-  customPixelHeight?: number
+  customPixelHeight?: number,
 ): void {
   if (sysEx.length < 8) return;
   const first = sysEx[5];
@@ -233,7 +236,7 @@ export function drawOledDelta(
   window.dispatchEvent(
     new CustomEvent("display:resized", {
       detail: { width, height, offsetX: 0, offsetY: 0 },
-    })
+    }),
   );
 
   const ctx = canvas.getContext("2d");
@@ -260,7 +263,7 @@ export function render7Seg(
   digits: number[],
   dots: number,
   pixelWidth: number,
-  pixelHeight: number
+  pixelHeight: number,
 ): void {
   // Get canvas dimensions (or use default OLED dimensions for tests)
   const canvasWidth = ctx.canvas?.width ?? DISPLAY_META.OLED.w * pixelWidth;
@@ -380,7 +383,7 @@ export function render7Seg(
       off_x + digit_width + 3 * scale,
       offset_y + 6 * scale + digit_height + 3 * scale,
       dot_size,
-      dot_size
+      dot_size,
     );
     ctx.fillStyle = dot ? activeColor : inactiveColor;
     ctx.fill();
@@ -397,7 +400,7 @@ export function draw7Seg(
   digits: number[],
   dots: number,
   customPixelWidth: number = displaySettings.value.pixelWidth,
-  customPixelHeight: number = displaySettings.value.pixelHeight
+  customPixelHeight: number = displaySettings.value.pixelHeight,
 ): void {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -412,7 +415,7 @@ export function draw7Seg(
   window.dispatchEvent(
     new CustomEvent("display:resized", {
       detail: { width, height, offsetX: 0, offsetY: 0 },
-    })
+    }),
   );
 
   // Render 7-segment display
@@ -503,7 +506,7 @@ export function resizeCanvas(canvas: HTMLCanvasElement): void {
   window.dispatchEvent(
     new CustomEvent("display:resized", {
       detail: { width: cssW, height: cssH },
-    })
+    }),
   );
 
   // If the current display type doesn't match lastKind, update lastKind to match
@@ -591,6 +594,18 @@ export function enterFullscreenScale(canvas: HTMLCanvasElement): void {
 
   // Redraw with the new scale
   redrawCurrentFrame();
+
+  // Attach resize/orientation listeners so canvas rescales when viewport changes (e.g. device rotation)
+  if (!fullscreenResizeListener) {
+    fullscreenResizeListener = () => {
+      // Only react if still in fullscreen mode
+      if (fullscreenActive.value) {
+        applyOptimalFullscreenScale();
+      }
+    };
+    window.addEventListener("resize", fullscreenResizeListener);
+    window.addEventListener("orientationchange", fullscreenResizeListener);
+  }
 }
 
 /**
@@ -615,6 +630,13 @@ export function exitFullscreenScale(canvas: HTMLCanvasElement): void {
 
     // Redraw with the restored scale
     redrawCurrentFrame();
+  }
+
+  // Detach resize/orientation listeners when leaving fullscreen to avoid leaks
+  if (fullscreenResizeListener) {
+    window.removeEventListener("resize", fullscreenResizeListener);
+    window.removeEventListener("orientationchange", fullscreenResizeListener);
+    fullscreenResizeListener = null;
   }
 }
 
@@ -655,14 +677,14 @@ export async function copyBufferToClipboard(buffer: Uint8Array): Promise<void> {
 
   if (!window.CompressionStream || !navigator.clipboard) {
     throw new Error(
-      "CompressionStream or Clipboard API not supported in this browser."
+      "CompressionStream or Clipboard API not supported in this browser.",
     );
   }
 
   try {
     // Compress the buffer with gzip
     const compressed = await new Response(
-      new Blob([buffer]).stream().pipeThrough(new CompressionStream("gzip"))
+      new Blob([buffer]).stream().pipeThrough(new CompressionStream("gzip")),
     ).arrayBuffer();
 
     // Convert to base64
@@ -679,7 +701,7 @@ export async function copyBufferToClipboard(buffer: Uint8Array): Promise<void> {
       };
       reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(
-        new File([compressed], "", { type: "application/octet-stream" })
+        new File([compressed], "", { type: "application/octet-stream" }),
       );
     });
 
@@ -690,7 +712,7 @@ export async function copyBufferToClipboard(buffer: Uint8Array): Promise<void> {
     return;
   } catch (err) {
     throw new Error(
-      `Failed to copy OLED data: ${err instanceof Error ? err.message : String(err)}`
+      `Failed to copy OLED data: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 }
@@ -707,5 +729,31 @@ export async function copyCanvasToBase64(lastOled?: Uint8Array): Promise<void> {
   } catch (err) {
     console.error("Copy to Base64 failed:", err);
     throw err;
+  }
+}
+
+/**
+ * Apply the optimal integer scale based on current viewport while in fullscreen.
+ * This helper does **not** touch the `previousPixelWidth/Height` cache so it can
+ * be invoked repeatedly (e.g. on orientation changes) without losing the
+ * original pre-fullscreen dimensions.
+ */
+function applyOptimalFullscreenScale() {
+  if (!canvasRef) return;
+  const optimalScale = calculateOptimalScale();
+
+  // Only update when scale actually changes to avoid unnecessary redraws
+  if (
+    optimalScale !== displaySettings.value.pixelWidth ||
+    optimalScale !== displaySettings.value.pixelHeight
+  ) {
+    displaySettings.value = {
+      ...displaySettings.value,
+      pixelWidth: optimalScale,
+      pixelHeight: optimalScale,
+    };
+
+    // Apply & redraw at the new scale
+    resizeCanvas(canvasRef);
   }
 }
