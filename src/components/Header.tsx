@@ -1,5 +1,6 @@
 import { ThemeSwitcher } from "./ThemeSwitcher";
-import { MidiDeviceNavbar } from "./MidiDeviceNavbar";
+import { MidiDeviceNavbarMobile } from "./MidiDeviceNavbarMobile";
+import { MidiDeviceNavbarDesktop } from "./MidiDeviceNavbarDesktop";
 import { FullscreenToggleButton } from "./FullscreenToggleButton";
 
 export function Header() {
@@ -14,9 +15,10 @@ export function Header() {
         />
       </div>
 
-      {/* Center: MIDI device navbar */}
+      {/* Center: MIDI device navbar - responsive */}
       <div className="flex-1 flex justify-center">
-        <MidiDeviceNavbar />
+        <MidiDeviceNavbarMobile className="sm:hidden" />
+        <MidiDeviceNavbarDesktop className="hidden sm:flex" />
       </div>
 
       {/* Right: controls */}

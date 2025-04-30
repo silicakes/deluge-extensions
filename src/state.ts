@@ -56,7 +56,6 @@ if (typeof window !== "undefined" && "localStorage" in window) {
       displaySettings.value = { ...displaySettings.value, ...parsed };
     }
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error("Failed to load DExDisplaySettings from localStorage:", err);
   }
 }
