@@ -2,13 +2,14 @@ import { useSignal, useComputed } from "@preact/signals";
 import { useEffect, useRef, useCallback } from "preact/hooks";
 import { Button } from "./Button";
 import { displaySettings, DisplaySettings } from "../state";
+import { isMobile } from "../lib/fullscreen";
 
 /**
  * A custom hook for debouncing function calls
  */
 function useDebouncedCallback<T extends (...args: unknown[]) => void>(
   callback: T,
-  delay: number
+  delay: number,
 ) {
   // Create a ref to track the timeout ID
   const timeoutRef = useRef<number | null>(null);
@@ -24,7 +25,7 @@ function useDebouncedCallback<T extends (...args: unknown[]) => void>(
         callback(...args);
       }, delay);
     },
-    [callback, delay]
+    [callback, delay],
   );
 }
 
@@ -46,7 +47,17 @@ export function DisplayStylePicker({
         const savedSettings = localStorage.getItem("DExDisplaySettings");
         if (savedSettings) {
           const parsedSettings = JSON.parse(savedSettings);
-          // Update displaySettings with saved values, preserving defaults for missing properties
+
+          // On mobile devices we ignore stale pixel width/height persisted from
+          // a previous desktop session to avoid overflow issues. The current
+          // pixel scale is already set by the responsive logic in display.ts.
+          if (isMobile) {
+            delete parsedSettings.pixelWidth;
+            delete parsedSettings.pixelHeight;
+          }
+
+          // Update displaySettings with the remaining values, preserving
+          // defaults for any missing properties.
           displaySettings.value = {
             ...displaySettings.value,
             ...parsedSettings,
@@ -76,7 +87,7 @@ export function DisplayStylePicker({
     try {
       localStorage.setItem(
         "DExDisplaySettings",
-        JSON.stringify(displaySettings.value)
+        JSON.stringify(displaySettings.value),
       );
     } catch (error) {
       console.error("Error saving display settings:", error);

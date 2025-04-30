@@ -2,6 +2,7 @@
 
 import * as midi from "./midi";
 import { displaySettings, displayType, fullscreenActive } from "../state";
+import { isMobile } from "./fullscreen";
 
 /**
  * Unpacks data encoded with a 7-to-8 bit RLE scheme.
@@ -453,6 +454,28 @@ export function stopPolling() {
  */
 export function registerCanvas(canvas: HTMLCanvasElement) {
   canvasRef = canvas;
+  // On mobile we want the canvas to auto-scale to the available viewport, not
+  // keep the previous (possibly desktop-oriented) pixel scale. Calculate the
+  // optimal integer scale for the current viewport and apply it immediately.
+  if (isMobile) {
+    const optimalScale = calculateOptimalScale();
+    displaySettings.value = {
+      ...displaySettings.value,
+      pixelWidth: optimalScale,
+      pixelHeight: optimalScale,
+    };
+
+    // Attach a resize / orientation listener (only once) so the canvas keeps
+    // adapting to viewport changes even outside of fullscreen mode.
+    if (!fullscreenResizeListener) {
+      fullscreenResizeListener = () => {
+        applyOptimalFullscreenScale();
+      };
+      window.addEventListener("resize", fullscreenResizeListener);
+      window.addEventListener("orientationchange", fullscreenResizeListener);
+    }
+  }
+
   resizeCanvas(canvas);
 }
 
@@ -598,8 +621,9 @@ export function enterFullscreenScale(canvas: HTMLCanvasElement): void {
   // Attach resize/orientation listeners so canvas rescales when viewport changes (e.g. device rotation)
   if (!fullscreenResizeListener) {
     fullscreenResizeListener = () => {
-      // Only react if still in fullscreen mode
-      if (fullscreenActive.value) {
+      // Keep the canvas responsive both in fullscreen and (on mobile) normal
+      // layout. Outside mobile devices we only care while in fullscreen.
+      if (fullscreenActive.value || isMobile) {
         applyOptimalFullscreenScale();
       }
     };
@@ -613,30 +637,45 @@ export function enterFullscreenScale(canvas: HTMLCanvasElement): void {
  * @param canvas The canvas element to resize
  */
 export function exitFullscreenScale(canvas: HTMLCanvasElement): void {
-  // Restore previous pixel dimensions
-  if (previousPixelWidth > 0 && previousPixelHeight > 0) {
+  if (!isMobile) {
+    // Desktop behaviour – restore the previous user-selected scale.
+    if (previousPixelWidth > 0 && previousPixelHeight > 0) {
+      displaySettings.value = {
+        ...displaySettings.value,
+        pixelWidth: previousPixelWidth,
+        pixelHeight: previousPixelHeight,
+      };
+
+      // Reset the stored values
+      previousPixelWidth = 0;
+      previousPixelHeight = 0;
+
+      // Apply the restored dimensions
+      resizeCanvas(canvas);
+
+      // Redraw with the restored scale
+      redrawCurrentFrame();
+    }
+
+    // Remove the resize listener (not needed on desktop outside fullscreen)
+    if (fullscreenResizeListener) {
+      window.removeEventListener("resize", fullscreenResizeListener);
+      window.removeEventListener("orientationchange", fullscreenResizeListener);
+      fullscreenResizeListener = null;
+    }
+  } else {
+    // Mobile behaviour – keep auto-scaling according to available space.
+    const optimalScale = calculateOptimalScale();
     displaySettings.value = {
       ...displaySettings.value,
-      pixelWidth: previousPixelWidth,
-      pixelHeight: previousPixelHeight,
+      pixelWidth: optimalScale,
+      pixelHeight: optimalScale,
     };
 
-    // Reset the stored values
-    previousPixelWidth = 0;
-    previousPixelHeight = 0;
-
-    // Apply the restored dimensions
+    // Apply & redraw at the new scale
     resizeCanvas(canvas);
-
-    // Redraw with the restored scale
     redrawCurrentFrame();
-  }
-
-  // Detach resize/orientation listeners when leaving fullscreen to avoid leaks
-  if (fullscreenResizeListener) {
-    window.removeEventListener("resize", fullscreenResizeListener);
-    window.removeEventListener("orientationchange", fullscreenResizeListener);
-    fullscreenResizeListener = null;
+    // NOTE: the resize listener stays attached so the canvas remains responsive
   }
 }
 
