@@ -584,10 +584,7 @@ export function increaseCanvasSize() {
     pixelWidth: Math.max(minSize, Math.min(maxSize, pixelWidth + resizeStep)),
     pixelHeight: Math.max(minSize, Math.min(maxSize, pixelHeight + resizeStep)),
   };
-
-  if (canvasRef) {
-    resizeCanvas(canvasRef);
-  }
+  redrawCurrentFrame();
 }
 
 /** Decrease canvas pixel size by one step (down to minSize). */
@@ -599,10 +596,7 @@ export function decreaseCanvasSize() {
     pixelWidth: Math.max(minSize, Math.min(maxSize, pixelWidth - resizeStep)),
     pixelHeight: Math.max(minSize, Math.min(maxSize, pixelHeight - resizeStep)),
   };
-
-  if (canvasRef) {
-    resizeCanvas(canvasRef);
-  }
+  redrawCurrentFrame();
 }
 
 /**

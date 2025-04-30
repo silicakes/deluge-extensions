@@ -9,5 +9,6 @@ export const globalShortcuts: ShortcutHelpItem[] = [
   { keys: "F", description: "Toggle fullscreen" },
   { keys: "+ / =", description: "Increase canvas size" },
   { keys: "-", description: "Decrease canvas size" },
+  { keys: "D", description: "Toggle display colors" },
   { keys: "?", description: "Toggle help overlay" },
 ];

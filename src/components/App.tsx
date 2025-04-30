@@ -1,6 +1,6 @@
 // import { MidiDeviceSelector } from "./MidiDeviceSelector";
 import { DisplayControls } from "./DisplayControls";
-import { useEffect } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import {
   captureScreenshot,
   copyCanvasToBase64,
@@ -10,14 +10,23 @@ import {
 import * as fullscreen from "../lib/fullscreen";
 import { Header } from "./Header";
 import { SysExConsole } from "./SysExConsole";
-import { DisplayStylePicker } from "./DisplayStylePicker";
 import { DisplayViewer } from "./DisplayViewer";
 import { Card } from "./Card";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { helpOpen } from "../state";
 import { PwaUpdatePrompt } from "./PwaUpdatePrompt";
+import { PixelSizeControls } from "./PixelSizeControls";
+import { DisplayColorDrawer } from "./DisplayColorDrawer";
+import { loadDisplaySettings } from "../hooks/useDisplaySettingsPersistence";
 
 export function App() {
+  const [colorDrawerOpen, setColorDrawerOpen] = useState(false);
+
+  // Load display settings from localStorage on mount
+  useEffect(() => {
+    loadDisplaySettings();
+  }, []);
+
   // Register global keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -46,6 +55,9 @@ export function App() {
         case "?":
           helpOpen.value = !helpOpen.value;
           break;
+        case "d": // New shortcut for Display colors
+          setColorDrawerOpen(!colorDrawerOpen);
+          break;
         default:
           return;
       }
@@ -53,12 +65,17 @@ export function App() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [colorDrawerOpen]);
 
   return (
     <div className="app-container">
       <PwaUpdatePrompt />
       <Header />
+
+      {/* Pixel Size Controls - Always visible above canvas */}
+      <div className="w-full max-w-screen-lg mx-auto px-4 mt-3">
+        <PixelSizeControls />
+      </div>
 
       {/* Canvas placed outside the main container for unlimited growth in both directions */}
       <div className="w-full flex justify-center my-6">
@@ -66,17 +83,21 @@ export function App() {
       </div>
 
       <main className="p-4 max-w-screen-lg mx-auto space-y-6">
-        {/* Display controls and settings */}
+        {/* Display controls */}
         <Card title="Display Controls">
-          {/* Toolbar & controls */}
           <div className="flex justify-between items-center flex-wrap gap-2 controls">
             <DisplayControls />
-            <DisplayStylePicker compact={true} />
           </div>
         </Card>
 
         <SysExConsole />
       </main>
+
+      {/* Display Color Drawer */}
+      <DisplayColorDrawer
+        isOpen={colorDrawerOpen}
+        onClose={() => setColorDrawerOpen(false)}
+      />
 
       {/* Render the ShortcutHelpOverlay */}
       <ShortcutHelpOverlay />
