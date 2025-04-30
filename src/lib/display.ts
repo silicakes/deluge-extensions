@@ -117,6 +117,33 @@ let previousPixelHeight = 0;
 // Declare a variable to hold the resize listener so we can remove it later
 let fullscreenResizeListener: (() => void) | null = null;
 
+// ResizeObserver fallback for cases (e.g. some mobile browsers) where
+// `window.resize` / `orientationchange` fire before the final viewport
+// dimensions settle.  We observe the <html> element and trigger the same
+// scaling logic whenever its bounding box actually changes.
+let docResizeObserver: ResizeObserver | null = null;
+
+function ensureViewportObserver() {
+  if (docResizeObserver || typeof ResizeObserver === "undefined") return;
+
+  const handler = () => {
+    // Only recalc when we care about responsive scaling – mobile always, or
+    // during fullscreen on desktop.
+    if (fullscreenActive.value || isMobile) {
+      applyOptimalFullscreenScale();
+    }
+  };
+
+  docResizeObserver = new ResizeObserver(handler);
+  // Observe border-box changes on the <html> element.
+  docResizeObserver.observe(document.documentElement);
+
+  // Also listen to `visualViewport.resize` where supported for extra safety.
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", handler);
+  }
+}
+
 /**
  * Computes canvas dimensions based on display type and pixel size
  * @param type Display type ("OLED" or "7SEG")
@@ -474,6 +501,9 @@ export function registerCanvas(canvas: HTMLCanvasElement) {
       window.addEventListener("resize", fullscreenResizeListener);
       window.addEventListener("orientationchange", fullscreenResizeListener);
     }
+
+    // Make sure ResizeObserver is active
+    ensureViewportObserver();
   }
 
   resizeCanvas(canvas);
@@ -580,10 +610,18 @@ export function decreaseCanvasSize() {
  * @returns The optimal integer scale for fullscreen
  */
 function calculateOptimalScale(): number {
-  const screenWidth = window.innerWidth;
-  const screenHeight = window.innerHeight;
-  const type = displayType.value;
-  const meta = DISPLAY_META[type];
+  // Prefer `visualViewport` when available as it gives the *actual* viewport
+  // after browser chrome is accounted for (important on iOS Safari).
+  const vp = window.visualViewport;
+  const screenWidth = vp ? vp.width : window.innerWidth;
+  const screenHeight = vp ? vp.height : window.innerHeight;
+
+  // Always base the calculation on the OLED logical resolution (128×48) because
+  // the actual canvas is **always** sized using these dimensions, even when we
+  // are currently showing the 7-segment display. If we were to use the 7-seg
+  // logical size (88×40) we could end up picking a scale that is too large and
+  // produce overflow when the canvas falls back to OLED sizing.
+  const meta = DISPLAY_META.OLED;
 
   // Calculate maximum possible integer scale that fits the screen
   const scaleX = Math.floor(screenWidth / meta.w);
@@ -629,6 +667,9 @@ export function enterFullscreenScale(canvas: HTMLCanvasElement): void {
     };
     window.addEventListener("resize", fullscreenResizeListener);
     window.addEventListener("orientationchange", fullscreenResizeListener);
+
+    // Also activate ResizeObserver while in fullscreen
+    ensureViewportObserver();
   }
 }
 
