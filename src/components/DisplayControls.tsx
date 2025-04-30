@@ -1,22 +1,12 @@
 import { useEffect } from "preact/hooks";
 import { useSignal } from "@preact/signals";
-import {
-  ping,
-  getOled,
-  get7Seg,
-  flipScreen,
-  getDisplay,
-  startMonitor,
-  stopMonitor,
-} from "../lib/midi";
-import { midiOut, monitorMode, autoEnabled, helpOpen } from "../state";
+import { flipScreen } from "../lib/midi";
+import { midiOut, helpOpen } from "../state";
 import { Button } from "./Button";
-import { captureScreenshot, startPolling, stopPolling } from "../lib/display";
+import { captureScreenshot } from "../lib/display";
+import { AdvancedDisplayControls } from "./AdvancedDisplayControls";
 
 export function DisplayControls() {
-  // Local signal for refresh toggle
-  const refreshSignal = useSignal(false);
-
   // Disable controls if no MIDI out
   const disabled = !midiOut.value;
 
@@ -33,9 +23,6 @@ export function DisplayControls() {
   }, []);
 
   // Handlers for display controls
-  const handlePing = () => ping();
-  const handleOled = () => getOled();
-  const handle7Seg = () => get7Seg();
   const handleFlip = () => flipScreen();
 
   // Handlers for new controls
@@ -46,58 +33,10 @@ export function DisplayControls() {
     helpOpen.value = !helpOpen.value;
   };
 
-  const toggleRefresh = () => {
-    const newValue = !refreshSignal.value;
-    refreshSignal.value = newValue;
-
-    // When manually turning off refresh, also turn off auto-enabled
-    if (!newValue) {
-      autoEnabled.value = false;
-    }
-  };
-
-  const toggleMonitor = () => {
-    monitorMode.value = !monitorMode.value;
-  };
-
-  // Effect for refresh polling
-  useEffect(() => {
-    if (refreshSignal.value) {
-      // Request full display on toggle
-      getDisplay(true);
-      startPolling();
-      return () => stopPolling();
-    }
-  }, [refreshSignal.value]);
-
-  // Effect for monitor mode
-  useEffect(() => {
-    if (monitorMode.value) {
-      startMonitor();
-    } else {
-      stopMonitor();
-    }
-  }, [monitorMode.value]);
-
   return (
-    <div className="flex gap-2 flex-wrap">
-      <Button onClick={handlePing} disabled={disabled}>
-        Ping
-      </Button>
-      <Button onClick={handleOled} disabled={disabled}>
-        Get OLED
-      </Button>
-      <Button onClick={handle7Seg} disabled={disabled}>
-        Get 7-Seg
-      </Button>
+    <div className="flex gap-2">
       <Button onClick={handleFlip} disabled={disabled}>
         Switch display type
-      </Button>
-      <Button onClick={toggleRefresh} disabled={disabled}>
-        {refreshSignal.value ? "Pause" : "Refresh"}
-      </Button>
-      <Button onClick={toggleMonitor} disabled={disabled}>
-        {monitorMode.value ? "Stop Monitoring" : "Monitor"}
       </Button>
       <Button onClick={handleScreenshot} disabled={disabled}>
         📸 Screenshot
@@ -111,6 +50,8 @@ export function DisplayControls() {
       >
         ?
       </Button>
+
+      <AdvancedDisplayControls />
     </div>
   );
 }
