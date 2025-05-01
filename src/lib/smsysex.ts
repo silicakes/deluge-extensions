@@ -1,0 +1,450 @@
+/**
+ * smSysex Protocol transport layer
+ *
+ * Implements session handling, message-ID rotation, and the communication
+ * with the Deluge firmware 4.x using the smSysex protocol.
+ */
+import { midiOut } from "../state";
+import { unpack7 } from "./pack7";
+
+// Define smSysex commands
+export enum SmsCommand {
+  PING = 0x00,
+  POPUP = 0x01,
+  HID = 0x02,
+  DEBUG = 0x03,
+  JSON = 0x04,
+  JSON_REPLY = 0x05,
+  PONG = 0x7f,
+}
+
+// Standard Synthstrom manufacturer ID
+const STD_MANUFACTURER_ID = [0x00, 0x21, 0x7b, 0x01];
+// Developer ID for testing/development
+const DEV_MANUFACTURER_ID = [0x7d];
+
+// Session information
+export interface SmsSession {
+  sid: number; // Session ID
+  midMin: number; // Minimum message ID for this session
+  midMax: number; // Maximum message ID for this session
+  counter: number; // Current message counter (1-7)
+}
+
+// Cached session
+let currentSession: SmsSession | null = null;
+
+// Flag to force developer ID usage
+let useDevId = localStorage.getItem("dex-dev-sysex") === "true";
+
+/**
+ * Build a message ID from session ID and counter
+ * @param s Session info
+ * @returns Message ID byte
+ */
+function buildMsgId(s: SmsSession): number {
+  // Format: bits 0-2 = counter (1-7), bits 3-6 = session ID
+  return s.midMin | (s.counter & 0x07);
+}
+
+/**
+ * Increment the message counter for the session
+ * @param s Session to update
+ */
+function incrementCounter(s: SmsSession): void {
+  // Increment and wrap 1-7 (we don't use 0)
+  s.counter = (s.counter % 7) + 1;
+}
+
+/**
+ * Opens a session with the Deluge
+ * @param tag Client identifier
+ * @returns Promise resolving to session information
+ */
+export async function openSession(tag = "DEx"): Promise<SmsSession> {
+  if (!midiOut.value) {
+    throw new Error("MIDI output not selected");
+  }
+
+  // If we already have a session, return it
+  if (currentSession) {
+    return currentSession;
+  }
+
+  console.log("Opening smSysex session with tag:", tag);
+  const sessionCmd = { session: { tag } };
+  const jsonData = JSON.stringify(sessionCmd);
+
+  // Convert to bytes (each char is one byte in ASCII/UTF-8)
+  const jsonBytes = new Uint8Array(jsonData.length);
+  for (let i = 0; i < jsonData.length; i++) {
+    jsonBytes[i] = jsonData.charCodeAt(i);
+  }
+
+  // Build SysEx message for session request
+  // For session requests, msgId is 0
+  const manufacturerId = useDevId ? DEV_MANUFACTURER_ID : STD_MANUFACTURER_ID;
+  const sysexHeader = [0xf0, ...manufacturerId, SmsCommand.JSON, 0];
+  const sysexFooter = [0xf7];
+
+  const message = new Uint8Array([
+    ...sysexHeader,
+    ...Array.from(jsonBytes),
+    ...sysexFooter,
+  ]);
+
+  return new Promise((resolve, reject) => {
+    // Set up timeout
+    const timeoutId = setTimeout(() => {
+      cleanup();
+      reject(
+        new Error(
+          "Session negotiation timed out after 10000ms. Check that your Deluge is connected, " +
+            "powered on, and has firmware version 4.0 or higher with SysEx Protocol enabled.",
+        ),
+      );
+    }, 10000);
+
+    // Set up response listener
+    const cleanup = subscribeSysexListener((data) => {
+      clearTimeout(timeoutId);
+      cleanup(); // Remove listener once we get a response
+
+      try {
+        console.log(
+          "Received session response:",
+          Array.from(data).map((b) => b.toString(16)),
+        );
+        // Parse the response to get session info
+        const response = parseSysexResponse(data);
+
+        if (response && "^session" in response) {
+          const sessionInfo = response["^session"] as Record<string, unknown>;
+          console.log("Session info:", sessionInfo);
+
+          // Verify required properties exist
+          if (
+            typeof sessionInfo.sid !== "number" ||
+            typeof sessionInfo.midMin !== "number" ||
+            typeof sessionInfo.midMax !== "number"
+          ) {
+            throw new Error(
+              "Invalid session response: missing required fields",
+            );
+          }
+
+          // Create and cache the session
+          currentSession = {
+            sid: sessionInfo.sid as number,
+            midMin: sessionInfo.midMin as number,
+            midMax: sessionInfo.midMax as number,
+            counter: 1, // Start counter at 1
+          };
+
+          console.log("Session established:", currentSession);
+          resolve(currentSession);
+        } else {
+          console.error("Invalid session response format:", response);
+          reject(new Error("Invalid session response"));
+        }
+      } catch (err) {
+        console.error("Error processing session response:", err);
+        reject(err);
+      }
+    });
+
+    // Send the session request
+    console.log("Sending session request");
+    const output = midiOut.value;
+    if (output) {
+      output.send(message);
+    } else {
+      cleanup();
+      reject(new Error("MIDI output not available"));
+    }
+  });
+}
+
+/**
+ * Get the current session or open a new one if needed
+ */
+export async function ensureSession(): Promise<SmsSession> {
+  if (currentSession) {
+    return currentSession;
+  }
+  return openSession();
+}
+
+/**
+ * Send a JSON command to the Deluge and wait for the response
+ * @param cmd The JSON command object
+ * @param s The session to use
+ * @returns Promise resolving to the JSON response
+ */
+export async function sendJson(
+  cmd: object,
+  s?: SmsSession,
+): Promise<Record<string, unknown>> {
+  if (!midiOut.value) {
+    throw new Error("MIDI output not selected");
+  }
+
+  console.log("sendJson called with command:", cmd);
+
+  // Get or create a session if not provided
+  if (!s) {
+    console.log("No session provided, ensuring session exists");
+    s = await ensureSession();
+    console.log("Session ensured:", s);
+  }
+
+  // Build message ID and increment counter
+  const msgId = buildMsgId(s);
+  incrementCounter(s);
+  console.log(`Using msgId: ${msgId.toString(16)}, counter now: ${s.counter}`);
+
+  // Convert JSON to bytes
+  const jsonData = JSON.stringify(cmd);
+  console.log("JSON payload:", jsonData);
+  const jsonBytes = new Uint8Array(jsonData.length);
+  for (let i = 0; i < jsonData.length; i++) {
+    jsonBytes[i] = jsonData.charCodeAt(i);
+  }
+
+  // Build SysEx message
+  const manufacturerId = useDevId ? DEV_MANUFACTURER_ID : STD_MANUFACTURER_ID;
+  const sysexHeader = [0xf0, ...manufacturerId, SmsCommand.JSON, msgId];
+  const sysexFooter = [0xf7];
+
+  const message = new Uint8Array([
+    ...sysexHeader,
+    ...Array.from(jsonBytes),
+    ...sysexFooter,
+  ]);
+
+  console.log(
+    "SysEx message:",
+    Array.from(message)
+      .map((b) => "0x" + b.toString(16).padStart(2, "0"))
+      .join(" "),
+  );
+
+  return new Promise((resolve, reject) => {
+    // Setup timeout
+    const timeoutMs = 10000; // Increased from 5000 to 10000ms
+    const timeoutId = setTimeout(() => {
+      console.warn(`Command timed out after ${timeoutMs}ms:`, cmd);
+      cleanup();
+      reject(
+        new Error(
+          `SysEx command timed out after ${timeoutMs}ms. Check if device is connected and firmware supports SysEx protocol.`,
+        ),
+      );
+    }, timeoutMs);
+
+    // Set up response listener
+    const cleanup = subscribeSysexListener((data) => {
+      console.log(
+        `Received SysEx response, checking if matches msgId ${msgId.toString(16)}`,
+      );
+
+      // Check if this is our response (matching msgId)
+      // The position depends on manufacturer ID length (dev ID or full ID)
+      const isDevId = data[1] === 0x7d;
+      const msgIdPos = isDevId ? 3 : 6;
+      const responseMsgId = data[msgIdPos];
+      console.log(
+        `Response msgId: ${responseMsgId.toString(16)}, expected: ${msgId.toString(16)}, position: ${msgIdPos}`,
+      );
+
+      if (data.length > msgIdPos && responseMsgId === msgId) {
+        console.log("Message ID matched, processing response");
+        clearTimeout(timeoutId);
+        cleanup(); // Remove listener
+
+        try {
+          // Parse the response
+          const response = parseSysexResponse(data);
+          resolve(response);
+        } catch (err) {
+          console.error("Failed to parse response:", err);
+          reject(err);
+        }
+      } else {
+        console.log("Message ID did not match, ignoring");
+      }
+    });
+
+    // Send the command
+    console.log("Sending SysEx command...");
+    if (midiOut.value) {
+      midiOut.value.send(message);
+      console.log("SysEx command sent");
+    } else {
+      console.error("MIDI output disappeared");
+      cleanup();
+      reject(new Error("MIDI output not available"));
+    }
+  });
+}
+
+/**
+ * Send a ping command and wait for pong response
+ * @returns Promise that resolves on successful pong
+ */
+export async function ping(s?: SmsSession): Promise<void> {
+  if (!midiOut.value) {
+    throw new Error("MIDI output not selected");
+  }
+
+  // Get or create a session
+  if (!s) {
+    s = await ensureSession();
+  }
+
+  // Ping command: empty JSON object
+  const cmd = { ping: {} };
+
+  return sendJson(cmd, s).then(() => {
+    // If sendJson resolves, ping succeeded
+    return;
+  });
+}
+
+/**
+ * Parse a SysEx response containing JSON data
+ * @param data SysEx message data
+ * @returns Parsed JSON object
+ */
+function parseSysexResponse(data: Uint8Array): Record<string, unknown> {
+  try {
+    // Skip the SysEx header (F0 + manufacturer ID + command + msgId)
+    // The exact offset depends on whether we're using standard or dev ID
+    const headerSize = data[1] === 0x7d ? 4 : 7; // F0 + (mfr ID) + cmd + msgId
+
+    // Extract JSON payload
+    const jsonEnd = data.indexOf(0xf7);
+    if (jsonEnd === -1) {
+      throw new Error("Invalid SysEx: missing terminator");
+    }
+
+    const jsonBytes = data.slice(headerSize, jsonEnd);
+    const jsonText = String.fromCharCode.apply(null, Array.from(jsonBytes));
+
+    console.log("Parsed JSON response:", jsonText);
+    return JSON.parse(jsonText);
+  } catch (err) {
+    console.error("Error parsing SysEx response:", err);
+    throw new Error("Failed to parse SysEx response");
+  }
+}
+
+// Collection of binary data response handlers
+const binaryResponseHandlers = new Map<number, (data: Uint8Array) => void>();
+
+/**
+ * Process a binary block from SysEx
+ * This is used for read/write operations where the response includes binary data
+ * @param data SysEx message containing binary data after JSON
+ * @param msgId Message ID to identify the handler
+ */
+function processBinaryResponse(data: Uint8Array, msgId: number): void {
+  const handler = binaryResponseHandlers.get(msgId);
+  if (!handler) return;
+
+  try {
+    // Find the 0x00 separator that marks the start of binary data
+    let separatorIdx = -1;
+    for (let i = 7; i < data.length - 1; i++) {
+      if (data[i] === 0x00) {
+        separatorIdx = i;
+        break;
+      }
+    }
+
+    if (separatorIdx === -1) {
+      throw new Error("Binary response missing separator");
+    }
+
+    // Extract binary data (packed in 7-bit format)
+    const packedData = data.slice(separatorIdx + 1, data.length - 1);
+
+    // Unpack to 8-bit data
+    const unpacked = unpack7(packedData);
+
+    // Call the handler
+    handler(unpacked);
+
+    // Remove the handler
+    binaryResponseHandlers.delete(msgId);
+  } catch (err) {
+    console.error("Error processing binary response:", err);
+    binaryResponseHandlers.delete(msgId);
+  }
+}
+
+/**
+ * Set up a binary response handler for a specific message ID
+ * @param msgId Message ID to watch for
+ * @param handler Function to call with the unpacked binary data
+ */
+export function setBinaryResponseHandler(
+  msgId: number,
+  handler: (data: Uint8Array) => void,
+): void {
+  binaryResponseHandlers.set(msgId, handler);
+}
+
+// Observer pattern for raw SysEx messages
+const sysexListeners = new Set<(data: Uint8Array) => void>();
+
+/**
+ * Subscribe to all SysEx messages
+ * @param listener Function to call with raw SysEx data
+ * @returns Cleanup function to unsubscribe
+ */
+export function subscribeSysexListener(
+  listener: (data: Uint8Array) => void,
+): () => void {
+  sysexListeners.add(listener);
+  return () => sysexListeners.delete(listener);
+}
+
+/**
+ * Handle incoming MIDI message, filtering for SysEx
+ * This should be called from the midi.ts handleMidiMessage function
+ * @param event MIDI message event
+ */
+export function handleSysexMessage(event: MIDIMessageEvent): void {
+  if (!event.data || event.data[0] !== 0xf0) return; // Not SysEx or no data
+
+  // Call all listeners with the raw data
+  const data = new Uint8Array(event.data);
+  sysexListeners.forEach((listener) => listener(data));
+
+  // Handle binary response if this is a JSON_REPLY with a known msgId
+  const isDevId = data[1] === 0x7d;
+  const commandPos = isDevId ? 2 : 5;
+  const msgIdPos = isDevId ? 3 : 6;
+
+  if (data.length > msgIdPos && data[commandPos] === SmsCommand.JSON_REPLY) {
+    // Get message ID
+    const msgId = data[msgIdPos];
+
+    if (binaryResponseHandlers.has(msgId)) {
+      processBinaryResponse(data, msgId);
+    }
+  }
+}
+
+/**
+ * Force use of developer ID (0x7D) instead of standard Synthstrom ID
+ * @param useDevMode True to use developer ID, false to use standard ID
+ */
+export function setDeveloperIdMode(useDevMode: boolean): void {
+  useDevId = useDevMode;
+  localStorage.setItem("dex-dev-sysex", useDevMode.toString());
+
+  // Reset session when changing mode
+  currentSession = null;
+}

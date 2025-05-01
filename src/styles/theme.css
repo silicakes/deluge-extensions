@@ -1,0 +1,32 @@
+:root {
+  /* Base colors */
+  --color-primary: #3b82f6;
+  --color-secondary: #6b7280;
+  --color-accent: #10b981;
+  --color-error: #ef4444;
+  --color-warning: #f59e0b;
+
+  /* Light theme defaults */
+  --color-bg: #ffffff;
+  --color-bg-offset: #f8fafc;
+  --color-text: #1e293b;
+  --color-text-muted: #64748b;
+  --color-border: #e2e8f0;
+  --color-shadow: rgba(0, 0, 0, 0.1);
+}
+
+/* Dark theme overrides */
+body[data-theme="dark"] {
+  --color-bg: #0f172a;
+  --color-bg-offset: #1e293b;
+  --color-text: #f8fafc;
+  --color-text-muted: #94a3b8;
+  --color-border: #334155;
+  --color-shadow: rgba(0, 0, 0, 0.3);
+}
+
+/* Global styles affected by theme */
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+} 

@@ -1,0 +1,55 @@
+{
+  "name": "deluge-extension",
+  "private": true,
+  "version": "1-beta.0",
+  "type": "module",
+  "engines": {
+    "node": ">=21.1.0",
+    "yarn": ">=4.5.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "pwa-check": "vite build && [ -f dist/sw.js ] && [ -f dist/manifest.webmanifest ] && echo 'PWA files successfully generated'",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@heroicons/react": "^2.2.0",
+    "@preact/signals": "^2.0.4",
+    "@tailwindcss/vite": "^4.1.4",
+    "preact": "^10.26.4",
+    "tailwindcss": "^4.1.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.25.1",
+    "@preact/preset-vite": "^2.10.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/preact": "^3.2.4",
+    "@types/node": "^22.15.2",
+    "eslint": "^9.25.1",
+    "eslint-config-preact": "^1.5.0",
+    "globals": "^16.0.0",
+    "jsdom": "^26.1.0",
+    "prettier": "^3.5.3",
+    "typescript": "~5.7.2",
+    "typescript-eslint": "^8.31.1",
+    "vite": "^6.3.1",
+    "vite-plugin-pwa": "^1.0.0",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.1.2",
+    "workbox-build": "^7.3.0",
+    "workbox-expiration": "^7.3.0",
+    "workbox-precaching": "^7.3.0",
+    "workbox-routing": "^7.3.0",
+    "workbox-strategies": "^7.3.0",
+    "workbox-window": "^7.3.0"
+  },
+  "packageManager": "yarn@4.9.1",
+  "eslintConfig": {
+    "extends": "preact"
+  }
+}
