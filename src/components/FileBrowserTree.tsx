@@ -1165,7 +1165,8 @@ export default function FileBrowserTree() {
           <div className="p-4 text-red-500 text-center">
             <p className="mb-2">❌ {error.value}</p>
             <p className="text-sm text-neutral-500 mb-4">
-              Make sure your Deluge is connected and in USB MIDI mode
+              Make sure your Deluge is connected and that you're using community
+              firmware 1.3.0 or later
             </p>
             <button
               className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded inline-flex items-center"

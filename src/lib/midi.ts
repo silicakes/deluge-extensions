@@ -349,7 +349,7 @@ export async function testSysExConnectivity(): Promise<boolean> {
       console.error("Developer ID ping also failed:", devErr);
       // Reset to standard mode
       setDeveloperIdMode(false);
-      throw new Error("Device doesn't support SysEx communication");
+      throw new Error("Device doesn't support file system SysEx communication");
     }
   }
 }

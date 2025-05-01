@@ -38,7 +38,15 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 - **❓ Keyboard Shortcuts Help**: Quickly view all available keyboard shortcuts by pressing '?' or clicking the help button.
 - **📱 Progressive Web App**: Install DEx directly to your home screen and use it offline. UI components work without an internet connection!
 - **🔄 Update Notifications**: When a new version is available, you'll get a notification allowing you to update instantly.
-- **Display Type Toggle**: Switch between the OLED (right) and 7-Segment (left) displays using the convenient slider.
+- **🔄 Display Type Toggle**: Switch between the OLED (right) and 7-Segment (left) displays using the convenient slider.
+- **🗂️ SD-Card File Browser** _(requires Deluge **Community Firmware ≥ 1.3.0** – currently in **beta**)_:
+  - Explore your card with a **lazy-loaded tree view** that only requests directory contents on demand.
+  - **Sidebar UI** with file-type icons, single-selection highlight, and keyboard navigation.
+  - **Drag-and-drop** inside the tree to move files & folders.
+  - **Upload** files from your computer by dropping them onto the browser; **download** any file back with one click.
+  - Full **CRUD**: create new folders/files, rename items inline (F2 or double-click), and delete with confirmation dialogs.
+  - Built-in transfer queue, visual progress bar, and conflict-resolution prompts ensure safe operations.
+  - Works entirely over MIDI – no additional drivers or SD-card removal required!
 
 ## Getting Started 🚀
 
@@ -47,6 +55,7 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 - A modern web browser with **WebMIDI support** (like Chrome, Edge, or Opera).
 - Your Synthstrom Deluge connected to your computer or mobile device via **USB**.
 - For mobile use: An Android device with USB OTG support or iOS device (with appropriate adapters).
+- **Deluge running Community Firmware 1.3.0 or later** is required _only_ for the File Browser feature (all other functionality works on any firmware).
 
 ### Setup
 
