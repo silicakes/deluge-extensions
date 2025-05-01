@@ -14,6 +14,7 @@ import { subscribeMidiListener } from "../lib/midi";
 import { displaySettings, fullscreenActive } from "../state";
 import { addDebugMessage } from "../lib/debug";
 import { DisplayTypeSwitch } from "./DisplayTypeSwitch";
+import { ScreenshotIconButton } from "./ScreenshotIconButton";
 
 /**
  * DisplayViewer – renders the Deluge OLED / 7-segment output onto a canvas.
@@ -165,13 +166,16 @@ export function DisplayViewer() {
     <div
       id="display-wrapper"
       ref={containerRef}
-      className="screen-container inline-block p-0 transition-all"
+      className="screen-container inline-block p-0 transition-all relative group"
       style={{ visibility: "visible", opacity: 1 }}
     >
       <canvas
         ref={canvasRef}
         className="image-rendering-pixelated border block"
       />
+
+      {/* Screenshot icon - only visible on hover, hidden in fullscreen */}
+      {!fullscreenActive.value && <ScreenshotIconButton />}
 
       {/* Display type toggle switch placed above the canvas */}
       {!fullscreenActive.value && (

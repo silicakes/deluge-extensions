@@ -1,5 +1,4 @@
 // import { MidiDeviceSelector } from "./MidiDeviceSelector";
-import { DisplayControls } from "./DisplayControls";
 import { useEffect, useState } from "preact/hooks";
 import { Suspense, lazy } from "preact/compat";
 import {
@@ -12,7 +11,6 @@ import * as fullscreen from "../lib/fullscreen";
 import { Header } from "./Header";
 import { SysExConsole } from "./SysExConsole";
 import { DisplayViewer } from "./DisplayViewer";
-import { Card } from "./Card";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
 import { helpOpen, fileBrowserOpen, displaySettings } from "../state";
 import { PwaUpdatePrompt } from "./PwaUpdatePrompt";
@@ -21,6 +19,7 @@ import { DisplayColorDrawer } from "./DisplayColorDrawer";
 import { loadDisplaySettings } from "../hooks/useDisplaySettingsPersistence";
 import { initMidi } from "../lib/midi";
 import { FileOverrideConfirmation } from "./FileOverrideConfirmation";
+import { AdvancedDisplayControls } from "./AdvancedDisplayControls";
 
 // Lazily load the file browser sidebar
 const FileBrowserSidebar = lazy(() => import("./FileBrowserSidebar"));
@@ -114,12 +113,8 @@ export function App() {
         </div>
 
         <main className="p-4 max-w-screen-lg mx-auto space-y-6">
-          {/* Display controls */}
-          <Card title="Display Controls">
-            <div className="flex justify-between items-center flex-wrap gap-2 controls">
-              <DisplayControls />
-            </div>
-          </Card>
+          {/* Advanced display controls */}
+          <AdvancedDisplayControls />
 
           <SysExConsole />
         </main>

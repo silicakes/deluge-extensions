@@ -96,7 +96,7 @@ export function AdvancedDisplayControls() {
       {/* Settings button */}
       <button
         onClick={() => setIsOpen((prev) => !prev)}
-        className="cursor-pointer fixed left-4 bottom-18 z-10 p-2 rounded-full bg-[var(--color-bg-offset)] text-[var(--color-text)] shadow-lg border border-[var(--color-border)]"
+        className="cursor-pointer fixed left-4 bottom-12 z-10 p-2 rounded-full bg-[var(--color-bg-offset)] text-[var(--color-text)] shadow-lg border border-[var(--color-border)]"
         aria-label="Advanced Display Controls"
         aria-haspopup="dialog"
         aria-expanded={isOpen}
