@@ -38,6 +38,7 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 - **❓ Keyboard Shortcuts Help**: Quickly view all available keyboard shortcuts by pressing '?' or clicking the help button.
 - **📱 Progressive Web App**: Install DEx directly to your home screen and use it offline. UI components work without an internet connection!
 - **🔄 Update Notifications**: When a new version is available, you'll get a notification allowing you to update instantly.
+- **Display Type Toggle**: Switch between the OLED (right) and 7-Segment (left) displays using the convenient slider.
 
 ## Getting Started 🚀
 
@@ -62,7 +63,7 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 
 - **Auto Display**: Automatically begins polling the Deluge display as soon as a valid MIDI output is connected (toggleable).
 - **Start Display Refresh**: Manually begins polling the Deluge for display updates (OLED or 7-Segment).
-- **Switch Display Type**: Toggles the view between the OLED and 7-Segment displays.
+- **Display Type Toggle**: Switch between the OLED (right) and 7-Segment (left) displays using the convenient slider.
 - **Get Debug Messages**: Manually requests the latest debug info from the Deluge.
 - **Monitor UI Changes**: Toggles the UI monitoring mode on/off.
 - **Full Screen**: Enters a distraction-free fullscreen mode that optimizes the display for your current device and screen size. Press 'ESC' or tap the button again to exit.

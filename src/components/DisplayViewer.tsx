@@ -13,6 +13,7 @@ import {
 import { subscribeMidiListener } from "../lib/midi";
 import { displaySettings, fullscreenActive } from "../state";
 import { addDebugMessage } from "../lib/debug";
+import { DisplayTypeSwitch } from "./DisplayTypeSwitch";
 
 /**
  * DisplayViewer – renders the Deluge OLED / 7-segment output onto a canvas.
@@ -172,6 +173,12 @@ export function DisplayViewer() {
         className="image-rendering-pixelated border block"
       />
 
+      {/* Display type toggle switch placed above the canvas */}
+      {!fullscreenActive.value && (
+        <div className="flex justify-end mt-2">
+          <DisplayTypeSwitch />
+        </div>
+      )}
       {/* Copy Base64 button (hidden in fullscreen mode) */}
       {!fullscreenActive.value && (
         <button

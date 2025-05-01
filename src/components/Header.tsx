@@ -3,6 +3,7 @@ import { MidiDeviceNavbarMobile } from "./MidiDeviceNavbarMobile";
 import { MidiDeviceNavbarDesktop } from "./MidiDeviceNavbarDesktop";
 import { FullscreenToggleButton } from "./FullscreenToggleButton";
 import FileBrowserToggleButton from "./FileBrowserToggleButton";
+import { HelpIconButton } from "./HelpIconButton";
 
 export function Header() {
   return (
@@ -27,6 +28,7 @@ export function Header() {
         <FileBrowserToggleButton />
         <FullscreenToggleButton />
         <ThemeSwitcher />
+        <HelpIconButton />
         <a
           href="https://dex.silicak.es"
           target="_blank"

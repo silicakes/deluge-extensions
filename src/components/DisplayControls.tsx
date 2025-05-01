@@ -1,7 +1,6 @@
 import { useEffect } from "preact/hooks";
 import { useSignal } from "@preact/signals";
-import { flipScreen } from "../lib/midi";
-import { midiOut, helpOpen } from "../state";
+import { midiOut } from "../state";
 import { Button } from "./Button";
 import { captureScreenshot } from "../lib/display";
 import { AdvancedDisplayControls } from "./AdvancedDisplayControls";
@@ -22,33 +21,13 @@ export function DisplayControls() {
     return () => document.removeEventListener("fullscreenchange", handler);
   }, []);
 
-  // Handlers for display controls
-  const handleFlip = () => flipScreen();
-
   // Handlers for new controls
   const handleScreenshot = () => captureScreenshot();
 
-  // Handler for help
-  const handleHelp = () => {
-    helpOpen.value = !helpOpen.value;
-  };
-
   return (
     <div className="flex gap-2">
-      <Button onClick={handleFlip} disabled={disabled}>
-        Switch display type
-      </Button>
       <Button onClick={handleScreenshot} disabled={disabled}>
         📸 Screenshot
-      </Button>
-      <Button
-        onClick={handleHelp}
-        aria-label="Keyboard help (?)"
-        title="Keyboard help (?)"
-        aria-haspopup="dialog"
-        aria-pressed={helpOpen.value}
-      >
-        ?
       </Button>
 
       <AdvancedDisplayControls />

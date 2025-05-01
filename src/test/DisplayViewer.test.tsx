@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/preact";
 import { DisplayViewer } from "../components/DisplayViewer";
+import { fullscreenActive } from "../state";
 
 // Mock the necessary functions
 vi.mock("../lib/debug", () => ({
@@ -23,7 +24,19 @@ vi.mock("../lib/midi", () => ({
   subscribeMidiListener: vi.fn().mockReturnValue(() => {}),
 }));
 
+// Mock the DisplayTypeSwitch component
+vi.mock("../components/DisplayTypeSwitch", () => ({
+  DisplayTypeSwitch: () => (
+    <div data-testid="display-type-switch">Display Type Switch Mock</div>
+  ),
+}));
+
 describe("DisplayViewer", () => {
+  beforeEach(() => {
+    // Reset fullscreen state
+    fullscreenActive.value = false;
+  });
+
   it("renders the canvas with correct structure", () => {
     const { container } = render(<DisplayViewer />);
 
@@ -44,10 +57,21 @@ describe("DisplayViewer", () => {
     expect(canvas).toHaveClass("image-rendering-pixelated");
     expect(canvas).toHaveClass("block");
 
+    // Should have the display type switch
+    expect(screen.getByTestId("display-type-switch")).toBeInTheDocument();
+
     // Ensure the button exists when not in fullscreen mode
     const button = screen.getByText("Copy Base64");
     expect(button).toBeInTheDocument();
     expect(button).toHaveAttribute("aria-label", "Copy Base64 of OLED buffer");
+  });
+
+  it("hides the display type switch in fullscreen mode", () => {
+    fullscreenActive.value = true;
+    render(<DisplayViewer />);
+
+    // The display type switch should not be visible in fullscreen mode
+    expect(screen.queryByTestId("display-type-switch")).not.toBeInTheDocument();
   });
 
   it("listens for display:resized events", () => {
