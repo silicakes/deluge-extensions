@@ -1,6 +1,7 @@
 // import { MidiDeviceSelector } from "./MidiDeviceSelector";
 import { DisplayControls } from "./DisplayControls";
 import { useEffect, useState } from "preact/hooks";
+import { Suspense, lazy } from "preact/compat";
 import {
   captureScreenshot,
   copyCanvasToBase64,
@@ -13,11 +14,15 @@ import { SysExConsole } from "./SysExConsole";
 import { DisplayViewer } from "./DisplayViewer";
 import { Card } from "./Card";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
-import { helpOpen } from "../state";
+import { helpOpen, fileBrowserOpen } from "../state";
 import { PwaUpdatePrompt } from "./PwaUpdatePrompt";
 import { PixelSizeControls } from "./PixelSizeControls";
 import { DisplayColorDrawer } from "./DisplayColorDrawer";
 import { loadDisplaySettings } from "../hooks/useDisplaySettingsPersistence";
+import { initMidi } from "../lib/midi";
+
+// Lazily load the file browser sidebar
+const FileBrowserSidebar = lazy(() => import("./FileBrowserSidebar"));
 
 export function App() {
   const [colorDrawerOpen, setColorDrawerOpen] = useState(false);
@@ -25,6 +30,18 @@ export function App() {
   // Load display settings from localStorage on mount
   useEffect(() => {
     loadDisplaySettings();
+  }, []);
+
+  // Initialize MIDI on mount
+  useEffect(() => {
+    const init = async () => {
+      try {
+        await initMidi(true);
+      } catch (err) {
+        console.error("MIDI initialization failed:", err);
+      }
+    };
+    init();
   }, []);
 
   // Register global keyboard shortcuts
@@ -72,26 +89,38 @@ export function App() {
       <PwaUpdatePrompt />
       <Header />
 
-      {/* Pixel Size Controls - Always visible above canvas */}
-      <div className="w-full max-w-screen-lg mx-auto px-4 mt-3">
-        <PixelSizeControls />
+      {/* Container that shifts content when sidebar is open */}
+      <div
+        className={`transition-all duration-300 ${fileBrowserOpen.value ? "ml-72 sm:ml-80" : ""}`}
+      >
+        {/* Pixel Size Controls - Always visible above canvas */}
+        <div className="w-full max-w-screen-lg mx-auto px-4 mt-3">
+          <PixelSizeControls />
+        </div>
+
+        {/* Canvas placed outside the main container for unlimited growth in both directions */}
+        <div className="w-full flex justify-center my-6">
+          <DisplayViewer />
+        </div>
+
+        <main className="p-4 max-w-screen-lg mx-auto space-y-6">
+          {/* Display controls */}
+          <Card title="Display Controls">
+            <div className="flex justify-between items-center flex-wrap gap-2 controls">
+              <DisplayControls />
+            </div>
+          </Card>
+
+          <SysExConsole />
+        </main>
       </div>
 
-      {/* Canvas placed outside the main container for unlimited growth in both directions */}
-      <div className="w-full flex justify-center my-6">
-        <DisplayViewer />
-      </div>
-
-      <main className="p-4 max-w-screen-lg mx-auto space-y-6">
-        {/* Display controls */}
-        <Card title="Display Controls">
-          <div className="flex justify-between items-center flex-wrap gap-2 controls">
-            <DisplayControls />
-          </div>
-        </Card>
-
-        <SysExConsole />
-      </main>
+      {/* Conditionally render the file browser sidebar */}
+      {fileBrowserOpen.value && (
+        <Suspense fallback={null}>
+          <FileBrowserSidebar />
+        </Suspense>
+      )}
 
       {/* Display Color Drawer */}
       <DisplayColorDrawer
@@ -100,7 +129,7 @@ export function App() {
       />
 
       {/* Render the ShortcutHelpOverlay */}
-      <ShortcutHelpOverlay />
+      {helpOpen.value && <ShortcutHelpOverlay />}
     </div>
   );
 }

@@ -13,6 +13,27 @@ export const helpOpen = signal(false);
 export const fullscreenActive = signal(false);
 export const displayType = signal<"OLED" | "7SEG">("OLED");
 
+// Added FileEntry interface for file browser
+export interface FileEntry {
+  name: string;
+  size: number;
+  attr: number; // 0x10 bit indicates directory
+  date: number; // FAT date format
+  time: number; // FAT time format
+}
+
+// Maps absolute directory paths to entries returned by the Deluge
+export const fileTree = signal<Record<string, FileEntry[]>>({});
+
+// Tracks which directories are currently expanded in UI
+export const expandedPaths = signal<Set<string>>(new Set());
+
+// Controls mounting of sidebar & lazy import
+export const fileBrowserOpen = signal<boolean>(false);
+
+// Currently highlighted file or folder path
+export const selectedPath = signal<string | null>(null);
+
 export interface DisplaySettings {
   pixelWidth: number;
   pixelHeight: number;

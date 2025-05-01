@@ -1,5 +1,12 @@
-import { midiIn, midiOut } from "../state";
+import { midiIn, midiOut, fileTree, FileEntry } from "../state";
 import { addDebugMessage } from "./debug";
+import {
+  ensureSession,
+  handleSysexMessage,
+  ping as smsPing,
+  sendJson,
+  setDeveloperIdMode,
+} from "./smsysex";
 
 let midiAccess: MIDIAccess | null = null;
 let monitorInterval: number | null = null;
@@ -29,7 +36,7 @@ const midiListeners = new Set<(e: MIDIMessageEvent) => void>();
 
 /** Initialize Web MIDI access and set up event listeners */
 export async function initMidi(
-  autoConnect: boolean = false
+  autoConnect: boolean = false,
 ): Promise<MIDIAccess | null> {
   if (!navigator.requestMIDIAccess) {
     console.error("Web MIDI API not supported");
@@ -100,8 +107,11 @@ function handleMidiMessage(event: MIDIMessageEvent) {
   midiListeners.forEach((fn) => fn(event));
   console.debug("MIDI message", event.data);
 
-  // Log SysEx messages to debug console
+  // Handle SysEx messages for smSysex protocol
   if (event.data && event.data.length > 0 && event.data[0] === 0xf0) {
+    // Forward to smSysex handler
+    handleSysexMessage(event);
+
     const bytes = Array.from(event.data)
       .map((b) => "0x" + b.toString(16).toUpperCase().padStart(2, "0"))
       .join(" ");
@@ -147,7 +157,15 @@ export function ping() {
     console.error("MIDI Output not selected. Cannot send ping command.");
     return;
   }
-  midiOut.value.send([0xf0, 0x7d, 0x00, 0xf7]);
+
+  // Try using smSysex ping (new protocol)
+  smsPing().catch((err) => {
+    console.warn("smSysex ping failed, falling back to legacy ping:", err);
+    // Fallback to legacy ping
+    if (midiOut.value) {
+      midiOut.value.send([0xf0, 0x7d, 0x00, 0xf7]);
+    }
+  });
 }
 
 /** Request full OLED display data */
@@ -203,10 +221,10 @@ export function getDebug() {
 export function getFeatures() {
   if (!midiOut.value) {
     console.error(
-      "MIDI Output not selected. Cannot send features status command."
+      "MIDI Output not selected. Cannot send features status command.",
     );
     addDebugMessage(
-      "MIDI Output not selected. Cannot request features status."
+      "MIDI Output not selected. Cannot request features status.",
     );
     return false;
   }
@@ -283,5 +301,130 @@ export function stopMonitor() {
   if (monitorInterval !== null) {
     clearInterval(monitorInterval);
     monitorInterval = null;
+  }
+}
+
+/**
+ * Test SysEx connectivity to ensure the device supports file browser commands
+ * @returns Promise resolving to true if connected successfully
+ */
+export async function testSysExConnectivity(): Promise<boolean> {
+  if (!midiOut.value) {
+    console.error("testSysExConnectivity: MIDI Output not selected");
+    throw new Error("MIDI Output not selected");
+  }
+
+  console.log("Testing SysEx connectivity...");
+  try {
+    // First try using the standard Synthstrom ID
+    console.log("Trying standard Synthstrom ID first");
+    await smsPing();
+    console.log("Standard ID ping succeeded");
+    return true;
+  } catch (err) {
+    console.warn("Standard SysEx ping failed, trying developer ID:", err);
+
+    try {
+      // Try with developer ID (0x7D)
+      console.log("Switching to developer ID (0x7D)");
+      setDeveloperIdMode(true);
+      await smsPing();
+      console.log("Developer ID ping succeeded");
+      return true;
+    } catch (devErr) {
+      console.error("Developer ID ping also failed:", devErr);
+      // Reset to standard mode
+      setDeveloperIdMode(false);
+      throw new Error("Device doesn't support SysEx communication");
+    }
+  }
+}
+
+/**
+ * List contents of a directory on the Deluge
+ * @param path Directory path to list
+ * @param offset Starting index for pagination
+ * @param lines Maximum number of entries to return
+ * @returns Promise resolving to array of FileEntry objects
+ */
+export async function listDirectory(
+  path: string,
+  offset: number = 0,
+  lines: number = 64,
+): Promise<FileEntry[]> {
+  if (!midiOut.value) {
+    console.error("listDirectory: MIDI Output not selected");
+    throw new Error("MIDI Output not selected");
+  }
+
+  console.log(
+    `Listing directory ${path} (offset=${offset}, lines=${lines})...`,
+  );
+  try {
+    // Ensure path starts with /
+    if (!path.startsWith("/")) {
+      path = "/" + path;
+    }
+
+    // Use smSysex transport to send the dir command
+    console.log("Sending dir command via smSysex...");
+    const response = await sendJson({
+      dir: {
+        path,
+        offset,
+        lines,
+      },
+    });
+
+    console.log("Received directory response:", response);
+
+    // Parse the response
+    if (
+      response &&
+      response["^dir"] &&
+      typeof response["^dir"] === "object" &&
+      response["^dir"] !== null &&
+      "list" in response["^dir"]
+    ) {
+      const dirResponse = response["^dir"] as Record<string, unknown>;
+      const entries = dirResponse.list as FileEntry[];
+
+      console.log(`Found ${entries.length} entries in ${path}`);
+
+      // Update our fileTree signal with the new data
+      // Keep all existing entries and add these new ones
+      fileTree.value = { ...fileTree.value, [path]: entries };
+
+      return entries;
+    } else {
+      console.error("Invalid directory response:", response);
+      throw new Error("Failed to list directory: Invalid response");
+    }
+  } catch (err) {
+    console.error(`Failed to list directory ${path}:`, err);
+    throw err;
+  }
+}
+
+/**
+ * Check if firmware supports smSysex protocol
+ * @returns Promise resolving to true if supported
+ */
+export async function checkFirmwareSupport(): Promise<boolean> {
+  if (!midiOut.value) {
+    console.error("checkFirmwareSupport: MIDI Output not selected");
+    throw new Error("MIDI Output not selected");
+  }
+
+  console.log("Checking firmware smSysex support...");
+  try {
+    // Try to establish a session - this will fail on unsupported firmware
+    console.log("Attempting to establish a session...");
+    await ensureSession();
+    console.log("Session established - firmware supports smSysex");
+    return true;
+  } catch (err) {
+    console.error("Firmware doesn't support smSysex protocol:", err);
+    throw new Error("Firmware doesn't support smSysex protocol");
   }
 }

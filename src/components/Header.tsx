@@ -2,6 +2,7 @@ import { ThemeSwitcher } from "./ThemeSwitcher";
 import { MidiDeviceNavbarMobile } from "./MidiDeviceNavbarMobile";
 import { MidiDeviceNavbarDesktop } from "./MidiDeviceNavbarDesktop";
 import { FullscreenToggleButton } from "./FullscreenToggleButton";
+import FileBrowserToggleButton from "./FileBrowserToggleButton";
 
 export function Header() {
   return (
@@ -23,6 +24,7 @@ export function Header() {
 
       {/* Right: controls */}
       <div className="flex items-center gap-3 flex-wrap">
+        <FileBrowserToggleButton />
         <FullscreenToggleButton />
         <ThemeSwitcher />
         <a
