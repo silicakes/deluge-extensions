@@ -48,6 +48,10 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
   - Built-in transfer queue, visual progress bar, and conflict-resolution prompts ensure safe operations.
   - Works entirely over MIDI – no additional drivers or SD-card removal required!
 
+ 
+  <img width="1871" alt="image" src="https://github.com/user-attachments/assets/8ba53855-ec9b-4226-812e-bde4d5bf2e06" />
+
+
 ## Getting Started 🚀
 
 ### Prerequisites
