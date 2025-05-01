@@ -177,7 +177,7 @@ function renderOledCanvas(
   pxW: number,
   pxH: number,
 ) {
-  const indist = 0.5; // visually pleasing inset so individual pixels have gaps
+  const indist = displaySettings.value.showPixelGrid ? 0.5 : 0; // Use settings for grid visibility
   ctx.fillStyle = displaySettings.value.backgroundColor;
   ctx.fillRect(0, 0, OLED_WIDTH * pxW, 48 * pxH);
   ctx.fillStyle = displaySettings.value.foregroundColor;

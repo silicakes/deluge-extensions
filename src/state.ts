@@ -74,6 +74,7 @@ export interface DisplaySettings {
   minSize: number;
   maxSize: number;
   resizeStep: number;
+  showPixelGrid: boolean;
 }
 
 export const displaySettings = signal<DisplaySettings>({
@@ -85,6 +86,7 @@ export const displaySettings = signal<DisplaySettings>({
   minSize: 1,
   maxSize: 32,
   resizeStep: 1,
+  showPixelGrid: true,
 });
 
 // --- Hydrate display settings from localStorage (runs once at module load) ---

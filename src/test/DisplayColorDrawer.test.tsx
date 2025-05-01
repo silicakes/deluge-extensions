@@ -44,6 +44,7 @@ describe("DisplayColorDrawer", () => {
       minSize: 1,
       maxSize: 32,
       resizeStep: 1,
+      showPixelGrid: true,
     };
 
     // Reset theme preference
@@ -152,6 +153,22 @@ describe("DisplayColorDrawer", () => {
     fireEvent.click(checkbox);
 
     expect(displaySettings.value.use7SegCustomColors).toBe(true);
+  });
+
+  it("updates pixel grid setting when toggled", () => {
+    const { getByText } = render(
+      <DisplayColorDrawer isOpen={true} onClose={mockOnClose} />,
+    );
+
+    // Initially, showPixelGrid should be true (from beforeEach)
+    expect(displaySettings.value.showPixelGrid).toBe(true);
+
+    const checkbox = getByText("Pixel grid")
+      .previousSibling as HTMLInputElement;
+    fireEvent.click(checkbox);
+
+    // After clicking, it should be false
+    expect(displaySettings.value.showPixelGrid).toBe(false);
   });
 
   it("calls setTheme when a theme option is selected", () => {

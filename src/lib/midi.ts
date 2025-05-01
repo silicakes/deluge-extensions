@@ -15,12 +15,6 @@ import {
   ping as smsPing,
   sendJson,
   setDeveloperIdMode,
-  SmsCommand,
-  DEV_MANUFACTURER_ID,
-  STD_MANUFACTURER_ID,
-  buildMsgId,
-  incrementCounter,
-  useDevId,
 } from "./smsysex";
 import {
   fileOverrideConfirmationOpen,

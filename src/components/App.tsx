@@ -14,7 +14,7 @@ import { SysExConsole } from "./SysExConsole";
 import { DisplayViewer } from "./DisplayViewer";
 import { Card } from "./Card";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
-import { helpOpen, fileBrowserOpen } from "../state";
+import { helpOpen, fileBrowserOpen, displaySettings } from "../state";
 import { PwaUpdatePrompt } from "./PwaUpdatePrompt";
 import { PixelSizeControls } from "./PixelSizeControls";
 import { DisplayColorDrawer } from "./DisplayColorDrawer";
@@ -78,6 +78,12 @@ export function App() {
           break;
         case "d": // New shortcut for Display colors
           setColorDrawerOpen(!colorDrawerOpen);
+          break;
+        case "g": // Toggle pixel grid
+          displaySettings.value = {
+            ...displaySettings.value,
+            showPixelGrid: !displaySettings.value.showPixelGrid,
+          };
           break;
         default:
           return;

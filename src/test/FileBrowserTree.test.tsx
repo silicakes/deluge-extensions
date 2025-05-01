@@ -1,17 +1,15 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/preact";
-import { userEvent } from "@testing-library/user-event";
+import userEvent from "@testing-library/user-event";
 import FileBrowserTree from "../components/FileBrowserTree";
 import {
   fileTree,
   expandedPaths,
   midiOut,
-  selectedPath,
   selectedPaths,
   editingPath,
 } from "../state";
 import { listDirectory } from "../lib/midi";
-import { effect } from "@preact/signals";
 import * as midi from "../lib/midi";
 
 // Types for context menu position and props

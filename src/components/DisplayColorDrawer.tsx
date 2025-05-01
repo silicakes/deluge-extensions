@@ -232,6 +232,24 @@ export function DisplayColorDrawer({
                   <span>Use custom for 7-segment</span>
                 </label>
               </div>
+
+              <div className="mt-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={displaySettings.value.showPixelGrid}
+                    onChange={(e) => {
+                      displaySettings.value = {
+                        ...displaySettings.value,
+                        showPixelGrid: (e.target as HTMLInputElement).checked,
+                      };
+                    }}
+                    className="border-[var(--color-border)]"
+                    title="Toggle pixel grid (G)"
+                  />
+                  <span>Pixel grid</span>
+                </label>
+              </div>
             </div>
           </section>
         </div>

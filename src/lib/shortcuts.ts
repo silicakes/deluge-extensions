@@ -10,5 +10,6 @@ export const globalShortcuts: ShortcutHelpItem[] = [
   { keys: "+ / =", description: "Increase canvas size" },
   { keys: "-", description: "Decrease canvas size" },
   { keys: "D", description: "Toggle display colors" },
+  { keys: "G", description: "Toggle pixel grid" },
   { keys: "?", description: "Toggle help overlay" },
 ];
