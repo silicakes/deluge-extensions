@@ -386,22 +386,24 @@ function sortEntriesByDirectoryFirst(entries: FileEntry[]): FileEntry[] {
 /**
  * List contents of a directory on the Deluge
  * @param path Directory path to list
- * @param offset Starting index for pagination
- * @param lines Maximum number of entries to return
+ * @param options Optional options object
  * @returns Promise resolving to array of FileEntry objects
  */
 export async function listDirectory(
   path: string,
-  offset: number = 0,
-  lines: number = 64,
+  options?: { offset?: number; lines?: number; force?: boolean },
 ): Promise<FileEntry[]> {
   if (!midiOut.value) {
     console.error("listDirectory: MIDI Output not selected");
     throw new Error("MIDI Output not selected");
   }
 
+  const offset = options?.offset ?? 0;
+  const lines = options?.lines ?? 64;
+  const force = options?.force ?? false;
+
   console.log(
-    `Listing directory ${path} (offset=${offset}, lines=${lines})...`,
+    `Listing directory ${path} (offset=${offset}, lines=${lines}, force=${force})...`,
   );
   try {
     // Ensure path starts with /
@@ -416,6 +418,7 @@ export async function listDirectory(
         path,
         offset,
         lines,
+        force,
       },
     });
 

@@ -7,6 +7,7 @@ import {
   fileTransferProgress,
   fileTransferInProgress,
   fileTree,
+  expandedPaths,
 } from "../state";
 import {
   readFile,
@@ -42,6 +43,7 @@ export default function FileBrowserSidebar() {
   const showNewFolderModal = useSignal(false);
   const showNewFileModal = useSignal(false);
   const newName = useSignal("");
+  const isRefreshing = useSignal(false);
 
   // Auto-close sidebar when MIDI is disconnected
   useSignalEffect(() => {
@@ -302,6 +304,43 @@ export default function FileBrowserSidebar() {
     }
   };
 
+  // Determine current directory for refresh functionality
+  const getCurrentDirectory = () => {
+    // If a directory is selected, use that
+    if (selectedPaths.value.size > 0) {
+      const path = Array.from(selectedPaths.value)[0];
+      if (fileTree.value[path]) {
+        return path; // Selected path is a directory
+      } else {
+        // It's a file, use parent directory
+        return path.substring(0, path.lastIndexOf("/") || 0) || "/";
+      }
+    }
+
+    // If no selection, use first expanded path or default to root
+    return expandedPaths.value.size > 0
+      ? Array.from(expandedPaths.value)[0]
+      : "/";
+  };
+
+  // Refresh current directory function
+  const refreshCurrentDir = async () => {
+    if (isRefreshing.value) return;
+    isRefreshing.value = true;
+
+    const currentDir = getCurrentDirectory();
+
+    try {
+      console.log(`Refreshing directory: ${currentDir}`);
+      await listDirectory(currentDir, { force: true });
+      console.log(`Directory ${currentDir} refreshed successfully`);
+    } catch (err) {
+      console.error(`Failed to refresh directory ${currentDir}:`, err);
+    } finally {
+      isRefreshing.value = false;
+    }
+  };
+
   return (
     <aside
       className="fixed top-16 bottom-0 left-0 w-72 sm:w-80 bg-neutral-50 dark:bg-neutral-900 shadow-lg z-10 file-browser-sidebar"
@@ -316,6 +355,27 @@ export default function FileBrowserSidebar() {
             `(${selectedPaths.value.size} selected)`}
         </h2>
         <div className="flex items-center space-x-1">
+          {/* Refresh button */}
+          <button
+            aria-label="Refresh directory"
+            className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 text-gray-600 dark:text-gray-400"
+            onClick={refreshCurrentDir}
+            disabled={isRefreshing.value || fileTransferInProgress.value}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className={`w-5 h-5 ${isRefreshing.value ? "animate-spin" : ""}`}
+            >
+              <path
+                fillRule="evenodd"
+                d="M4.755 10.059a7.5 7.5 0 0112.548-3.364l1.903 1.903h-3.183a.75.75 0 100 1.5h4.992a.75.75 0 00.75-.75V4.356a.75.75 0 00-1.5 0v3.18l-1.9-1.9A9 9 0 003.306 9.67a.75.75 0 101.45.388zm15.408 3.352a.75.75 0 00-.919.53 7.5 7.5 0 01-12.548 3.364l-1.902-1.903h3.183a.75.75 0 000-1.5H2.984a.75.75 0 00-.75.75v4.992a.75.75 0 001.5 0v-3.18l1.9 1.9a9 9 0 0015.059-4.035.75.75 0 00-.53-.918z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+
           {/* New Folder button - always visible */}
           <button
             aria-label="New Folder"

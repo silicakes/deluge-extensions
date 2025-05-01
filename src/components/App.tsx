@@ -12,7 +12,7 @@ import { Header } from "./Header";
 import { SysExConsole } from "./SysExConsole";
 import { DisplayViewer } from "./DisplayViewer";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
-import { helpOpen, fileBrowserOpen, displaySettings } from "../state";
+import { helpOpen, fileBrowserOpen, displaySettings, midiOut } from "../state";
 import { PwaUpdatePrompt } from "./PwaUpdatePrompt";
 import { PixelSizeControls } from "./PixelSizeControls";
 import { DisplayColorDrawer } from "./DisplayColorDrawer";
@@ -64,6 +64,12 @@ export function App() {
           break;
         case "f":
           fullscreen.toggle();
+          break;
+        case "b":
+          // Only toggle file browser if a MIDI device is connected
+          if (midiOut.value !== null) {
+            fileBrowserOpen.value = !fileBrowserOpen.value;
+          }
           break;
         case "+":
         case "=": // usually same key with shift

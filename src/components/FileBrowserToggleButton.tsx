@@ -4,10 +4,12 @@ export default function FileBrowserToggleButton() {
   return (
     <button
       aria-label="Open file browser"
-      className="p-1 focus:outline-none disabled:opacity-40 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700"
+      className="p-1 focus:outline-none rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 disabled:opacity-40 disabled:cursor-not-allowed"
       disabled={midiOut.value === null}
       onClick={() => (fileBrowserOpen.value = true)}
-      title="Browse SD Card"
+      title={
+        midiOut.value === null ? "Connect MIDI device first" : "Browse SD Card"
+      }
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"

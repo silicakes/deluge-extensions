@@ -270,23 +270,7 @@ export default function FileContextMenu({
               </li>
             </>
           )}
-          {/* Show delete for both single and multiple selections */}
-          {(entry || selectedEntries.length > 0) && (
-            <li>
-              <button
-                className="px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 w-full text-left text-red-600 dark:text-red-400"
-                onClick={() => {
-                  showDeleteModal.value = true;
-                }}
-              >
-                <span className="inline-block w-5 text-center mr-2">🗑️</span>
-                Delete{" "}
-                {selectedEntries.length > 1
-                  ? `(${selectedEntries.length} items)`
-                  : ""}
-              </button>
-            </li>
-          )}
+
           {/* Show rename only for single selection */}
           {(entry || selectedEntries.length === 1) && (
             <li>
@@ -321,6 +305,23 @@ export default function FileContextMenu({
               >
                 <span className="inline-block w-5 text-center mr-2">✏️</span>
                 Rename
+              </button>
+            </li>
+          )}
+          {/* Show delete for both single and multiple selections */}
+          {(entry || selectedEntries.length > 0) && (
+            <li>
+              <button
+                className="px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 w-full text-left text-red-600 dark:text-red-400"
+                onClick={() => {
+                  showDeleteModal.value = true;
+                }}
+              >
+                <span className="inline-block w-5 text-center mr-2">🗑️</span>
+                Delete{" "}
+                {selectedEntries.length > 1
+                  ? `(${selectedEntries.length} items)`
+                  : ""}
               </button>
             </li>
           )}

@@ -677,8 +677,57 @@ function DirectoryItem({
             {isLoading.value ? (
               <li className="py-1 px-2 text-gray-500">Loading...</li>
             ) : itemError.value ? (
-              <li className="py-1 px-2 text-red-500 text-xs">
-                {itemError.value}
+              <li className="py-1 px-2 flex flex-col">
+                <span className="text-red-500 text-xs">{itemError.value}</span>
+                <button
+                  className="mt-1 px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded flex items-center justify-center"
+                  onClick={() => {
+                    isLoading.value = true;
+                    itemError.value = null;
+                    listDirectory(childPath, { force: true })
+                      .then(() => {
+                        console.log(`Retry successful for ${childPath}`);
+                        // Make sure the directory is marked as expanded
+                        const newExpanded = new Set(expandedPaths.value);
+                        newExpanded.add(childPath);
+                        expandedPaths.value = newExpanded;
+                        // Force re-render by creating a new Set object
+                        setTimeout(() => {
+                          // If for some reason the UI didn't update, force it
+                          if (
+                            !document.querySelector(
+                              `[data-path="${childPath}"][data-expanded="true"]`,
+                            )
+                          ) {
+                            console.log(
+                              "UI didn't update after retry, forcing refresh",
+                            );
+                            expandedPaths.value = new Set(expandedPaths.value);
+                          }
+                        }, 50);
+                      })
+                      .catch((err) => {
+                        console.error(`Retry failed for ${childPath}:`, err);
+                        itemError.value = `Failed to load ${childPath}: ${err instanceof Error ? err.message : String(err)}`;
+                      })
+                      .finally(() => {
+                        isLoading.value = false;
+                      });
+                  }}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-3 w-3 mr-1"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
+                    />
+                  </svg>
+                  Retry
+                </button>
               </li>
             ) : fileTree.value[childPath]?.length ? (
               sortEntriesDirectoriesFirst(fileTree.value[childPath]).map(
@@ -1027,9 +1076,6 @@ export default function FileBrowserTree() {
     localStorage.getItem("dex-file-debug") === "true",
   );
   const contextMenuPosition = useSignal<{ x: number; y: number } | null>(null);
-  const showFileManagementToolbar = useSignal(false);
-  const showNewFolderModal = useSignal(false);
-  const showNewFileModal = useSignal(false);
 
   const toggleDebugMode = () => {
     debugMode.value = !debugMode.value;
@@ -1084,16 +1130,6 @@ export default function FileBrowserTree() {
     contextMenuPosition.value = { x: e.clientX, y: e.clientY };
   };
 
-  // Handle new folder button click
-  const handleNewFolderClick = () => {
-    showNewFolderModal.value = true;
-  };
-
-  // Handle new file button click
-  const handleNewFileClick = () => {
-    showNewFileModal.value = true;
-  };
-
   return (
     <div className="h-full flex flex-col" onContextMenu={handleRootContextMenu}>
       <div className="p-2 flex items-center justify-between bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
@@ -1116,152 +1152,8 @@ export default function FileBrowserTree() {
               />
             </svg>
           </button>
-          <button
-            onClick={() =>
-              (showFileManagementToolbar.value =
-                !showFileManagementToolbar.value)
-            }
-            className={`p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 ${showFileManagementToolbar.value ? "bg-blue-100 dark:bg-blue-900/30" : ""}`}
-            title="Show File Management Tools"
-            aria-pressed={showFileManagementToolbar.value}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="w-4 h-4"
-            >
-              <path d="M2 4.5A2.5 2.5 0 014.5 2h11a2.5 2.5 0 010 5h-11A2.5 2.5 0 012 4.5zM2.75 9.083a.75.75 0 000 1.5h14.5a.75.75 0 000-1.5H2.75zM2.75 12.663a.75.75 0 000 1.5h14.5a.75.75 0 000-1.5H2.75zM2.75 16.25a.75.75 0 000 1.5h14.5a.75.75 0 100-1.5H2.75z" />
-            </svg>
-          </button>
         </div>
       </div>
-
-      {showFileManagementToolbar.value && (
-        <div className="px-2 py-1 flex items-center space-x-1 bg-neutral-100 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 overflow-x-auto">
-          <button
-            className="p-1 rounded text-xs flex items-center hover:bg-neutral-200 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="New Folder"
-            onClick={handleNewFolderClick}
-            disabled={fileTransferInProgress.value || !midiOut.value}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="w-4 h-4 mr-1"
-            >
-              <path
-                fillRule="evenodd"
-                d="M3.75 3A1.75 1.75 0 002 4.75v10.5c0 .966.784 1.75 1.75 1.75h12.5A1.75 1.75 0 0018 15.25v-8.5A1.75 1.75 0 0016.25 5h-4.836a.25.25 0 01-.177-.073L9.823 3.513A1.75 1.75 0 008.586 3H3.75zM10 8a.75.75 0 01.75.75v1.5h1.5a.75.75 0 010 1.5h-1.5v1.5a.75.75 0 01-1.5 0v-1.5h-1.5a.75.75 0 010-1.5h1.5v-1.5A.75.75 0 0110 8z"
-                clipRule="evenodd"
-              />
-            </svg>
-            New Folder
-          </button>
-
-          <button
-            className="p-1 rounded text-xs flex items-center hover:bg-neutral-200 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="New File"
-            onClick={handleNewFileClick}
-            disabled={fileTransferInProgress.value || !midiOut.value}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="w-4 h-4 mr-1"
-            >
-              <path
-                fillRule="evenodd"
-                d="M4.5 2A1.5 1.5 0 003 3.5v13A1.5 1.5 0 004.5 18h11a1.5 1.5 0 001.5-1.5V7.621a1.5 1.5 0 00-.44-1.06l-4.12-4.122A1.5 1.5 0 0011.378 2H4.5zm4.75 6.75a.75.75 0 011.5 0v2.546l.943-1.048a.75.75 0 111.114 1.004l-2.25 2.5a.75.75 0 01-1.114 0l-2.25-2.5a.75.75 0 111.114-1.004l.943 1.048V8.75z"
-                clipRule="evenodd"
-              />
-            </svg>
-            New File
-          </button>
-
-          <div className="h-4 border-l border-neutral-300 dark:border-neutral-600"></div>
-
-          <button
-            className="p-1 rounded text-xs flex items-center hover:bg-neutral-200 dark:hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Rename"
-            onClick={() => {
-              if (selectedPaths.value.size !== 1) return;
-
-              const selectedPath = Array.from(selectedPaths.value)[0];
-              // Set editing path to trigger inline editor
-              editingPath.value = selectedPath;
-            }}
-            disabled={
-              fileTransferInProgress.value ||
-              !midiOut.value ||
-              selectedPaths.value.size !== 1
-            }
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="w-4 h-4 mr-1"
-            >
-              <path d="M5.433 13.917l1.262-3.155A4 4 0 017.58 9.42l6.92-6.918a2.121 2.121 0 013 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 01-.65-.65z" />
-              <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0010 3H4.75A2.75 2.75 0 002 5.75v9.5A2.75 2.75 0 004.75 18h9.5A2.75 2.75 0 0017 15.25V10a.75.75 0 00-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5z" />
-            </svg>
-            Rename
-          </button>
-
-          <button
-            className="p-1 rounded text-xs flex items-center text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Delete"
-            onClick={() => {
-              if (selectedPaths.value.size < 1) return;
-
-              // Get all selected entries
-              const selectedEntries = Array.from(selectedPaths.value)
-                .map((selPath) => {
-                  const dirPath =
-                    selPath.substring(0, selPath.lastIndexOf("/")) || "/";
-                  const name = selPath.substring(selPath.lastIndexOf("/") + 1);
-                  const selEntry = fileTree.value[dirPath]?.find(
-                    (e) => e.name === name,
-                  );
-                  return selEntry ? { path: dirPath, entry: selEntry } : null;
-                })
-                .filter(Boolean) as { path: string; entry: FileEntry }[];
-
-              if (selectedEntries.length > 0) {
-                // Show delete confirmation modal with the centered position
-                contextMenuPosition.value = {
-                  x: window.innerWidth / 2,
-                  y: window.innerHeight / 2,
-                };
-              }
-            }}
-            disabled={
-              fileTransferInProgress.value ||
-              !midiOut.value ||
-              selectedPaths.value.size < 1
-            }
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="w-4 h-4 mr-1"
-            >
-              <path
-                fillRule="evenodd"
-                d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z"
-                clipRule="evenodd"
-              />
-            </svg>
-            {selectedPaths.value.size > 1
-              ? `Delete (${selectedPaths.value.size})`
-              : "Delete"}
-          </button>
-        </div>
-      )}
 
       <div className="flex-grow overflow-y-auto">
         {isLoading.value ? (
@@ -1272,9 +1164,57 @@ export default function FileBrowserTree() {
         ) : error.value ? (
           <div className="p-4 text-red-500 text-center">
             <p className="mb-2">❌ {error.value}</p>
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-neutral-500 mb-4">
               Make sure your Deluge is connected and in USB MIDI mode
             </p>
+            <button
+              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded inline-flex items-center"
+              onClick={() => {
+                if (!midiOut.value) return;
+
+                isLoading.value = true;
+                error.value = null;
+
+                // Retry with the same sequence used on initial load
+                testSysExConnectivity()
+                  .then(() => {
+                    console.log("Retry: Basic SysEx connectivity OK");
+                    return checkFirmwareSupport();
+                  })
+                  .then(() => {
+                    console.log("Retry: Device responded to version request");
+                    return listDirectory(rootPath, { force: true });
+                  })
+                  .then((entries) => {
+                    console.log(
+                      `Retry: Root directory loaded with ${entries.length} entries`,
+                    );
+                  })
+                  .catch((err) => {
+                    console.error("Retry: Failed to load root directory:", err);
+                    error.value =
+                      err.message || "Failed to communicate with Deluge";
+                  })
+                  .finally(() => {
+                    isLoading.value = false;
+                  });
+              }}
+              disabled={!midiOut.value}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5 mr-2"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              Retry Connection
+            </button>
           </div>
         ) : fileTree.value[rootPath]?.length ? (
           <ul className="p-2">
@@ -1320,24 +1260,6 @@ export default function FileBrowserTree() {
               })
               .filter(Boolean) as { path: string; entry: FileEntry }[]
           }
-        />
-      )}
-
-      {showNewFolderModal.value && (
-        <FileContextMenu
-          path={rootPath}
-          position={{ x: 0, y: 0 }}
-          isDirectory={true}
-          onClose={() => (showNewFolderModal.value = false)}
-        />
-      )}
-
-      {showNewFileModal.value && (
-        <FileContextMenu
-          path={rootPath}
-          position={{ x: 0, y: 0 }}
-          isDirectory={true}
-          onClose={() => (showNewFileModal.value = false)}
         />
       )}
     </div>
