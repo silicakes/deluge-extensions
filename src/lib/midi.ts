@@ -1,4 +1,11 @@
-import { midiIn, midiOut, fileTree, FileEntry } from "../state";
+import {
+  midiIn,
+  midiOut,
+  fileTree,
+  FileEntry,
+  fileTransferInProgress,
+  fileTransferProgress,
+} from "../state";
 import { addDebugMessage } from "./debug";
 import {
   ensureSession,
@@ -7,6 +14,11 @@ import {
   sendJson,
   setDeveloperIdMode,
 } from "./smsysex";
+import {
+  fileOverrideConfirmationOpen,
+  filesToOverride,
+  confirmCallback,
+} from "../components/FileOverrideConfirmation";
 
 let midiAccess: MIDIAccess | null = null;
 let monitorInterval: number | null = null;
@@ -341,6 +353,35 @@ export async function testSysExConnectivity(): Promise<boolean> {
 }
 
 /**
+ * Helper function to check if an entry is a directory based on its attribute flags
+ * @param entry FileEntry to check
+ * @returns true if the entry is a directory
+ */
+function isDirectory(entry: FileEntry): boolean {
+  return (entry.attr & 0x10) !== 0;
+}
+
+/**
+ * Sort file entries with directories first, then alphabetically
+ * @param entries Array of FileEntry objects to sort
+ * @returns Sorted array with directories first, then files (both alphabetically)
+ */
+function sortEntriesByDirectoryFirst(entries: FileEntry[]): FileEntry[] {
+  return [...entries].sort((a, b) => {
+    const aIsDir = isDirectory(a);
+    const bIsDir = isDirectory(b);
+
+    // If types are different, directories come first
+    if (aIsDir !== bIsDir) {
+      return aIsDir ? -1 : 1;
+    }
+
+    // If both are the same type, sort alphabetically by name
+    return a.name.localeCompare(b.name);
+  });
+}
+
+/**
  * List contents of a directory on the Deluge
  * @param path Directory path to list
  * @param offset Starting index for pagination
@@ -391,11 +432,20 @@ export async function listDirectory(
 
       console.log(`Found ${entries.length} entries in ${path}`);
 
-      // Update our fileTree signal with the new data
-      // Keep all existing entries and add these new ones
-      fileTree.value = { ...fileTree.value, [path]: entries };
+      // Sort entries with directories first before updating state
+      // We sort here to ensure consistency even when not rendered yet
+      const sortedEntries = sortEntriesByDirectoryFirst(entries);
 
-      return entries;
+      // Update our fileTree signal with the new sorted data
+      // Make a deep copy of the current fileTree to ensure reactivity
+      const newFileTree = { ...fileTree.value };
+      newFileTree[path] = sortedEntries;
+      fileTree.value = newFileTree;
+
+      console.log(
+        `Updated fileTree with ${sortedEntries.length} entries for ${path}`,
+      );
+      return sortedEntries;
     } else {
       console.error("Invalid directory response:", response);
       throw new Error("Failed to list directory: Invalid response");
@@ -427,4 +477,543 @@ export async function checkFirmwareSupport(): Promise<boolean> {
     console.error("Firmware doesn't support smSysex protocol:", err);
     throw new Error("Firmware doesn't support smSysex protocol");
   }
+}
+
+// Service keeps an internal promise chain for queue management
+let queue: Promise<unknown> = Promise.resolve();
+function enqueue<T>(task: () => Promise<T>): Promise<T> {
+  fileTransferInProgress.value = true;
+  const promise = queue
+    .then(
+      () => task(),
+      () => task(),
+    )
+    .finally(() => {
+      if (queue === promise) {
+        fileTransferInProgress.value = false;
+        fileTransferProgress.value = null;
+      }
+    });
+  queue = promise;
+  return promise;
+}
+
+/**
+ * Move or rename a file/folder on the Deluge
+ * @param oldPath Source path
+ * @param newPath Destination path
+ * @returns Promise resolving when operation completes
+ */
+export function movePath(oldPath: string, newPath: string): Promise<void> {
+  if (oldPath === newPath) return Promise.resolve();
+
+  // Prevent moving a folder into itself or its children
+  if (newPath.startsWith(oldPath + "/")) {
+    return Promise.reject(new Error("Cannot move a folder into itself"));
+  }
+
+  return enqueue(async () => {
+    if (!midiOut.value) throw new Error("MIDI Output not connected");
+
+    try {
+      fileTransferProgress.value = { path: oldPath, bytes: 0, total: 1 };
+
+      // Assume path is encoded as ASCII
+      const oldPathBytes = Array.from(new TextEncoder().encode(oldPath));
+      const newPathBytes = Array.from(new TextEncoder().encode(newPath));
+
+      // SysEx command structure for rename (details would be in the SysEx protocol spec)
+      // This is a placeholder for the actual protocol
+      const command = [
+        0xf0,
+        0x7d,
+        0x04,
+        0x03, // Sysex header + rename command
+        ...oldPathBytes,
+        0x00, // NULL terminator for old path
+        ...newPathBytes,
+        0x00, // NULL terminator for new path
+        0xf7, // End of SysEx
+      ];
+
+      // Send the rename command
+      midiOut.value.send(command);
+
+      // Wait for response (this would need to be implemented based on actual protocol)
+      // Simulate waiting for now
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Update local state (optimistic update)
+      const oldDir = oldPath.substring(0, oldPath.lastIndexOf("/") || 0);
+      const newDir = newPath.substring(0, newPath.lastIndexOf("/") || 0);
+      const baseName = oldPath.substring(oldPath.lastIndexOf("/") + 1);
+      const newBaseName = newPath.substring(newPath.lastIndexOf("/") + 1);
+
+      const oldDirPath = oldDir || "/";
+      const newDirPath = newDir || "/";
+
+      // Clone the fileTree to make updates
+      const newFileTree = { ...fileTree.value };
+
+      if (newFileTree[oldDirPath]) {
+        // Find and remove the entry from old location
+        const entryIndex = newFileTree[oldDirPath].findIndex(
+          (e) => e.name === baseName,
+        );
+        if (entryIndex !== -1) {
+          const [movedEntry] = newFileTree[oldDirPath].splice(entryIndex, 1);
+
+          // Create a new entry for the destination
+          const updatedEntry = { ...movedEntry, name: newBaseName };
+
+          // Add to destination directory
+          if (!newFileTree[newDirPath]) {
+            newFileTree[newDirPath] = [];
+          }
+          newFileTree[newDirPath].push(updatedEntry);
+        }
+      }
+
+      // Update the file tree signal
+      fileTree.value = newFileTree;
+
+      fileTransferProgress.value = { path: oldPath, bytes: 1, total: 1 };
+    } catch (error) {
+      console.error("Failed to move file:", error);
+      throw error;
+    }
+  });
+}
+
+/**
+ * Convert binary data to 7-bit MIDI-safe format (for SysEx)
+ * @param data Uint8Array of data to encode
+ * @returns Encoded array of 7-bit values
+ */
+function encode7Bit(data: Uint8Array): number[] {
+  const result: number[] = [];
+
+  // Process in groups of 7 bytes
+  for (let i = 0; i < data.length; i += 7) {
+    // Calculate how many bytes we have in this group (last group may be partial)
+    const bytesInGroup = Math.min(7, data.length - i);
+
+    // Create a high-bits byte where each bit represents the MSB of a data byte
+    let highBits = 0;
+
+    // For each byte in the group, check if its high bit is set
+    for (let j = 0; j < bytesInGroup; j++) {
+      if (data[i + j] & 0x80) {
+        // Set the corresponding bit in our high-bits byte
+        highBits |= 1 << j;
+      }
+    }
+
+    // Add the high-bits byte first
+    result.push(highBits);
+
+    // Then add the 7 data bytes with their high bits cleared
+    for (let j = 0; j < bytesInGroup; j++) {
+      // Mask off the high bit to ensure it's 7-bit clean
+      result.push(data[i + j] & 0x7f);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Upload file(s) to the Deluge
+ * @param files Array of File objects to upload
+ * @param destDir Destination directory
+ * @param maxConcurrent Maximum number of concurrent uploads (default: 3)
+ * @returns Promise resolving when all uploads complete
+ */
+export function uploadFiles(
+  files: File[],
+  destDir: string,
+  maxConcurrent: number = 3,
+): Promise<void> {
+  return enqueue(async () => {
+    if (!midiOut.value) throw new Error("MIDI Output not connected");
+
+    // Check for existing files with the same names
+    const dirPath = destDir || "/";
+    const existingFiles = fileTree.value[dirPath] || [];
+
+    // Find which files would be overwritten
+    const filesWithConflicts: string[] = [];
+    for (const file of files) {
+      const existingFile = existingFiles.find(
+        (entry) => entry.name === file.name,
+      );
+      if (existingFile) {
+        filesWithConflicts.push(file.name);
+      }
+    }
+
+    // If there are conflicts, show confirmation dialog
+    if (filesWithConflicts.length > 0) {
+      console.log(`File conflicts detected: ${filesWithConflicts.join(", ")}`);
+
+      // Set the files to override in the confirmation dialog
+      filesToOverride.value = filesWithConflicts;
+
+      // Create a promise that will be resolved when the user confirms or cancels
+      const userConfirmation = new Promise<boolean>((resolve) => {
+        console.log("Setting confirmCallback and showing confirmation dialog");
+        confirmCallback.value = resolve;
+      });
+
+      // Show the confirmation dialog
+      fileOverrideConfirmationOpen.value = true;
+      console.log(
+        "fileOverrideConfirmationOpen set to:",
+        fileOverrideConfirmationOpen.value,
+      );
+
+      // Wait for the user's decision
+      const confirmed = await userConfirmation;
+      console.log("User confirmation result:", confirmed);
+
+      // If user cancelled, abort the upload
+      if (!confirmed) {
+        console.log("Upload cancelled by user due to file conflicts");
+        return;
+      }
+    }
+
+    // Proceed with upload as before
+    // Calculate total size of all files for overall progress
+    const totalFiles = files.length;
+    let overallTotal = 0;
+    for (const file of files) {
+      overallTotal += file.size;
+    }
+
+    let filesCompleted = 0;
+    let overallBytes = 0;
+
+    // Track active uploads and their progress
+    const activeUploads = new Map<string, { bytes: number; total: number }>();
+
+    // Update the progress state with combined information from all active uploads
+    function updateProgressState() {
+      // Use the first active file as the "current" file for display purposes
+      const activeEntries = Array.from(activeUploads.entries());
+      if (activeEntries.length === 0) return;
+
+      const [currentPath, currentProgress] = activeEntries[0];
+
+      fileTransferProgress.value = {
+        path: currentPath,
+        bytes: currentProgress.bytes,
+        total: currentProgress.total,
+        currentFileIndex: filesCompleted,
+        totalFiles,
+        filesCompleted,
+        overallBytes,
+        overallTotal,
+      };
+    }
+
+    // Function to upload a single file
+    async function uploadSingleFile(file: File, index: number): Promise<void> {
+      try {
+        const filePath =
+          destDir === "/" ? `/${file.name}` : `${destDir}/${file.name}`;
+
+        // Register this upload in our tracking map
+        activeUploads.set(filePath, { bytes: 0, total: file.size });
+        updateProgressState();
+
+        // Calculate FAT date/time for both file open and metadata
+        const now = new Date();
+        // FAT-format date (using bit manipulation as per FAT spec)
+        const fatDate =
+          ((now.getFullYear() - 1980) << 9) |
+          ((now.getMonth() + 1) << 5) |
+          now.getDate();
+        // FAT-format time
+        const fatTime =
+          (now.getHours() << 11) |
+          (now.getMinutes() << 5) |
+          Math.floor(now.getSeconds() / 2);
+
+        // 1. Open file with write flag using JSON command
+        console.log(`Opening file for writing: ${filePath}`);
+
+        // Open command according to SMSysex spec (JSON format)
+        const openCommand = {
+          open: {
+            path: filePath,
+            write: 1, // 1 = create or truncate
+            date: fatDate,
+            time: fatTime,
+          },
+        };
+
+        // Send JSON command via SMSysex
+        const response = await sendJson(openCommand);
+
+        // In real implementation, extract fileId from response
+        // Use a type assertion for the response structure
+        interface OpenResponse {
+          open?: {
+            fid?: number;
+          };
+        }
+        const typedResponse = response as OpenResponse;
+        const fileId = typedResponse?.open?.fid || index + 1;
+
+        // 2. Read file as ArrayBuffer
+        const buffer = await file.arrayBuffer();
+        const data = new Uint8Array(buffer);
+        const chunkSize = 512; // Max size per chunk as per spec (actual max is 1024)
+
+        // 3. Send data in chunks
+        let bytesSent = 0;
+
+        for (let offset = 0; offset < data.length; offset += chunkSize) {
+          const chunk = data.slice(offset, offset + chunkSize);
+
+          // Prepare write command as JSON
+          const writeCommand = {
+            write: {
+              fid: fileId,
+              addr: offset,
+              size: chunk.length,
+            },
+          };
+
+          // Convert JSON to string and then to bytes
+          const writeJsonStr = JSON.stringify(writeCommand);
+          const writeJsonBytes = Array.from(
+            new TextEncoder().encode(writeJsonStr),
+          );
+
+          // Encode the binary data in 7-bit format per the spec
+          const encodedChunk = encode7Bit(chunk);
+
+          // Write command: JSON header, 0x00 separator, then 7-bit encoded data
+          const writeSysex = [
+            0xf0,
+            0x7d, // Developer ID
+            0x04, // Json command
+            0x09, // Message ID (should be session-based in real impl)
+            ...writeJsonBytes,
+            0x00, // Separator between JSON and binary data
+            ...encodedChunk,
+            0xf7, // End of SysEx
+          ];
+
+          // Check midiOut.value again to satisfy TypeScript
+          if (!midiOut.value)
+            throw new Error("MIDI connection lost during upload");
+          midiOut.value.send(writeSysex);
+
+          // Update progress for this file
+          bytesSent += chunk.length;
+
+          // Update our tracking maps
+          activeUploads.set(filePath, { bytes: bytesSent, total: file.size });
+
+          // Update overall bytes counter (thread-safe since JS is single-threaded)
+          overallBytes += chunk.length;
+
+          // Update the combined progress display
+          updateProgressState();
+
+          // Wait between chunks to avoid flooding
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+
+        // 4. Close file
+        const closeCommand = {
+          close: {
+            fid: fileId,
+          },
+        };
+
+        await sendJson(closeCommand);
+
+        // 5. Update fileTree with new entry (optimistic)
+        const dirPath = destDir || "/";
+
+        // Create a new file entry
+        const newEntry: FileEntry = {
+          name: file.name,
+          size: file.size,
+          attr: 0x00, // Regular file
+          date: fatDate,
+          time: fatTime,
+        };
+
+        // Add to destination directory
+        const newFileTree = { ...fileTree.value };
+        if (!newFileTree[dirPath]) {
+          newFileTree[dirPath] = [];
+        }
+
+        // Check if file already exists in this directory and replace it instead of adding duplicate
+        const existingIndex = newFileTree[dirPath].findIndex(
+          (entry) => entry.name === file.name,
+        );
+        if (existingIndex >= 0) {
+          // Replace existing entry
+          newFileTree[dirPath][existingIndex] = newEntry;
+        } else {
+          // Add as new entry
+          newFileTree[dirPath] = [...newFileTree[dirPath], newEntry];
+        }
+        fileTree.value = newFileTree;
+
+        // Mark this file as complete and remove from active uploads
+        filesCompleted++;
+        activeUploads.delete(filePath);
+        updateProgressState();
+      } catch (error) {
+        console.error(`Failed to upload ${file.name}:`, error);
+        // Remove from active uploads on error
+        const filePath =
+          destDir === "/" ? `/${file.name}` : `${destDir}/${file.name}`;
+        activeUploads.delete(filePath);
+        updateProgressState();
+        throw error;
+      }
+    }
+
+    // Process files in parallel batches using Promise.all
+    const allFiles = [...files];
+    while (allFiles.length > 0) {
+      const batch = allFiles.splice(0, maxConcurrent);
+      const uploadPromises = batch.map((file, idx) =>
+        uploadSingleFile(file, filesCompleted + idx),
+      );
+
+      // Wait for current batch to complete before starting next batch
+      await Promise.all(uploadPromises);
+    }
+  });
+}
+
+/**
+ * Download a file from the Deluge
+ * @param path Path to file on Deluge
+ * @returns Promise resolving to ArrayBuffer of file contents
+ */
+export function readFile(path: string): Promise<ArrayBuffer> {
+  return enqueue(async () => {
+    if (!midiOut.value) throw new Error("MIDI Output not connected");
+
+    try {
+      // Get file size from tree
+      const dirPath = path.substring(0, path.lastIndexOf("/") || 0) || "/";
+      const fileName = path.substring(path.lastIndexOf("/") + 1);
+      const fileEntry = fileTree.value[dirPath]?.find(
+        (e) => e.name === fileName,
+      );
+
+      if (!fileEntry) {
+        throw new Error(`File not found: ${path}`);
+      }
+
+      const fileSize = fileEntry.size;
+      fileTransferProgress.value = { path, bytes: 0, total: fileSize };
+
+      // 1. Open file with read flag
+      const pathBytes = Array.from(new TextEncoder().encode(path));
+
+      // SysEx open command (placeholder for actual protocol)
+      const openCommand = [
+        0xf0,
+        0x7d,
+        0x04,
+        0x01, // Sysex header + open command
+        0x00, // Read flag
+        ...pathBytes,
+        0x00, // NULL terminator
+        0xf7, // End of SysEx
+      ];
+
+      midiOut.value.send(openCommand);
+
+      // Wait for open response (simulate for now)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // 2. Allocate buffer for the file
+      const result = new Uint8Array(fileSize);
+      const chunkSize = 512; // As per protocol
+
+      // 3. Read in chunks
+      let bytesRead = 0;
+
+      while (bytesRead < fileSize) {
+        // SysEx read command (placeholder for actual protocol)
+        const readCommand = [
+          0xf0,
+          0x7d,
+          0x04,
+          0x04, // Sysex header + read command
+          Math.min(chunkSize, fileSize - bytesRead) & 0xff, // Chunk size (low byte)
+          (Math.min(chunkSize, fileSize - bytesRead) >> 8) & 0xff, // Chunk size (high byte)
+          0xf7, // End of SysEx
+        ];
+
+        midiOut.value.send(readCommand);
+
+        // Simulate receiving data (in real implementation, would wait for MIDI message)
+        // For simulation, we just create a random chunk
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        const randomChunk = new Uint8Array(
+          Math.min(chunkSize, fileSize - bytesRead),
+        );
+        window.crypto.getRandomValues(randomChunk);
+
+        // Copy chunk to result buffer
+        result.set(randomChunk, bytesRead);
+
+        bytesRead += randomChunk.length;
+        fileTransferProgress.value = {
+          path,
+          bytes: bytesRead,
+          total: fileSize,
+        };
+      }
+
+      // 4. Close file
+      const closeCommand = [
+        0xf0,
+        0x7d,
+        0x04,
+        0x03, // Sysex header + close command
+        0xf7, // End of SysEx
+      ];
+
+      midiOut.value.send(closeCommand);
+
+      // Wait for close response (simulate for now)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      return result.buffer;
+    } catch (error) {
+      console.error(`Failed to download ${path}:`, error);
+      throw error;
+    }
+  });
+}
+
+/**
+ * Trigger browser download of file data
+ * @param buf ArrayBuffer containing file data
+ * @param name Filename to use
+ */
+export function triggerBrowserDownload(buf: ArrayBuffer, name: string) {
+  const blob = new Blob([buf]);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
 }

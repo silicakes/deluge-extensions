@@ -5,14 +5,20 @@ import {
   expandedPaths,
   midiOut,
   FileEntry,
-  selectedPath,
+  selectedPaths,
 } from "../state";
 import {
   listDirectory,
   testSysExConnectivity,
   checkFirmwareSupport,
+  uploadFiles,
+  movePath,
 } from "../lib/midi";
 import { iconForEntry } from "../lib/fileIcons";
+import { isExternalFileDrag, isInternalDrag } from "../lib/drag";
+
+// Track last selected path for shift-clicking
+let lastSelectedPath: string | null = null;
 
 /**
  * Checks if an entry is a directory based on its attribute flags
@@ -21,6 +27,88 @@ import { iconForEntry } from "../lib/fileIcons";
  */
 function isDirectory(entry: FileEntry): boolean {
   return (entry.attr & 0x10) !== 0;
+}
+
+/**
+ * Sort file entries with directories first, then alphabetically
+ * @param entries Array of FileEntry objects to sort
+ * @returns Sorted array with directories first, then files (both alphabetically)
+ */
+function sortEntriesDirectoriesFirst(entries: FileEntry[]): FileEntry[] {
+  return [...entries].sort((a, b) => {
+    const aIsDir = isDirectory(a);
+    const bIsDir = isDirectory(b);
+
+    // If types are different, directories come first
+    if (aIsDir !== bIsDir) {
+      return aIsDir ? -1 : 1;
+    }
+
+    // If both are the same type, sort alphabetically by name
+    return a.name.localeCompare(b.name);
+  });
+}
+
+/**
+ * Get a flat list of all visible file paths in current view
+ * Used for range selection with shift key
+ */
+function getVisibleFilePaths(): string[] {
+  const paths: string[] = [];
+
+  // Helper function to recursively get all visible files
+  const addFiles = (parentPath: string, entries: FileEntry[]) => {
+    if (!entries) return;
+
+    // Sort entries to ensure consistent order
+    const sortedEntries = sortEntriesDirectoriesFirst(entries);
+
+    for (const entry of sortedEntries) {
+      const path =
+        parentPath === "/" ? `/${entry.name}` : `${parentPath}/${entry.name}`;
+      paths.push(path);
+
+      // If directory is expanded, add its children
+      if (
+        isDirectory(entry) &&
+        expandedPaths.value.has(path) &&
+        fileTree.value[path]
+      ) {
+        addFiles(path, fileTree.value[path]);
+      }
+    }
+  };
+
+  // Start with root
+  if (fileTree.value["/"] && fileTree.value["/"].length > 0) {
+    addFiles("/", fileTree.value["/"]);
+  }
+
+  return paths;
+}
+
+/**
+ * Select all files in range between two paths
+ */
+function selectRange(startPath: string, endPath: string) {
+  const visiblePaths = getVisibleFilePaths();
+  const startIndex = visiblePaths.indexOf(startPath);
+  const endIndex = visiblePaths.indexOf(endPath);
+
+  if (startIndex === -1 || endIndex === -1) return;
+
+  const newSelection = new Set(selectedPaths.value);
+
+  // Get range between start and end (works regardless of which one is first/last)
+  const min = Math.min(startIndex, endIndex);
+  const max = Math.max(startIndex, endIndex);
+
+  // Add all paths in range to selection
+  for (let i = min; i <= max; i++) {
+    newSelection.add(visiblePaths[i]);
+  }
+
+  selectedPaths.value = newSelection;
 }
 
 /**
@@ -40,8 +128,10 @@ function DirectoryItem({
   const childPath = path === "/" ? `/${entry.name}` : `${path}/${entry.name}`;
   const isExpanded = expandedPaths.value.has(childPath);
   const isLoading = useSignal(false);
-  const isSelected = selectedPath.value === childPath;
+  const isSelected = selectedPaths.value.has(childPath);
   const itemError = useSignal<string | null>(null);
+  const isDragOver = useSignal(false);
+  const isContainerDragOver = useSignal(false);
 
   const toggleExpand = async (e: MouseEvent) => {
     e.stopPropagation(); // Prevent selection when toggling
@@ -121,30 +211,214 @@ function DirectoryItem({
     }
   };
 
-  const handleSelect = () => {
-    selectedPath.value = childPath;
+  const handleSelect = (e: MouseEvent) => {
+    if (e.shiftKey && lastSelectedPath) {
+      // Shift key: range selection
+      selectRange(lastSelectedPath, childPath);
+    } else if (e.ctrlKey || e.metaKey) {
+      // Ctrl/Cmd key: toggle selection
+      const newSelection = new Set(selectedPaths.value);
+      if (newSelection.has(childPath)) {
+        newSelection.delete(childPath);
+      } else {
+        newSelection.add(childPath);
+        lastSelectedPath = childPath;
+      }
+      selectedPaths.value = newSelection;
+    } else {
+      // Regular click: single selection
+      selectedPaths.value = new Set([childPath]);
+      lastSelectedPath = childPath;
+    }
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Enter") {
-      toggleExpand(e as unknown as MouseEvent);
+      if (e.ctrlKey || e.metaKey) {
+        // Toggle selection with Ctrl/Cmd+Enter
+        const newSelection = new Set(selectedPaths.value);
+        if (newSelection.has(childPath)) {
+          newSelection.delete(childPath);
+        } else {
+          newSelection.add(childPath);
+        }
+        selectedPaths.value = newSelection;
+      } else {
+        // Regular Enter expands/collapses
+        toggleExpand(e as unknown as MouseEvent);
+      }
+    } else if (e.key === " ") {
+      // Spacebar selects
+      e.preventDefault(); // Prevent scrolling with spacebar
+      handleSelect(e as unknown as MouseEvent);
+    }
+  };
+
+  const handleDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation(); // Critical to prevent the sidebar from capturing this event
+
+    // Only show drop indicator for files being dragged, not text selection
+    if (isExternalFileDrag(e) || isInternalDrag(e)) {
+      // Apply the visual indicator to show this is a valid drop target
+      isContainerDragOver.value = true;
+      console.log(`Drag over directory: ${childPath}`);
+
+      // Ensure the root container's drag indicator doesn't show
+      const sidebarContainer = document.querySelector(".file-browser-sidebar");
+      if (sidebarContainer) {
+        e.stopPropagation(); // Make extra sure event doesn't bubble up
+      }
+    }
+  };
+
+  const handleDragLeave = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Only consider it a "leave" if we're leaving the element or entering a child
+    // that isn't part of this element's content
+    const relatedTarget = e.relatedTarget as HTMLElement | null;
+    const currentTarget = e.currentTarget as HTMLElement;
+    if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
+      isContainerDragOver.value = false;
+    }
+  };
+
+  const handleDrop = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isContainerDragOver.value = false;
+    isDragOver.value = false;
+
+    // Create a visual feedback that the drop was received
+    const element = e.currentTarget as HTMLElement;
+    element.classList.add("bg-green-100", "dark:bg-green-900/30");
+    setTimeout(() => {
+      element.classList.remove("bg-green-100", "dark:bg-green-900/30");
+    }, 500);
+
+    console.log(`Files dropped onto directory: ${childPath}`);
+
+    // Handle external file upload first
+    if (e.dataTransfer?.files.length) {
+      const files = e.dataTransfer.files;
+      console.log(`Uploading ${files.length} files to directory: ${childPath}`);
+
+      uploadFiles(Array.from(e.dataTransfer.files), childPath)
+        .then(() => {
+          console.log(`Upload complete, refreshing directory ${childPath}`);
+          // Refresh the directory contents to show the new file
+          return listDirectory(childPath);
+        })
+        .then(() => {
+          console.log(`Directory ${childPath} refreshed successfully`);
+          // Force a UI update - this is crucial to ensure the UI shows the new files
+          fileTree.value = { ...fileTree.value };
+        })
+        .catch((err) => {
+          console.error("Failed to upload files:", err);
+          alert(`Upload failed: ${err.message || "Unknown error"}`);
+        });
+      return;
+    }
+
+    // Handle internal move (Deluge file system path)
+    const sourcePath = e.dataTransfer?.getData("application/deluge-path");
+    if (sourcePath && sourcePath !== childPath) {
+      // Prevent dropping into self or descendant
+      if (childPath.startsWith(sourcePath + "/")) {
+        console.error("Cannot move a folder into itself or its descendants");
+        return;
+      }
+
+      const sourceFilename = sourcePath.substring(
+        sourcePath.lastIndexOf("/") + 1,
+      );
+      const targetPath =
+        childPath === "/"
+          ? `/${sourceFilename}`
+          : `${childPath}/${sourceFilename}`;
+
+      console.log(`Moving file from ${sourcePath} to ${targetPath}`);
+
+      // Use direct reference to movePath instead of dynamic import
+      movePath(sourcePath, targetPath)
+        .then(() => {
+          console.log(`Move complete, refreshing directory ${childPath}`);
+          // Refresh the directory contents after move
+          return listDirectory(childPath);
+        })
+        .then(() => {
+          // Also refresh the source directory if different
+          if (sourcePath.lastIndexOf("/") !== childPath.lastIndexOf("/")) {
+            const sourceDir =
+              sourcePath.substring(0, sourcePath.lastIndexOf("/")) || "/";
+            console.log(`Refreshing source directory ${sourceDir}`);
+            return listDirectory(sourceDir);
+          }
+        })
+        .then(() => {
+          // Force a UI update
+          fileTree.value = { ...fileTree.value };
+        })
+        .catch((err) => {
+          console.error("Failed to move file:", err);
+          alert(`Move failed: ${err.message || "Unknown error"}`);
+        });
+    }
+  };
+
+  // For the inner row div, we need to update the drag state on the parent li
+  const handleRowDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (isExternalFileDrag(e) || isInternalDrag(e)) {
+      isDragOver.value = true;
+    }
+  };
+
+  const handleRowDragLeave = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const relatedTarget = e.relatedTarget as HTMLElement | null;
+    const currentTarget = e.currentTarget as HTMLElement;
+    if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
+      isDragOver.value = false;
     }
   };
 
   return (
-    <li>
+    <li
+      className={`${
+        isContainerDragOver.value
+          ? "drop-target bg-green-50 dark:bg-green-900/20 border-2 border-dashed border-green-500 dark:border-green-600 rounded shadow-sm"
+          : ""
+      }`}
+      data-path={childPath}
+      data-expanded={isExpanded}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div
         className={`flex items-center py-1 px-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer select-none ${
           isSelected
             ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300"
             : ""
-        } ${isExpanded ? "font-medium" : ""}`}
+        } ${isExpanded ? "font-medium" : ""} ${
+          isDragOver.value
+            ? "bg-green-100 dark:bg-green-900/40 border-2 border-dashed border-green-500 dark:border-green-600 rounded shadow-sm"
+            : ""
+        }`}
         onClick={handleSelect}
         onDblClick={toggleExpand}
         tabIndex={0}
         onKeyDown={handleKeyDown}
-        data-path={childPath}
-        data-expanded={isExpanded}
+        onDragOver={handleRowDragOver}
+        onDragLeave={handleRowDragLeave}
       >
         <div
           className="w-4 h-4 mr-1 flex-shrink-0"
@@ -182,7 +456,9 @@ function DirectoryItem({
           )}
         </div>
         {iconForEntry(entry)}
-        <span className="ml-1 truncate">{entry.name}</span>
+        <span className="ml-1 truncate" title={entry.name}>
+          {entry.name}
+        </span>
         {debugMode && (
           <span className="ml-2 text-xs text-gray-500">
             {isExpanded ? "📂" : "📁"}
@@ -199,22 +475,23 @@ function DirectoryItem({
               {itemError.value}
             </li>
           ) : fileTree.value[childPath]?.length ? (
-            fileTree.value[childPath]?.map((childEntry) =>
-              isDirectory(childEntry) ? (
-                <DirectoryItem
-                  key={childEntry.name}
-                  path={childPath}
-                  entry={childEntry}
-                  level={level + 1}
-                  debugMode={debugMode}
-                />
-              ) : (
-                <FileItem
-                  key={childEntry.name}
-                  path={childPath}
-                  entry={childEntry}
-                />
-              ),
+            sortEntriesDirectoriesFirst(fileTree.value[childPath]).map(
+              (childEntry) =>
+                isDirectory(childEntry) ? (
+                  <DirectoryItem
+                    key={childEntry.name}
+                    path={childPath}
+                    entry={childEntry}
+                    level={level + 1}
+                    debugMode={debugMode}
+                  />
+                ) : (
+                  <FileItem
+                    key={childEntry.name}
+                    path={childPath}
+                    entry={childEntry}
+                  />
+                ),
             )
           ) : (
             <li className="py-1 px-2 text-gray-500 text-xs">Empty folder</li>
@@ -231,15 +508,41 @@ function DirectoryItem({
 function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
   // Include the path in a data attribute for potential future use
   const fullPath = path === "/" ? `/${entry.name}` : `${path}/${entry.name}`;
-  const isSelected = selectedPath.value === fullPath;
+  const isSelected = selectedPaths.value.has(fullPath);
 
-  const handleSelect = () => {
-    selectedPath.value = fullPath;
+  const handleSelect = (e: MouseEvent) => {
+    if (e.shiftKey && lastSelectedPath) {
+      // Shift key: range selection
+      selectRange(lastSelectedPath, fullPath);
+    } else if (e.ctrlKey || e.metaKey) {
+      // Ctrl/Cmd key: toggle selection
+      const newSelection = new Set(selectedPaths.value);
+      if (newSelection.has(fullPath)) {
+        newSelection.delete(fullPath);
+      } else {
+        newSelection.add(fullPath);
+        lastSelectedPath = fullPath;
+      }
+      selectedPaths.value = newSelection;
+    } else {
+      // Regular click: single selection
+      selectedPaths.value = new Set([fullPath]);
+      lastSelectedPath = fullPath;
+    }
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handleSelect();
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault(); // Prevent scrolling with spacebar
+      handleSelect(e as unknown as MouseEvent);
+    }
+  };
+
+  const handleDragStart = (e: DragEvent) => {
+    if (e.dataTransfer) {
+      e.dataTransfer.setData("application/deluge-path", fullPath);
+      e.dataTransfer.setData("text/plain", entry.name);
+      e.dataTransfer.effectAllowed = "move";
     }
   };
 
@@ -250,13 +553,17 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
           ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300"
           : ""
       }`}
-      data-path={fullPath}
       onClick={handleSelect}
-      tabIndex={0}
       onKeyDown={handleKeyDown}
+      tabIndex={0}
+      data-path={fullPath}
+      draggable={true}
+      onDragStart={handleDragStart}
     >
       {iconForEntry(entry)}
-      <span className="ml-1 truncate">{entry.name}</span>
+      <span className="ml-1 truncate" title={entry.name}>
+        {entry.name}
+      </span>
     </li>
   );
 }
@@ -401,16 +708,17 @@ export default function FileBrowserTree() {
               </div>
             </li>
           ) : fileTree.value[rootPath] ? (
-            fileTree.value[rootPath].map((entry) =>
-              isDirectory(entry) ? (
-                <DirectoryItemWithDebug
-                  key={entry.name}
-                  path={rootPath}
-                  entry={entry}
-                />
-              ) : (
-                <FileItem key={entry.name} path={rootPath} entry={entry} />
-              ),
+            sortEntriesDirectoriesFirst(fileTree.value[rootPath]).map(
+              (entry) =>
+                isDirectory(entry) ? (
+                  <DirectoryItemWithDebug
+                    key={entry.name}
+                    path={rootPath}
+                    entry={entry}
+                  />
+                ) : (
+                  <FileItem key={entry.name} path={rootPath} entry={entry} />
+                ),
             )
           ) : (
             <li className="py-1 px-4 text-gray-500">

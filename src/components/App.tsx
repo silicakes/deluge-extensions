@@ -20,6 +20,7 @@ import { PixelSizeControls } from "./PixelSizeControls";
 import { DisplayColorDrawer } from "./DisplayColorDrawer";
 import { loadDisplaySettings } from "../hooks/useDisplaySettingsPersistence";
 import { initMidi } from "../lib/midi";
+import { FileOverrideConfirmation } from "./FileOverrideConfirmation";
 
 // Lazily load the file browser sidebar
 const FileBrowserSidebar = lazy(() => import("./FileBrowserSidebar"));
@@ -130,6 +131,9 @@ export function App() {
 
       {/* Render the ShortcutHelpOverlay */}
       {helpOpen.value && <ShortcutHelpOverlay />}
+
+      {/* File Override Confirmation Dialog */}
+      <FileOverrideConfirmation />
     </div>
   );
 }

@@ -31,8 +31,21 @@ export const expandedPaths = signal<Set<string>>(new Set());
 // Controls mounting of sidebar & lazy import
 export const fileBrowserOpen = signal<boolean>(false);
 
-// Currently highlighted file or folder path
-export const selectedPath = signal<string | null>(null);
+// Multiple selection support
+export const selectedPaths = signal<Set<string>>(new Set());
+
+// File transfer progress tracking signals
+export const fileTransferInProgress = signal<boolean>(false);
+export const fileTransferProgress = signal<{
+  path: string;
+  bytes: number;
+  total: number;
+  currentFileIndex?: number;
+  totalFiles?: number;
+  filesCompleted?: number;
+  overallBytes?: number;
+  overallTotal?: number;
+} | null>(null);
 
 export interface DisplaySettings {
   pixelWidth: number;
