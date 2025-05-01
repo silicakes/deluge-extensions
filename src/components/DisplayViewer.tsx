@@ -15,6 +15,7 @@ import { displaySettings, fullscreenActive } from "../state";
 import { addDebugMessage } from "../lib/debug";
 import { DisplayTypeSwitch } from "./DisplayTypeSwitch";
 import { ScreenshotIconButton } from "./ScreenshotIconButton";
+import { CopyBase64IconButton } from "./CopyBase64IconButton";
 
 /**
  * DisplayViewer – renders the Deluge OLED / 7-segment output onto a canvas.
@@ -174,25 +175,19 @@ export function DisplayViewer() {
         className="image-rendering-pixelated border block"
       />
 
-      {/* Screenshot icon - only visible on hover, hidden in fullscreen */}
-      {!fullscreenActive.value && <ScreenshotIconButton />}
+      {/* Screenshot and Copy Base64 icons - only visible on hover, hidden in fullscreen */}
+      {!fullscreenActive.value && (
+        <>
+          <CopyBase64IconButton />
+          <ScreenshotIconButton />
+        </>
+      )}
 
       {/* Display type toggle switch placed above the canvas */}
       {!fullscreenActive.value && (
         <div className="flex justify-end mt-2">
           <DisplayTypeSwitch />
         </div>
-      )}
-      {/* Copy Base64 button (hidden in fullscreen mode) */}
-      {!fullscreenActive.value && (
-        <button
-          onClick={handleCopyBase64}
-          className="absolute bottom-4 right-4 px-3 py-1 bg-purple-700 hover:bg-purple-600 rounded text-sm text-white"
-          aria-label="Copy Base64 of OLED buffer"
-          title="Copy screen as Base64 (shortcut: c)"
-        >
-          Copy Base64
-        </button>
       )}
     </div>
   );

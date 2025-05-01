@@ -31,6 +31,20 @@ vi.mock("../components/DisplayTypeSwitch", () => ({
   ),
 }));
 
+// Mock the CopyBase64IconButton component
+vi.mock("../components/CopyBase64IconButton", () => ({
+  CopyBase64IconButton: () => (
+    <button data-testid="copy-base64-button">Copy Base64 Icon</button>
+  ),
+}));
+
+// Mock the ScreenshotIconButton component
+vi.mock("../components/ScreenshotIconButton", () => ({
+  ScreenshotIconButton: () => (
+    <button data-testid="screenshot-button">Screenshot Icon</button>
+  ),
+}));
+
 describe("DisplayViewer", () => {
   beforeEach(() => {
     // Reset fullscreen state
@@ -60,10 +74,13 @@ describe("DisplayViewer", () => {
     // Should have the display type switch
     expect(screen.getByTestId("display-type-switch")).toBeInTheDocument();
 
-    // Ensure the button exists when not in fullscreen mode
-    const button = screen.getByText("Copy Base64");
-    expect(button).toBeInTheDocument();
-    expect(button).toHaveAttribute("aria-label", "Copy Base64 of OLED buffer");
+    // Ensure the Copy Base64 button exists when not in fullscreen mode
+    const copyButton = screen.getByTestId("copy-base64-button");
+    expect(copyButton).toBeInTheDocument();
+
+    // Ensure the Screenshot button exists when not in fullscreen mode
+    const screenshotButton = screen.getByTestId("screenshot-button");
+    expect(screenshotButton).toBeInTheDocument();
   });
 
   it("hides the display type switch in fullscreen mode", () => {
@@ -72,6 +89,10 @@ describe("DisplayViewer", () => {
 
     // The display type switch should not be visible in fullscreen mode
     expect(screen.queryByTestId("display-type-switch")).not.toBeInTheDocument();
+    // The copy base64 button should not be visible in fullscreen mode
+    expect(screen.queryByTestId("copy-base64-button")).not.toBeInTheDocument();
+    // The screenshot button should not be visible in fullscreen mode
+    expect(screen.queryByTestId("screenshot-button")).not.toBeInTheDocument();
   });
 
   it("listens for display:resized events", () => {
