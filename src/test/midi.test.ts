@@ -73,3 +73,35 @@ describe("sendCustomSysEx", () => {
     ]);
   });
 });
+
+// Test the fixed deletePath implementation
+test("deletePath should await response and refresh directory", async () => {
+  // Mock the MIDI output and sendJson
+  midiOut.value = { send: vi.fn() } as unknown as MIDIOutput;
+  const mockResponse = { "^delete": { err: 0 } };
+  const sendJsonMock = vi.fn().mockResolvedValue(mockResponse);
+  vi.spyOn(window, "sendJson").mockImplementation(sendJsonMock);
+
+  // Mock listDirectory to verify it's called
+  const listDirectoryMock = vi.fn().mockResolvedValue([]);
+  vi.spyOn(window, "listDirectory").mockImplementation(listDirectoryMock);
+
+  // Setup file tree with a test file
+  fileTree.value = {
+    "/test": [{ name: "file.txt", size: 100, attr: 0, date: 0, time: 0 }],
+  };
+
+  // Call deletePath
+  await deletePath("/test/file.txt");
+
+  // Verify sendJson was called with correct parameters
+  expect(sendJsonMock).toHaveBeenCalledWith({
+    delete: { path: "/test/file.txt" },
+  });
+
+  // Verify listDirectory was called to refresh the parent directory
+  expect(listDirectoryMock).toHaveBeenCalledWith("/test");
+
+  // Verify fileTransferInProgress was reset
+  expect(fileTransferInProgress.value).toBe(false);
+});

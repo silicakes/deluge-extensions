@@ -48,11 +48,14 @@ export function App() {
   // Register global keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      // Don't trigger shortcuts when typing in any input field
       if (
-        (e.target && (e.target as HTMLElement).tagName === "INPUT") ||
-        (e.target as HTMLElement).tagName === "TEXTAREA"
-      )
-        return; // ignore typing in inputs
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return; // Ignore shortcuts when typing in any input or textarea
+      }
+
       switch (e.key.toLowerCase()) {
         case "s":
           captureScreenshot();

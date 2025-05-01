@@ -13,6 +13,8 @@ import {
   triggerBrowserDownload,
   uploadFiles,
   listDirectory,
+  createDirectory,
+  createFile,
 } from "../lib/midi";
 
 // Lazily load the FileBrowserTree component
@@ -37,6 +39,9 @@ export default function FileBrowserSidebar() {
   const isDraggingOver = useSignal(false);
   const hasSelectedFiles = useSignal(false);
   const downloadButtonVisible = useSignal(false); // For debugging
+  const showNewFolderModal = useSignal(false);
+  const showNewFileModal = useSignal(false);
+  const newName = useSignal("");
 
   // Auto-close sidebar when MIDI is disconnected
   useSignalEffect(() => {
@@ -207,6 +212,96 @@ export default function FileBrowserSidebar() {
       )
     : progressPercent;
 
+  const handleNewFolder = async () => {
+    if (newName.value.trim() === "") {
+      return;
+    }
+
+    // Don't allow special characters
+    if (/[\/\\:*?"<>|]/.test(newName.value)) {
+      alert(
+        'The name cannot contain the following characters: \\ / : * ? " < > |',
+      );
+      return;
+    }
+
+    // Determine target directory
+    let targetDir = "/";
+    if (selectedPaths.value.size > 0) {
+      const selectedPath = Array.from(selectedPaths.value)[0];
+      // Check if selected path is a directory
+      if (fileTree.value[selectedPath]) {
+        targetDir = selectedPath;
+      } else {
+        // If it's a file, use its parent directory
+        targetDir =
+          selectedPath.substring(0, selectedPath.lastIndexOf("/") || 0) || "/";
+      }
+    }
+
+    const newDirPath =
+      targetDir === "/" ? `/${newName.value}` : `${targetDir}/${newName.value}`;
+
+    try {
+      await createDirectory(newDirPath);
+      showNewFolderModal.value = false;
+      newName.value = "";
+
+      // Refresh directory after creation
+      await listDirectory(targetDir);
+    } catch (error) {
+      console.error("Failed to create directory:", error);
+      alert(
+        `Create folder failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  };
+
+  const handleNewFile = async () => {
+    if (newName.value.trim() === "") {
+      return;
+    }
+
+    // Don't allow special characters
+    if (/[\/\\:*?"<>|]/.test(newName.value)) {
+      alert(
+        'The name cannot contain the following characters: \\ / : * ? " < > |',
+      );
+      return;
+    }
+
+    // Determine target directory
+    let targetDir = "/";
+    if (selectedPaths.value.size > 0) {
+      const selectedPath = Array.from(selectedPaths.value)[0];
+      // Check if selected path is a directory
+      if (fileTree.value[selectedPath]) {
+        targetDir = selectedPath;
+      } else {
+        // If it's a file, use its parent directory
+        targetDir =
+          selectedPath.substring(0, selectedPath.lastIndexOf("/") || 0) || "/";
+      }
+    }
+
+    const newFilePath =
+      targetDir === "/" ? `/${newName.value}` : `${targetDir}/${newName.value}`;
+
+    try {
+      await createFile(newFilePath, "");
+      showNewFileModal.value = false;
+      newName.value = "";
+
+      // Refresh directory after creation
+      await listDirectory(targetDir);
+    } catch (error) {
+      console.error("Failed to create file:", error);
+      alert(
+        `Create file failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  };
+
   return (
     <aside
       className="fixed top-16 bottom-0 left-0 w-72 sm:w-80 bg-neutral-50 dark:bg-neutral-900 shadow-lg z-10 file-browser-sidebar"
@@ -221,6 +316,48 @@ export default function FileBrowserSidebar() {
             `(${selectedPaths.value.size} selected)`}
         </h2>
         <div className="flex items-center space-x-1">
+          {/* New Folder button - always visible */}
+          <button
+            aria-label="New Folder"
+            className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 text-green-600 dark:text-green-400"
+            onClick={() => {
+              newName.value = "";
+              showNewFolderModal.value = true;
+            }}
+            disabled={fileTransferInProgress.value}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="w-5 h-5"
+            >
+              <path d="M3.75 3A1.75 1.75 0 002 4.75v10.5c0 .966.784 1.75 1.75 1.75h12.5A1.75 1.75 0 0018 15.25v-8.5A1.75 1.75 0 0016.25 5h-4.836a.25.25 0 01-.177-.073L9.823 3.513A1.75 1.75 0 008.586 3H3.75z" />
+              <path d="M10 8a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1H8a1 1 0 110-2h1V9a1 1 0 011-1z" />
+            </svg>
+          </button>
+
+          {/* New File button - always visible */}
+          <button
+            aria-label="New File"
+            className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 text-blue-600 dark:text-blue-400"
+            onClick={() => {
+              newName.value = "";
+              showNewFileModal.value = true;
+            }}
+            disabled={fileTransferInProgress.value}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="w-5 h-5"
+            >
+              <path d="M3 3.5A1.5 1.5 0 014.5 2h6.879a1.5 1.5 0 011.06.44l4.122 4.12A1.5 1.5 0 0117 7.622V16.5a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 013 16.5v-13z" />
+              <path d="M10 8a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1H8a1 1 0 110-2h1V9a1 1 0 011-1z" />
+            </svg>
+          </button>
+
           {/* Always show download button if paths are selected */}
           {selectedPaths.value.size > 0 && (
             <button
@@ -330,6 +467,80 @@ export default function FileBrowserSidebar() {
           <div className="absolute inset-0 bg-blue-500/10 dark:bg-blue-800/20 border-2 border-dashed border-blue-400 dark:border-blue-600 rounded m-4"></div>
           <div className="bg-blue-500 dark:bg-blue-600 text-white text-center text-sm font-medium px-4 py-2 rounded shadow-lg z-10">
             Drop files to upload to root
+          </div>
+        </div>
+      )}
+
+      {/* New Folder Modal */}
+      {showNewFolderModal.value && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-neutral-800 p-4 rounded-lg shadow-lg max-w-md w-full">
+            <h3 className="text-lg font-medium mb-3">New Folder</h3>
+            <input
+              type="text"
+              value={newName.value}
+              onInput={(e) =>
+                (newName.value = (e.target as HTMLInputElement).value)
+              }
+              className="w-full p-2 border border-neutral-300 dark:border-neutral-600 dark:bg-neutral-700 rounded mb-4"
+              placeholder="Enter folder name"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-4 py-2 bg-neutral-200 dark:bg-neutral-700 rounded"
+                onClick={() => {
+                  showNewFolderModal.value = false;
+                  newName.value = "";
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-green-500 text-white rounded"
+                onClick={handleNewFolder}
+                disabled={fileTransferInProgress.value}
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New File Modal */}
+      {showNewFileModal.value && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-neutral-800 p-4 rounded-lg shadow-lg max-w-md w-full">
+            <h3 className="text-lg font-medium mb-3">New File</h3>
+            <input
+              type="text"
+              value={newName.value}
+              onInput={(e) =>
+                (newName.value = (e.target as HTMLInputElement).value)
+              }
+              className="w-full p-2 border border-neutral-300 dark:border-neutral-600 dark:bg-neutral-700 rounded mb-4"
+              placeholder="Enter file name"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-4 py-2 bg-neutral-200 dark:bg-neutral-700 rounded"
+                onClick={() => {
+                  showNewFileModal.value = false;
+                  newName.value = "";
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-blue-500 text-white rounded"
+                onClick={handleNewFile}
+                disabled={fileTransferInProgress.value}
+              >
+                Create
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -65,6 +65,16 @@ const DocumentIcon = (props: JSX.SVGAttributes<SVGSVGElement>) => (
   </svg>
 );
 
+// File extension to icon mapping
+const ICON_URLS = {
+  folder: "/icons/folder.svg",
+  audio: "/icons/audio.svg",
+  midi: "/icons/midi.svg",
+  document: "/icons/document.svg",
+  text: "/icons/text-document.svg",
+  default: "/icons/file.svg",
+};
+
 /**
  * Returns an appropriate icon SVG based on the entry type and extension
  * @param entry FileEntry to determine icon for
@@ -96,4 +106,38 @@ export function iconForEntry(entry: FileEntry) {
 
   // Default file icon
   return <DocumentIcon className="w-5 h-5 text-gray-400" />;
+}
+
+/**
+ * Returns a URL string to an appropriate icon based on the entry type and extension
+ * This is useful for img src attributes where JSX elements can't be used
+ * @param entry FileEntry to determine icon for
+ * @returns string URL to the icon
+ */
+export function iconUrlForEntry(entry: FileEntry): string {
+  // Check if it's a directory
+  if ((entry.attr & 0x10) !== 0) {
+    return ICON_URLS.folder;
+  }
+
+  // Get file extension
+  const ext = entry.name.split(".").pop()?.toLowerCase() || "";
+
+  // Audio files
+  if (["wav", "mp3", "ogg", "flac"].includes(ext)) {
+    return ICON_URLS.audio;
+  }
+
+  // MIDI files
+  if (["mid", "midi"].includes(ext)) {
+    return ICON_URLS.midi;
+  }
+
+  // Text/code files
+  if (["txt", "xml", "json", "csv", "md", "yml", "yaml"].includes(ext)) {
+    return ICON_URLS.text;
+  }
+
+  // Default file icon
+  return ICON_URLS.default;
 }

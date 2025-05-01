@@ -97,8 +97,13 @@ export async function openSession(tag = "DEx"): Promise<SmsSession> {
     // Set up timeout
     const timeoutId = setTimeout(() => {
       cleanup();
-      reject(new Error("Session negotiation timed out after 5000ms"));
-    }, 5000);
+      reject(
+        new Error(
+          "Session negotiation timed out after 10000ms. Check that your Deluge is connected, " +
+            "powered on, and has firmware version 4.0 or higher with SysEx Protocol enabled.",
+        ),
+      );
+    }, 10000);
 
     // Set up response listener
     const cleanup = subscribeSysexListener((data) => {
@@ -226,11 +231,15 @@ export async function sendJson(
 
   return new Promise((resolve, reject) => {
     // Setup timeout
-    const timeoutMs = 5000;
+    const timeoutMs = 10000; // Increased from 5000 to 10000ms
     const timeoutId = setTimeout(() => {
       console.warn(`Command timed out after ${timeoutMs}ms:`, cmd);
       cleanup();
-      reject(new Error(`Command timed out after ${timeoutMs}ms`));
+      reject(
+        new Error(
+          `SysEx command timed out after ${timeoutMs}ms. Check if device is connected and firmware supports SysEx protocol.`,
+        ),
+      );
     }, timeoutMs);
 
     // Set up response listener

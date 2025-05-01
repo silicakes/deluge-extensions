@@ -5,6 +5,8 @@ import {
   FileEntry,
   fileTransferInProgress,
   fileTransferProgress,
+  expandedPaths,
+  selectedPaths,
 } from "../state";
 import { addDebugMessage } from "./debug";
 import {
@@ -13,6 +15,12 @@ import {
   ping as smsPing,
   sendJson,
   setDeveloperIdMode,
+  SmsCommand,
+  DEV_MANUFACTURER_ID,
+  STD_MANUFACTURER_ID,
+  buildMsgId,
+  incrementCounter,
+  useDevId,
 } from "./smsysex";
 import {
   fileOverrideConfirmationOpen,
@@ -512,114 +520,153 @@ export function movePath(oldPath: string, newPath: string): Promise<void> {
     return Promise.reject(new Error("Cannot move a folder into itself"));
   }
 
+  console.log(`Moving/renaming: ${oldPath} → ${newPath}`);
+
   return enqueue(async () => {
-    if (!midiOut.value) throw new Error("MIDI Output not connected");
+    await ensureSession();
 
     try {
       fileTransferProgress.value = { path: oldPath, bytes: 0, total: 1 };
+      fileTransferInProgress.value = true;
 
-      // Assume path is encoded as ASCII
-      const oldPathBytes = Array.from(new TextEncoder().encode(oldPath));
-      const newPathBytes = Array.from(new TextEncoder().encode(newPath));
+      // Construct the rename command exactly as specified
+      const renameCommand = {
+        rename: {
+          from: oldPath,
+          to: newPath,
+        },
+      };
 
-      // SysEx command structure for rename (details would be in the SysEx protocol spec)
-      // This is a placeholder for the actual protocol
-      const command = [
-        0xf0,
-        0x7d,
-        0x04,
-        0x03, // Sysex header + rename command
-        ...oldPathBytes,
-        0x00, // NULL terminator for old path
-        ...newPathBytes,
-        0x00, // NULL terminator for new path
-        0xf7, // End of SysEx
-      ];
+      console.log("Sending rename command:", JSON.stringify(renameCommand));
 
-      // Send the rename command
-      midiOut.value.send(command);
+      const response = await sendJson(renameCommand);
+      console.log("Received rename response:", JSON.stringify(response));
 
-      // Wait for response (this would need to be implemented based on actual protocol)
-      // Simulate waiting for now
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Check response for errors
+      if (
+        response &&
+        (response["^rename"] || response["^mkdir"]) &&
+        typeof (response["^rename"] || response["^mkdir"]) === "object" &&
+        (response["^rename"] || response["^mkdir"]) !== null
+      ) {
+        const renameResponse = (response["^rename"] ||
+          response["^mkdir"]) as Record<string, unknown>;
 
-      // Update local state (optimistic update)
-      const oldDir = oldPath.substring(0, oldPath.lastIndexOf("/") || 0);
-      const newDir = newPath.substring(0, newPath.lastIndexOf("/") || 0);
-      const baseName = oldPath.substring(oldPath.lastIndexOf("/") + 1);
-      const newBaseName = newPath.substring(newPath.lastIndexOf("/") + 1);
-
-      const oldDirPath = oldDir || "/";
-      const newDirPath = newDir || "/";
-
-      // Clone the fileTree to make updates
-      const newFileTree = { ...fileTree.value };
-
-      if (newFileTree[oldDirPath]) {
-        // Find and remove the entry from old location
-        const entryIndex = newFileTree[oldDirPath].findIndex(
-          (e) => e.name === baseName,
-        );
-        if (entryIndex !== -1) {
-          const [movedEntry] = newFileTree[oldDirPath].splice(entryIndex, 1);
-
-          // Create a new entry for the destination
-          const updatedEntry = { ...movedEntry, name: newBaseName };
-
-          // Add to destination directory
-          if (!newFileTree[newDirPath]) {
-            newFileTree[newDirPath] = [];
-          }
-          newFileTree[newDirPath].push(updatedEntry);
+        // Check for error
+        if (renameResponse.err && (renameResponse.err as number) !== 0) {
+          const errorCode = renameResponse.err as number;
+          const errorMessage = fatErrorToText(errorCode);
+          console.error(
+            `Rename failed with error ${errorCode}: ${errorMessage}`,
+          );
+          throw new Error(
+            `Failed to rename: ${errorMessage} (code ${errorCode})`,
+          );
         }
+
+        console.log("Rename operation successful, updating UI state");
+
+        // Update local state (optimistic update)
+        const oldDir = oldPath.substring(0, oldPath.lastIndexOf("/") || 0);
+        const newDir = newPath.substring(0, newPath.lastIndexOf("/") || 0);
+        const baseName = oldPath.substring(oldPath.lastIndexOf("/") + 1);
+        const newBaseName = newPath.substring(newPath.lastIndexOf("/") + 1);
+
+        const oldDirPath = oldDir || "/";
+        const newDirPath = newDir || "/";
+
+        // Clone the fileTree to make updates
+        const newFileTree = { ...fileTree.value };
+
+        if (newFileTree[oldDirPath]) {
+          // Find and remove the entry from old location
+          const entryIndex = newFileTree[oldDirPath].findIndex(
+            (e) => e.name === baseName,
+          );
+          if (entryIndex !== -1) {
+            const [movedEntry] = newFileTree[oldDirPath].splice(entryIndex, 1);
+
+            // Create a new entry for the destination
+            const updatedEntry = { ...movedEntry, name: newBaseName };
+
+            // Add to destination directory
+            if (!newFileTree[newDirPath]) {
+              newFileTree[newDirPath] = [];
+            }
+            newFileTree[newDirPath].push(updatedEntry);
+          }
+        }
+
+        // Update the file tree signal
+        fileTree.value = newFileTree;
+
+        // Always refresh both parent directories to ensure consistency
+        try {
+          console.log(`Refreshing source directory: ${oldDirPath}`);
+          await listDirectory(oldDirPath);
+          if (oldDirPath !== newDirPath) {
+            console.log(`Refreshing destination directory: ${newDirPath}`);
+            await listDirectory(newDirPath);
+          }
+        } catch (refreshError) {
+          console.error(
+            `Failed to refresh directories after rename: ${refreshError}`,
+          );
+          // Not throwing this error as the rename itself was successful
+        }
+
+        fileTransferProgress.value = { path: oldPath, bytes: 1, total: 1 };
+      } else {
+        console.error(`Invalid or missing rename response:`, response);
+        throw new Error("Invalid response from rename operation");
       }
-
-      // Update the file tree signal
-      fileTree.value = newFileTree;
-
-      fileTransferProgress.value = { path: oldPath, bytes: 1, total: 1 };
     } catch (error) {
-      console.error("Failed to move file:", error);
+      console.error("Failed to move/rename path:", error);
       throw error;
+    } finally {
+      fileTransferInProgress.value = false;
     }
   });
 }
 
 /**
- * Convert binary data to 7-bit MIDI-safe format (for SysEx)
- * @param data Uint8Array of data to encode
- * @returns Encoded array of 7-bit values
+ * Alias for movePath - renames a file or folder
+ * @param oldPath Source path
+ * @param newPath Destination path
+ * @returns Promise resolving when operation completes
  */
-function encode7Bit(data: Uint8Array): number[] {
-  const result: number[] = [];
+export function renamePath(oldPath: string, newPath: string): Promise<void> {
+  return movePath(oldPath, newPath);
+}
 
-  // Process in groups of 7 bytes
-  for (let i = 0; i < data.length; i += 7) {
-    // Calculate how many bytes we have in this group (last group may be partial)
-    const bytesInGroup = Math.min(7, data.length - i);
-
-    // Create a high-bits byte where each bit represents the MSB of a data byte
-    let highBits = 0;
-
-    // For each byte in the group, check if its high bit is set
-    for (let j = 0; j < bytesInGroup; j++) {
-      if (data[i + j] & 0x80) {
-        // Set the corresponding bit in our high-bits byte
-        highBits |= 1 << j;
-      }
-    }
-
-    // Add the high-bits byte first
-    result.push(highBits);
-
-    // Then add the 7 data bytes with their high bits cleared
-    for (let j = 0; j < bytesInGroup; j++) {
-      // Mask off the high bit to ensure it's 7-bit clean
-      result.push(data[i + j] & 0x7f);
-    }
-  }
-
-  return result;
+/**
+ * Convert FatFS error code to human-readable text
+ * @param err FatFS error code
+ * @returns Human-readable error message
+ */
+function fatErrorToText(err: number): string {
+  const errors: Record<number, string> = {
+    0: "OK",
+    1: "Disk error",
+    2: "Internal error",
+    3: "Drive not ready",
+    4: "File not found",
+    5: "Path not found",
+    6: "Invalid path name",
+    7: "Access denied",
+    8: "File exists",
+    9: "Directory is not empty",
+    10: "Invalid object",
+    11: "Drive is write-protected",
+    12: "Invalid drive",
+    13: "No filesystem",
+    14: "Format aborted",
+    15: "No more files",
+    16: "Cannot allocate memory",
+    17: "Too many open files",
+    18: "Invalid parameter",
+  };
+  return errors[err] || `Unknown error ${err}`;
 }
 
 /**
@@ -1016,4 +1063,469 @@ export function triggerBrowserDownload(buf: ArrayBuffer, name: string) {
   a.download = name;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Create a new directory on the Deluge
+ * @param dirPath Directory path to create
+ * @returns Promise resolving when operation completes
+ */
+export function createDirectory(dirPath: string): Promise<void> {
+  return enqueue(async () => {
+    if (!midiOut.value) throw new Error("MIDI Output not connected");
+
+    try {
+      fileTransferInProgress.value = true;
+      fileTransferProgress.value = { path: dirPath, bytes: 0, total: 1 };
+
+      // Calculate FAT date/time
+      const now = new Date();
+      // FAT-format date (using bit manipulation as per FAT spec)
+      const fatDate =
+        ((now.getFullYear() - 1980) << 9) |
+        ((now.getMonth() + 1) << 5) |
+        now.getDate();
+      // FAT-format time
+      const fatTime =
+        (now.getHours() << 11) |
+        (now.getMinutes() << 5) |
+        Math.floor(now.getSeconds() / 2);
+
+      // Send mkdir command via SMSysex
+      const response = await sendJson({
+        mkdir: {
+          path: dirPath,
+          date: fatDate,
+          time: fatTime,
+        },
+      });
+
+      // Check response
+      if (
+        response &&
+        response["^mkdir"] &&
+        typeof response["^mkdir"] === "object" &&
+        response["^mkdir"] !== null
+      ) {
+        const mkdirResponse = response["^mkdir"] as Record<string, unknown>;
+
+        // Check for error
+        if (mkdirResponse.err && (mkdirResponse.err as number) !== 0) {
+          throw new Error(
+            `Failed to create directory: Error ${mkdirResponse.err}`,
+          );
+        }
+
+        // Update the parent directory's file tree (optimistically)
+        const parentDir = dirPath.substring(0, dirPath.lastIndexOf("/")) || "/";
+        const dirName = dirPath.substring(dirPath.lastIndexOf("/") + 1);
+
+        // Create a new entry for the directory
+        const newEntry: FileEntry = {
+          name: dirName,
+          size: 0,
+          attr: 0x10, // Directory flag
+          date: fatDate,
+          time: fatTime,
+        };
+
+        // Add to parent directory
+        const newFileTree = { ...fileTree.value };
+        if (!newFileTree[parentDir]) {
+          // If parent directory is not cached, refresh it
+          await listDirectory(parentDir);
+        } else {
+          // Add to existing directory and sort
+          newFileTree[parentDir] = sortEntriesByDirectoryFirst([
+            ...newFileTree[parentDir],
+            newEntry,
+          ]);
+          fileTree.value = newFileTree;
+        }
+      }
+
+      fileTransferProgress.value = { path: dirPath, bytes: 1, total: 1 };
+    } catch (error) {
+      console.error("Failed to create directory:", error);
+      throw error;
+    } finally {
+      fileTransferInProgress.value = false;
+    }
+  });
+}
+
+/**
+ * Convert binary data to 7-bit MIDI-safe format (for SysEx)
+ * @param data Uint8Array of data to encode
+ * @returns Encoded array of 7-bit values
+ */
+function encode7Bit(data: Uint8Array): number[] {
+  const result: number[] = [];
+
+  // Process in groups of 7 bytes
+  for (let i = 0; i < data.length; i += 7) {
+    // Calculate how many bytes we have in this group (last group may be partial)
+    const bytesInGroup = Math.min(7, data.length - i);
+
+    // Create a high-bits byte where each bit represents the MSB of a data byte
+    let highBits = 0;
+
+    // For each byte in the group, check if its high bit is set
+    for (let j = 0; j < bytesInGroup; j++) {
+      if (data[i + j] & 0x80) {
+        // Set the corresponding bit in our high-bits byte
+        highBits |= 1 << j;
+      }
+    }
+
+    // Add the high-bits byte first
+    result.push(highBits);
+
+    // Then add the 7 data bytes with their high bits cleared
+    for (let j = 0; j < bytesInGroup; j++) {
+      // Mask off the high bit to ensure it's 7-bit clean
+      result.push(data[i + j] & 0x7f);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Create a new file on the Deluge
+ * @param destPath File path to create
+ * @param initial Optional initial content (string or ArrayBuffer)
+ * @returns Promise resolving when operation completes
+ */
+export function createFile(
+  destPath: string,
+  initial?: string | ArrayBuffer,
+): Promise<void> {
+  return enqueue(async () => {
+    if (!midiOut.value) throw new Error("MIDI Output not connected");
+
+    try {
+      fileTransferInProgress.value = true;
+      fileTransferProgress.value = {
+        path: destPath,
+        bytes: 0,
+        total: initial
+          ? initial instanceof ArrayBuffer
+            ? initial.byteLength
+            : initial.length
+          : 0,
+      };
+
+      // Calculate FAT date/time
+      const now = new Date();
+      const fatDate =
+        ((now.getFullYear() - 1980) << 9) |
+        ((now.getMonth() + 1) << 5) |
+        now.getDate();
+      const fatTime =
+        (now.getHours() << 11) |
+        (now.getMinutes() << 5) |
+        Math.floor(now.getSeconds() / 2);
+
+      // 1. Open file with write flag
+      const openCommand = {
+        open: {
+          path: destPath,
+          write: 1, // 1 = create or truncate
+          date: fatDate,
+          time: fatTime,
+        },
+      };
+
+      const response = await sendJson(openCommand);
+
+      // Parse response to get file ID
+      if (
+        !response ||
+        !response["^open"] ||
+        typeof response["^open"] !== "object" ||
+        response["^open"] === null
+      ) {
+        throw new Error("Invalid response from open command");
+      }
+
+      const openResponse = response["^open"] as Record<string, unknown>;
+      if (openResponse.err && (openResponse.err as number) !== 0) {
+        throw new Error(`Failed to create file: Error ${openResponse.err}`);
+      }
+
+      const fileId = openResponse.fid as number;
+      if (fileId === undefined) {
+        throw new Error("No file ID returned from open command");
+      }
+
+      // 2. Write initial content if provided
+      if (initial) {
+        let data: Uint8Array;
+        if (typeof initial === "string") {
+          data = new TextEncoder().encode(initial);
+        } else {
+          data = new Uint8Array(initial);
+        }
+
+        const chunkSize = 1024; // Max size per write block
+
+        for (let offset = 0; offset < data.length; offset += chunkSize) {
+          const chunk = data.slice(offset, offset + chunkSize);
+
+          // Write each chunk using uploadFiles helper which handles binary data
+          // This is a simplified approach reusing existing functionality
+          const tempFile = new File([chunk], "temp.bin", {
+            type: "application/octet-stream",
+          });
+
+          // We only need the binary transfer capabilities, not actual file upload
+          // So we'll bypass the normal upload flow and directly write the block
+          await uploadSingleChunk(fileId, offset, tempFile);
+
+          // Update progress
+          fileTransferProgress.value = {
+            path: destPath,
+            bytes: Math.min(offset + chunkSize, data.length),
+            total: data.length,
+          };
+        }
+      }
+
+      // 3. Close the file
+      const closeCommand = {
+        close: {
+          fid: fileId,
+        },
+      };
+
+      await sendJson(closeCommand);
+
+      // 4. Update fileTree with new entry (optimistic)
+      const dirPath = destPath.substring(0, destPath.lastIndexOf("/")) || "/";
+      const fileName = destPath.substring(destPath.lastIndexOf("/") + 1);
+
+      // Create a new file entry
+      const newEntry: FileEntry = {
+        name: fileName,
+        size: initial
+          ? initial instanceof ArrayBuffer
+            ? initial.byteLength
+            : initial.length
+          : 0,
+        attr: 0x00, // Regular file
+        date: fatDate,
+        time: fatTime,
+      };
+
+      // Add to destination directory
+      const newFileTree = { ...fileTree.value };
+      if (!newFileTree[dirPath]) {
+        // If parent directory is not cached, refresh it
+        await listDirectory(dirPath);
+      } else {
+        // Add to existing directory and sort
+        newFileTree[dirPath] = sortEntriesByDirectoryFirst([
+          ...newFileTree[dirPath],
+          newEntry,
+        ]);
+        fileTree.value = newFileTree;
+      }
+
+      fileTransferProgress.value = { path: destPath, bytes: 1, total: 1 };
+    } catch (error) {
+      console.error("Failed to create file:", error);
+      throw error;
+    } finally {
+      fileTransferInProgress.value = false;
+    }
+  });
+}
+
+/**
+ * Helper function to upload a single chunk of data with a file ID
+ * This is used by createFile to write data chunks
+ */
+async function uploadSingleChunk(
+  fileId: number,
+  offset: number,
+  file: File,
+): Promise<void> {
+  if (!midiOut.value) throw new Error("MIDI Output not connected");
+
+  // Read file as ArrayBuffer
+  const buffer = await file.arrayBuffer();
+  const data = new Uint8Array(buffer);
+
+  // Prepare write command as JSON
+  const writeCommand = {
+    write: {
+      fid: fileId,
+      addr: offset,
+      size: data.length,
+    },
+  };
+
+  // Convert JSON to string and then to bytes
+  const writeJsonStr = JSON.stringify(writeCommand);
+  const writeJsonBytes = Array.from(new TextEncoder().encode(writeJsonStr));
+
+  // Encode the binary data in 7-bit format
+  const encodedChunk = encode7Bit(data);
+
+  // Write command: JSON header, 0x00 separator, then 7-bit encoded data
+  const writeSysex = [
+    0xf0,
+    0x7d, // Developer ID
+    0x04, // Json command
+    0x09, // Message ID (should be session-based in real impl)
+    ...writeJsonBytes,
+    0x00, // Separator between JSON and binary data
+    ...encodedChunk,
+    0xf7, // End of SysEx
+  ];
+
+  // Send the command
+  midiOut.value.send(writeSysex);
+
+  // Wait for response (this would need to be improved with proper response handling)
+  await new Promise((resolve) => setTimeout(resolve, 100));
+}
+
+/**
+ * Delete a file or directory on the Deluge
+ * @param path Path to delete
+ * @returns Promise resolving when operation completes
+ */
+export function deletePath(path: string): Promise<void> {
+  return enqueue(async () => {
+    if (!midiOut.value) throw new Error("MIDI Output not connected");
+
+    try {
+      fileTransferInProgress.value = true;
+      fileTransferProgress.value = { path, bytes: 0, total: 1 };
+
+      // First, prepare for optimistic UI update
+      const dirPath = path.substring(0, path.lastIndexOf("/")) || "/";
+      const baseName = path.substring(path.lastIndexOf("/") + 1);
+
+      console.log(
+        `Deleting ${path} (directory: ${dirPath}, file: ${baseName})`,
+      );
+
+      // Send delete command via SMSysex and WAIT for response
+      const response = await sendJson({
+        delete: {
+          path,
+        },
+      });
+
+      // Check response
+      if (
+        response &&
+        response["^delete"] &&
+        typeof response["^delete"] === "object" &&
+        response["^delete"] !== null
+      ) {
+        const deleteResponse = response["^delete"] as Record<string, unknown>;
+
+        // Check for error
+        if (deleteResponse.err && (deleteResponse.err as number) !== 0) {
+          throw new Error(`Failed to delete: Error ${deleteResponse.err}`);
+        }
+
+        console.log(`Delete operation successful, updating file tree`);
+
+        // Clone the fileTree to make updates
+        const newFileTree = { ...fileTree.value };
+
+        if (newFileTree[dirPath]) {
+          // Find the entry to determine if it's a directory
+          const entryToDelete = newFileTree[dirPath]?.find(
+            (e) => e.name === baseName,
+          );
+
+          if (entryToDelete) {
+            const isDir = (entryToDelete.attr & 0x10) !== 0;
+            console.log(
+              `Found entry to delete: ${baseName}, is directory: ${isDir}`,
+            );
+
+            // Remove the entry from the parent directory listing
+            newFileTree[dirPath] = newFileTree[dirPath].filter(
+              (e) => e.name !== baseName,
+            );
+
+            // If it's a directory, also remove all cached subdirectories
+            if (isDir) {
+              const fullDirPath =
+                dirPath === "/" ? `/${baseName}` : `${dirPath}/${baseName}`;
+              console.log(
+                `Removing directory and all subdirectories under: ${fullDirPath}`,
+              );
+
+              // Remove all cached paths that start with this directory path
+              Object.keys(newFileTree).forEach((cachePath) => {
+                if (
+                  cachePath === fullDirPath ||
+                  cachePath.startsWith(fullDirPath + "/")
+                ) {
+                  console.log(`Removing cached path: ${cachePath}`);
+                  delete newFileTree[cachePath];
+                }
+              });
+
+              // Also remove from expanded paths if it was expanded
+              if (expandedPaths.value.has(fullDirPath)) {
+                const newExpanded = new Set(expandedPaths.value);
+                newExpanded.delete(fullDirPath);
+                expandedPaths.value = newExpanded;
+              }
+            }
+          } else {
+            console.warn(
+              `Entry ${baseName} not found in ${dirPath} for deletion`,
+            );
+          }
+
+          // Update the file tree signal
+          fileTree.value = newFileTree;
+
+          // If any paths were selected, update the selection
+          if (selectedPaths.value.size > 0) {
+            const newSelection = new Set(selectedPaths.value);
+
+            // Remove the deleted path and any of its children from selection
+            newSelection.forEach((selPath) => {
+              if (selPath === path || selPath.startsWith(path + "/")) {
+                newSelection.delete(selPath);
+              }
+            });
+
+            selectedPaths.value = newSelection;
+          }
+        }
+
+        // Always refresh the parent directory to ensure tree is in sync with device
+        try {
+          await listDirectory(dirPath);
+        } catch (refreshError) {
+          console.error(
+            `Failed to refresh directory after delete: ${refreshError}`,
+          );
+          // Not throwing this error as the delete itself was successful
+        }
+      } else {
+        console.error(`Invalid delete response`, response);
+        throw new Error("Invalid response from delete operation");
+      }
+
+      fileTransferProgress.value = { path, bytes: 1, total: 1 };
+    } catch (error) {
+      console.error("Failed to delete path:", error);
+      throw error;
+    } finally {
+      fileTransferInProgress.value = false;
+    }
+  });
 }

@@ -34,6 +34,24 @@ export const fileBrowserOpen = signal<boolean>(false);
 // Multiple selection support
 export const selectedPaths = signal<Set<string>>(new Set());
 
+// Track the path currently being edited (for inline rename)
+export const editingPath = signal<string | null>(null);
+
+// Helper functions for selection operations
+export function selectSingle(path: string): void {
+  selectedPaths.value = new Set([path]);
+}
+
+export function toggleSelection(path: string): void {
+  const newSelection = new Set(selectedPaths.value);
+  if (newSelection.has(path)) {
+    newSelection.delete(path);
+  } else {
+    newSelection.add(path);
+  }
+  selectedPaths.value = newSelection;
+}
+
 // File transfer progress tracking signals
 export const fileTransferInProgress = signal<boolean>(false);
 export const fileTransferProgress = signal<{

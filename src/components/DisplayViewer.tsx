@@ -70,7 +70,7 @@ export function DisplayViewer() {
       addDebugMessage("Base64 Gzip string copied to clipboard.");
     } catch (err) {
       addDebugMessage(
-        `Error: ${err instanceof Error ? err.message : String(err)}`
+        `Error: ${err instanceof Error ? err.message : String(err)}`,
       );
       console.error("Copy to Base64 failed:", err);
     }
@@ -112,14 +112,14 @@ export function DisplayViewer() {
     window.addEventListener(
       "display:resized",
       handleDisplayResized as EventListener,
-      true
+      true,
     );
 
     return () => {
       window.removeEventListener(
         "display:resized",
         handleDisplayResized as EventListener,
-        true
+        true,
       );
     };
   }, []);

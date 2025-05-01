@@ -5,7 +5,7 @@ import { fullscreenActive } from "../state";
 // Detect mobile device
 export const isMobile =
   /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent
+    navigator.userAgent,
   );
 
 // Store the wake lock sentinel
@@ -23,7 +23,7 @@ export async function request(): Promise<void> {
     if (isMobile && "wakeLock" in navigator) {
       try {
         wakeLockSentinel = await (navigator as Navigator).wakeLock.request(
-          "screen"
+          "screen",
         );
       } catch (err) {
         console.error("Failed to request wake lock:", err);
@@ -102,6 +102,14 @@ export function initFullscreenListeners(): void {
   // Handle keyboard shortcut (desktop only)
   if (!isMobile) {
     document.addEventListener("keydown", (event) => {
+      // Don't process keyboard shortcuts in input fields
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+
       if (
         event.key.toLowerCase() === "f" &&
         !event.ctrlKey &&
