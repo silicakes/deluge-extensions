@@ -19,9 +19,22 @@ describe("Pixel Grid Toggle", () => {
     canvasMock.width = 128;
     canvasMock.height = 48;
 
-    // Create a mock context with spies
-    ctxMock = canvasMock.getContext("2d") as CanvasRenderingContext2D;
-    ctxMock.fillRect = fillRectSpy;
+    // Create a mock context implementation first
+    const mockContext = {
+      fillRect: fillRectSpy,
+      fillStyle: "",
+      clearRect: vi.fn(),
+      // Add other methods that might be used
+      getImageData: vi.fn(),
+      putImageData: vi.fn(),
+      beginPath: vi.fn(),
+      closePath: vi.fn(),
+      stroke: vi.fn(),
+      fill: vi.fn(),
+    };
+
+    // Now assign the mock to ctxMock
+    ctxMock = mockContext as unknown as CanvasRenderingContext2D;
 
     // Spy on the CanvasRenderingContext2D methods
     vi.spyOn(canvasMock, "getContext").mockReturnValue(ctxMock);

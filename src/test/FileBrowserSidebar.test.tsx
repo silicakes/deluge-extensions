@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/preact";
+import { render, screen, fireEvent, waitFor } from "@testing-library/preact";
 import FileBrowserSidebar from "../components/FileBrowserSidebar";
 import { fileBrowserOpen, midiOut } from "../state";
 
@@ -37,7 +37,7 @@ describe("FileBrowserSidebar", () => {
     expect(fileBrowserOpen.value).toBe(false);
   });
 
-  it("auto-closes if MIDI output becomes null", () => {
+  it("auto-closes if MIDI output becomes null", async () => {
     render(<FileBrowserSidebar />);
 
     // Initially open
@@ -46,7 +46,12 @@ describe("FileBrowserSidebar", () => {
     // Simulate MIDI disconnection
     midiOut.value = null;
 
-    // Should auto-close
-    expect(fileBrowserOpen.value).toBe(false);
+    // Wait for signal propagation and component update
+    await waitFor(
+      () => {
+        expect(fileBrowserOpen.value).toBe(false);
+      },
+      { timeout: 1000 },
+    );
   });
 });

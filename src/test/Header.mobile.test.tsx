@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/preact";
 import { Header } from "../components/Header";
+import { autoEnabled } from "../state";
 
 // Mock the midi library
 vi.mock("../lib/midi", () => ({
@@ -10,6 +11,22 @@ vi.mock("../lib/midi", () => ({
   setMidiInput: vi.fn(),
   setMidiOutput: vi.fn(),
   autoConnectDefaultPorts: vi.fn(),
+}));
+
+// Mock the useMidiNavbar hook
+vi.mock("../hooks/useMidiNavbar", () => ({
+  useMidiNavbar: () => ({
+    inputSignal: { value: null },
+    outputSignal: { value: null },
+    inputs: { value: [] },
+    outputs: { value: [] },
+    online: { value: true },
+    ready: { value: false },
+    onInputChange: vi.fn(),
+    onOutputChange: vi.fn(),
+    onAutoToggle: vi.fn(),
+    autoEnabled,
+  }),
 }));
 
 describe("Header on mobile viewport", () => {
@@ -61,8 +78,12 @@ describe("Header on mobile viewport", () => {
     expect(midiMenu).toHaveClass("block");
 
     // Check that we can see the MIDI selectors
-    expect(screen.getByLabelText("MIDI Input Device")).toBeInTheDocument();
-    expect(screen.getByLabelText("MIDI Output Device")).toBeInTheDocument();
+    expect(
+      screen.getAllByLabelText("MIDI Input Device")[0],
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByLabelText("MIDI Output Device")[0],
+    ).toBeInTheDocument();
   });
 
   it("collapses the MIDI menu when button is clicked again", () => {

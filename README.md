@@ -149,6 +149,37 @@ DEx leverages the **WebMIDI API** to communicate with the Deluge using MIDI Syst
   - Request Features: `F0 7D 03 01 01 F7`
   - Request Version: `F0 7D 03 02 01 F7`
 
+## Testing Guidelines 🧪
+
+To keep DEx reliable and prevent regressions, **every new feature _must_ ship with automated tests**. Our testing philosophy is driven by five core rules:
+
+1. **Test everything that ships** › If a user can click it, see it or rely on it, it **needs a test**. Missing coverage is treated as technical debt.
+2. **vitest + @testing-library** › All unit and integration tests are written with [Vitest](https://vitest.dev/) and the [`@testing-library/*`](https://testing-library.com/) family (DOM, Vue/React, user-event&hairsp;…). Do **not** mix in other frameworks unless explicitly discussed in an ADR.
+3. **Integration over mocks** › Favour realistic user-flow tests that exercise multiple components together. Only mock when talking to _irreversible_ side-effects (e.g. `window.open`) or external services that are offline during CI.
+4. **Make code testable** › Prefer pure, side-effect-free functions, clear separation of concerns and deterministic logic. If something is hard to test, rewrite it rather than sprinkle mocks.
+5. **Hardware I/O is tested on the real Deluge** › For SysEx communication (see `plans/file-browser/000-Sysex-deluge-filesystem-overview.md` & `plans/file-browser/tmp_smsysex_spec.md`) we run **end-to-end hardware tests** that send and receive messages to an attached Synthstrom Deluge. These tests are flagged with `@hardware` and are excluded from the default CI matrix (run them locally with the device connected or in the dedicated "hardware-ci" job).
+
+### Directory layout
+
+```
+└─ tests/
+   ├─ unit/          # Fast, pure, no DOM
+   ├─ integration/   # Render components, exercise user flows
+   └─ hardware/      # Requires a connected Deluge (tagged @hardware)
+```
+
+### Running tests
+
+```bash
+# All fast tests (unit + integration)
+pnpm test
+
+# Include slow hardware tests (requires Deluge connected)
+pnpm test -- --hardware
+```
+
+Vitest configuration lives in `vitest.config.ts`; refer to it for aliasing, globals and coverage thresholds.
+
 ## Contributing 🤝
 
 Pull Requests are welcome! If you have ideas for improvements or find bugs, feel free to open an issue or submit a PR.

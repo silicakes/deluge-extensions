@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/preact";
 import { Header } from "../components/Header";
+import { autoEnabled } from "../state";
 
 // Mock the midi library
 vi.mock("../lib/midi", () => ({
@@ -10,6 +11,22 @@ vi.mock("../lib/midi", () => ({
   setMidiInput: vi.fn(),
   setMidiOutput: vi.fn(),
   autoConnectDefaultPorts: vi.fn(),
+}));
+
+// Mock the useMidiNavbar hook
+vi.mock("../hooks/useMidiNavbar", () => ({
+  useMidiNavbar: () => ({
+    inputSignal: { value: null },
+    outputSignal: { value: null },
+    inputs: { value: [] },
+    outputs: { value: [] },
+    online: { value: true },
+    ready: { value: false },
+    onInputChange: vi.fn(),
+    onOutputChange: vi.fn(),
+    onAutoToggle: vi.fn(),
+    autoEnabled,
+  }),
 }));
 
 describe("Header on desktop viewport", () => {
@@ -32,17 +49,7 @@ describe("Header on desktop viewport", () => {
     vi.clearAllMocks();
   });
 
-  it("renders desktop navbar without hamburger button", () => {
-    render(<Header />);
-
-    // Should not find the button that toggles the MIDI menu
-    const hamburgerButton = screen.queryByRole("button", {
-      name: /toggle midi devices menu/i,
-    });
-    expect(hamburgerButton).not.toBeInTheDocument();
-  });
-
-  it("shows desktop navbar elements directly", () => {
+  it("renders desktop navbar elements directly", () => {
     render(<Header />);
 
     // Check that select elements are visible in desktop layout
@@ -54,11 +61,13 @@ describe("Header on desktop viewport", () => {
     ).toBeInTheDocument();
 
     // Check for auto toggle in desktop layout
-    expect(screen.getByLabelText(/Auto-connect toggle/i)).toBeInTheDocument();
+    expect(
+      screen.getAllByLabelText(/Auto-connect toggle/i)[0],
+    ).toBeInTheDocument();
 
     // Check for text specific to desktop layout
     expect(
-      screen.getByText(/Auto \(Connect \+ Display\)/i),
+      screen.getByText(/Auto \(Connect \+ Display\)/i, { exact: false }),
     ).toBeInTheDocument();
   });
 

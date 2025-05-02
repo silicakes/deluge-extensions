@@ -1,4 +1,4 @@
-import { render, fireEvent } from "@testing-library/preact";
+import { render, fireEvent, waitFor } from "@testing-library/preact";
 import { PixelSizeControls } from "../components/PixelSizeControls";
 import { displaySettings } from "../state";
 import * as displayLib from "../lib/display";
@@ -39,17 +39,18 @@ describe("PixelSizeControls", () => {
       minSize: 1,
       maxSize: 32,
       resizeStep: 1,
+      showPixelGrid: false,
     };
   });
 
   it("renders with current pixel size", () => {
     const { getByText } = render(<PixelSizeControls />);
 
-    // Check if the current pixel size is displayed
-    expect(getByText("5×5")).toBeTruthy();
+    // Check if the current pixel size is displayed using regex
+    expect(getByText(/5×5/)).toBeTruthy();
 
-    // Check if canvas dimensions are shown
-    expect(getByText("640 × 240 px")).toBeTruthy();
+    // Check if canvas dimensions are shown using regex
+    expect(getByText(/640 × 240 px/)).toBeTruthy();
   });
 
   it("calls increaseCanvasSize when + button is clicked", () => {
@@ -72,11 +73,11 @@ describe("PixelSizeControls", () => {
     expect(displayLib.decreaseCanvasSize).toHaveBeenCalledTimes(1);
   });
 
-  it("updates display when pixel size changes", () => {
+  it("updates display when pixel size changes", async () => {
     const { getByText } = render(<PixelSizeControls />);
 
     // Check initial value
-    expect(getByText("5×5")).toBeTruthy();
+    expect(getByText(/5×5/)).toBeTruthy();
 
     // Update pixel size manually in display settings
     displaySettings.value = {
@@ -85,9 +86,14 @@ describe("PixelSizeControls", () => {
       pixelHeight: 10,
     };
 
-    // Since we're using computed signals, we should see the updated values
-    expect(getByText("10×10")).toBeTruthy();
-    expect(getByText("1280 × 480 px")).toBeTruthy();
+    // Wait for signal propagation with regex pattern matching
+    await waitFor(
+      () => {
+        expect(getByText(/10×10/)).toBeTruthy();
+        expect(getByText(/1280 × 480 px/)).toBeTruthy();
+      },
+      { timeout: 1000 },
+    );
   });
 
   it("disables decrease button when at minimum size", () => {

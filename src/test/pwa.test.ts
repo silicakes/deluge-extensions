@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { updateAvailable, applyUpdate, registerServiceWorker } from "./pwa";
+import {
+  updateAvailable,
+  applyUpdate,
+  registerServiceWorker,
+} from "../lib/pwa";
 
 // Mock the navigator.serviceWorker
 const mockServiceWorker = {

@@ -34,6 +34,7 @@ vi.mock("../lib/midi", () => ({
   uploadFiles: vi.fn().mockResolvedValue(undefined),
   readFile: vi.fn().mockResolvedValue(new ArrayBuffer(10)),
   triggerBrowserDownload: vi.fn(),
+  listDirectory: vi.fn().mockResolvedValue([]),
 }));
 
 describe("FileBrowser Drag & Drop / Upload / Download", () => {
@@ -78,6 +79,9 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
     const readFileMock = vi.spyOn(midiModule, "readFile");
     const downloadMock = vi.spyOn(midiModule, "triggerBrowserDownload");
 
+    // Mock the readFile to return a resolved promise
+    readFileMock.mockResolvedValue(new ArrayBuffer(10));
+
     // Select a file
     selectedPaths.value = new Set(["/file1.txt"]);
 
@@ -89,6 +93,9 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
       "Download selected file",
     );
     fireEvent.click(downloadButton);
+
+    // Wait for promises to resolve
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     // Verify correct functions were called
     expect(readFileMock).toHaveBeenCalledWith("/file1.txt");

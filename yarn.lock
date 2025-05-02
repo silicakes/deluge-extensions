@@ -2268,6 +2268,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@testing-library/user-event@npm:^14":
+  version: 14.6.1
+  resolution: "@testing-library/user-event@npm:14.6.1"
+  peerDependencies:
+    "@testing-library/dom": ">=7.21.4"
+  checksum: 10c0/75fea130a52bf320d35d46ed54f3eec77e71a56911b8b69a3fe29497b0b9947b2dc80d30f04054ad4ce7f577856ae3e5397ea7dff0ef14944d3909784c7a93fe
+  languageName: node
+  linkType: hard
+
 "@tybys/wasm-util@npm:^0.9.0":
   version: 0.9.0
   resolution: "@tybys/wasm-util@npm:0.9.0"
@@ -3251,6 +3260,7 @@ __metadata:
     "@tailwindcss/vite": "npm:^4.1.4"
     "@testing-library/jest-dom": "npm:^6.6.3"
     "@testing-library/preact": "npm:^3.2.4"
+    "@testing-library/user-event": "npm:^14"
     "@types/node": "npm:^22.15.2"
     eslint: "npm:^9.25.1"
     eslint-config-preact: "npm:^1.5.0"

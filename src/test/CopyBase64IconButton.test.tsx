@@ -19,7 +19,10 @@ describe("CopyBase64IconButton", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     // Reset signal value with mock MIDI output
-    midiOut.value = { id: "test-device", send: vi.fn() } as unknown;
+    midiOut.value = {
+      id: "test-device",
+      send: vi.fn(),
+    } as unknown as MIDIOutput;
   });
 
   it("renders with opacity-0 class (initially hidden)", () => {
@@ -51,6 +54,9 @@ describe("CopyBase64IconButton", () => {
     });
 
     fireEvent.click(button);
+
+    // Wait for the promise to resolve
+    await new Promise(process.nextTick);
 
     expect(mockCopyFn).toHaveBeenCalledTimes(1);
     expect(debugLib.addDebugMessage).toHaveBeenCalledWith(

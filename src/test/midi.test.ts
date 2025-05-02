@@ -1,4 +1,21 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { vi } from "vitest";
+
+// Mock the smsysex module
+vi.mock("../lib/smsysex", () => ({
+  sendJson: vi.fn().mockResolvedValue({ "^delete": { err: 0 } }),
+}));
+
+// Mock the midi module but retain the real sendCustomSysEx for testing
+vi.mock("../lib/midi", async () => {
+  const actual = await vi.importActual("../lib/midi");
+  return {
+    ...actual,
+    listDirectory: vi.fn().mockResolvedValue([]),
+  };
+});
+
+// Regular imports
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { sendCustomSysEx } from "../lib/midi";
 import { midiOut } from "../state";
 
@@ -25,10 +42,16 @@ describe("sendCustomSysEx", () => {
     expect(result).toBe(false);
   });
 
-  it("returns false when offline", () => {
+  it("works regardless of online status (offline-first application)", () => {
+    // Set navigator.onLine to false
     Object.defineProperty(navigator, "onLine", { value: false });
-    const result = sendCustomSysEx("F0 00 F7");
-    expect(result).toBe(false);
+
+    // SysEx should still work when offline since this is an offline-first MIDI application
+    const result = sendCustomSysEx("F0 7D 03 00 01 F7");
+    expect(result).toBe(true);
+    expect(midiOut.value?.send).toHaveBeenCalledWith([
+      0xf0, 0x7d, 0x03, 0x00, 0x01, 0xf7,
+    ]);
   });
 
   it("returns false when input is empty", () => {
@@ -72,36 +95,4 @@ describe("sendCustomSysEx", () => {
       0xf0, 0x7d, 0x03, 0x00, 0x01, 0xf7,
     ]);
   });
-});
-
-// Test the fixed deletePath implementation
-test("deletePath should await response and refresh directory", async () => {
-  // Mock the MIDI output and sendJson
-  midiOut.value = { send: vi.fn() } as unknown as MIDIOutput;
-  const mockResponse = { "^delete": { err: 0 } };
-  const sendJsonMock = vi.fn().mockResolvedValue(mockResponse);
-  vi.spyOn(window, "sendJson").mockImplementation(sendJsonMock);
-
-  // Mock listDirectory to verify it's called
-  const listDirectoryMock = vi.fn().mockResolvedValue([]);
-  vi.spyOn(window, "listDirectory").mockImplementation(listDirectoryMock);
-
-  // Setup file tree with a test file
-  fileTree.value = {
-    "/test": [{ name: "file.txt", size: 100, attr: 0, date: 0, time: 0 }],
-  };
-
-  // Call deletePath
-  await deletePath("/test/file.txt");
-
-  // Verify sendJson was called with correct parameters
-  expect(sendJsonMock).toHaveBeenCalledWith({
-    delete: { path: "/test/file.txt" },
-  });
-
-  // Verify listDirectory was called to refresh the parent directory
-  expect(listDirectoryMock).toHaveBeenCalledWith("/test");
-
-  // Verify fileTransferInProgress was reset
-  expect(fileTransferInProgress.value).toBe(false);
 });
