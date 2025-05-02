@@ -122,12 +122,10 @@ function DirectoryItem({
   path,
   entry,
   level = 0,
-  debugMode,
 }: {
   path: string;
   entry: FileEntry;
   level?: number;
-  debugMode: boolean;
 }) {
   const childPath = path === "/" ? `/${entry.name}` : `${path}/${entry.name}`;
   const isExpanded = expandedPaths.value.has(childPath);
@@ -665,11 +663,9 @@ function DirectoryItem({
               <span onDblClick={startEdit}>{entry.name}</span>
             )}
           </span>
-          {debugMode && (
-            <span className="ml-2 text-xs text-gray-500">
-              {isExpanded ? "📂" : "📁"}
-            </span>
-          )}
+          <span className="ml-2 text-xs text-gray-500">
+            {isExpanded ? "📂" : "📁"}
+          </span>
         </div>
 
         {isExpanded && (
@@ -738,7 +734,6 @@ function DirectoryItem({
                       path={childPath}
                       entry={childEntry}
                       level={level + 1}
-                      debugMode={debugMode}
                     />
                   ) : (
                     <FileItem
@@ -1072,18 +1067,7 @@ export default function FileBrowserTree() {
   const rootPath = "/";
   const isLoading = useSignal(false);
   const error = useSignal<string | null>(null);
-  const debugMode = useSignal(
-    localStorage.getItem("dex-file-debug") === "true",
-  );
   const contextMenuPosition = useSignal<{ x: number; y: number } | null>(null);
-
-  const toggleDebugMode = () => {
-    debugMode.value = !debugMode.value;
-    localStorage.setItem("dex-file-debug", debugMode.value ? "true" : "false");
-    console.log("Debug mode:", debugMode.value);
-    console.log("expandedPaths:", Array.from(expandedPaths.value));
-    console.log("fileTree paths:", Object.keys(fileTree.value));
-  };
 
   // Load root directory on first mount
   useEffect(() => {
@@ -1135,29 +1119,6 @@ export default function FileBrowserTree() {
       className="h-full flex flex-col font-mono text-sm"
       onContextMenu={handleRootContextMenu}
     >
-      <div className="p-2 flex items-center justify-between bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
-        <div className="flex items-center">
-          <button
-            onClick={toggleDebugMode}
-            className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 mr-2"
-            title="Toggle Debug Mode"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="w-4 h-4"
-            >
-              <path
-                fillRule="evenodd"
-                d="M4.25 2A2.25 2.25 0 002 4.25v11.5A2.25 2.25 0 004.25 18h11.5A2.25 2.25 0 0018 16.75V4.25A2.25 2.25 0 0015.75 2H4.25zM6 13.25V3.5h8v9.75a.75.75 0 01-1.5 0V6.25a.75.75 0 00-.75-.75h-5.5a.75.75 0 01-.75-.75z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </button>
-        </div>
-      </div>
-
       <div className="flex-grow overflow-y-auto">
         {isLoading.value ? (
           <div className="p-4 text-center">
@@ -1230,7 +1191,6 @@ export default function FileBrowserTree() {
                     path={rootPath}
                     entry={entry}
                     level={0}
-                    debugMode={debugMode.value}
                   />
                 ) : (
                   <FileItem key={entry.name} path={rootPath} entry={entry} />
