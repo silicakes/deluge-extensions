@@ -98,27 +98,4 @@ export function initFullscreenListeners(): void {
   window.addEventListener("beforeunload", () => {
     releaseWakeLock();
   });
-
-  // Handle keyboard shortcut (desktop only)
-  if (!isMobile) {
-    document.addEventListener("keydown", (event) => {
-      // Don't process keyboard shortcuts in input fields
-      if (
-        event.target instanceof HTMLInputElement ||
-        event.target instanceof HTMLTextAreaElement
-      ) {
-        return;
-      }
-
-      if (
-        event.key.toLowerCase() === "f" &&
-        !event.ctrlKey &&
-        !event.metaKey &&
-        !event.altKey
-      ) {
-        toggle();
-        event.preventDefault();
-      }
-    });
-  }
 }

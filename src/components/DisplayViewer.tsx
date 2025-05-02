@@ -79,29 +79,6 @@ export function DisplayViewer() {
     }
   }, []);
 
-  // Handle keyboard shortcut for copy (c/C)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Skip if inside an input element
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
-      ) {
-        return;
-      }
-
-      // 'c' or 'C' key to copy
-      if (e.key === "c" || e.key === "C") {
-        handleCopyBase64();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [handleCopyBase64]);
-
   // Listen for display:resized events to sync wrapper dimensions
   useEffect(() => {
     const handleDisplayResized = (e: CustomEvent) => {
@@ -178,7 +155,7 @@ export function DisplayViewer() {
       {/* Screenshot and Copy Base64 icons - only visible on hover, hidden in fullscreen */}
       {!fullscreenActive.value && (
         <>
-          <CopyBase64IconButton />
+          <CopyBase64IconButton onClick={handleCopyBase64} />
           <ScreenshotIconButton />
         </>
       )}

@@ -2,18 +2,29 @@ import { midiOut } from "../state";
 import { copyCanvasToBase64 } from "../lib/display";
 import { addDebugMessage } from "../lib/debug";
 
+interface CopyBase64IconButtonProps {
+  onClick?: () => Promise<void>;
+}
+
 /**
  * Floating copy-to-base64 button that appears when hovering over the display.
  */
-export function CopyBase64IconButton() {
+export function CopyBase64IconButton({
+  onClick,
+}: CopyBase64IconButtonProps = {}) {
   // Disabled state if no MIDI output device is connected
   const disabled = !midiOut.value;
 
   // Handler for copying to base64
   const handleCopyBase64 = async () => {
     try {
-      await copyCanvasToBase64();
-      addDebugMessage("Base64 Gzip string copied to clipboard.");
+      // Use provided onClick handler if available, otherwise use default
+      if (onClick) {
+        await onClick();
+      } else {
+        await copyCanvasToBase64();
+        addDebugMessage("Base64 Gzip string copied to clipboard.");
+      }
     } catch (err) {
       addDebugMessage(
         `Error: ${err instanceof Error ? err.message : String(err)}`,

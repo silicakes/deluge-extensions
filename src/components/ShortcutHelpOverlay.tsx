@@ -1,10 +1,13 @@
 import { useEffect, useRef } from "preact/hooks";
-import { globalShortcuts } from "../lib/shortcuts";
+import { getShortcutHelpItems } from "../lib/shortcuts";
 import { helpOpen } from "../state";
 
 export function ShortcutHelpOverlay() {
   const overlayRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+
+  // Get shortcut help items
+  const shortcutItems = getShortcutHelpItems();
 
   // Close overlay handler
   const handleClose = () => {
@@ -79,7 +82,7 @@ export function ShortcutHelpOverlay() {
             </tr>
           </thead>
           <tbody>
-            {globalShortcuts.map((shortcut, index) => (
+            {shortcutItems.map((shortcut, index) => (
               <tr
                 key={index}
                 className="border-b border-gray-100 dark:border-gray-800"

@@ -1131,7 +1131,10 @@ export default function FileBrowserTree() {
   };
 
   return (
-    <div className="h-full flex flex-col" onContextMenu={handleRootContextMenu}>
+    <div
+      className="h-full flex flex-col font-mono text-sm"
+      onContextMenu={handleRootContextMenu}
+    >
       <div className="p-2 flex items-center justify-between bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
         <div className="flex items-center">
           <button

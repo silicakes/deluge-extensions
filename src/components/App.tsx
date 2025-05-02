@@ -26,6 +26,7 @@ import { loadDisplaySettings } from "../hooks/useDisplaySettingsPersistence";
 import { initMidi, selectDelugeDevice } from "../lib/midi";
 import { FileOverrideConfirmation } from "./FileOverrideConfirmation";
 import { AdvancedDisplayControls } from "./AdvancedDisplayControls";
+import { shortcuts, registerGlobalShortcuts } from "../lib/shortcuts";
 
 // Lazily load the file browser sidebar
 const FileBrowserSidebar = lazy(() => import("./FileBrowserSidebar"));
@@ -69,66 +70,70 @@ export function App() {
 
   // Register global keyboard shortcuts
   useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      // Don't trigger shortcuts when typing in any input field
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
-      ) {
-        return; // Ignore shortcuts when typing in any input or textarea
+    // Configure shortcut actions
+    const toggleColorDrawer = () => setColorDrawerOpen(!colorDrawerOpen);
+    const togglePixelGrid = () => {
+      displaySettings.value = {
+        ...displaySettings.value,
+        showPixelGrid: !displaySettings.value.showPixelGrid,
+      };
+    };
+    const toggleFileBrowser = () => {
+      // Only toggle file browser if a MIDI device is connected
+      if (midiOut.value !== null) {
+        fileBrowserOpen.value = !fileBrowserOpen.value;
       }
+    };
+    const toggleHelpOverlay = () => {
+      helpOpen.value = !helpOpen.value;
+    };
 
-      switch (e.key.toLowerCase()) {
+    // Set up shortcut actions
+    shortcuts.forEach((shortcut) => {
+      switch (shortcut.key) {
         case "s":
-          captureScreenshot();
+          shortcut.action = captureScreenshot;
           break;
         case "c":
-          copyCanvasToBase64();
+          shortcut.action = copyCanvasToBase64;
           break;
         case "f":
-          fullscreen.toggle();
+          shortcut.action = fullscreen.toggle;
           break;
         case "b":
-          // Only toggle file browser if a MIDI device is connected
-          if (midiOut.value !== null) {
-            fileBrowserOpen.value = !fileBrowserOpen.value;
-          }
+          shortcut.action = toggleFileBrowser;
           break;
         case "+":
-        case "=": // usually same key with shift
-          increaseCanvasSize();
+        case "=":
+          shortcut.action = increaseCanvasSize;
           break;
         case "-":
-          decreaseCanvasSize();
+          shortcut.action = decreaseCanvasSize;
+          break;
+        case "d":
+          shortcut.action = toggleColorDrawer;
+          break;
+        case "g":
+          shortcut.action = togglePixelGrid;
           break;
         case "?":
-          helpOpen.value = !helpOpen.value;
-          break;
-        case "d": // New shortcut for Display colors
-          setColorDrawerOpen(!colorDrawerOpen);
-          break;
-        case "g": // Toggle pixel grid
-          displaySettings.value = {
-            ...displaySettings.value,
-            showPixelGrid: !displaySettings.value.showPixelGrid,
-          };
+          shortcut.action = toggleHelpOverlay;
           break;
         case "1":
-          selectDelugeDevice(0); // Select first Deluge device
+          shortcut.action = () => selectDelugeDevice(0);
           break;
         case "2":
-          selectDelugeDevice(1); // Select second Deluge device
+          shortcut.action = () => selectDelugeDevice(1);
           break;
         case "3":
-          selectDelugeDevice(2); // Select third Deluge device
+          shortcut.action = () => selectDelugeDevice(2);
           break;
-        default:
-          return;
       }
-      e.preventDefault();
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    });
+
+    // Register global shortcut handler
+    const cleanup = registerGlobalShortcuts();
+    return cleanup;
   }, [colorDrawerOpen]);
 
   return (
