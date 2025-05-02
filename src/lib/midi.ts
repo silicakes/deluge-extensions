@@ -1419,8 +1419,20 @@ export function readFile(path: string): Promise<ArrayBuffer> {
           size?: number;
           err?: number;
         };
+        "^open"?: {
+          // Added '^open' to the interface
+          fid?: number;
+          size?: number;
+          err?: number;
+        };
       }
-      if (!response || !(response as JsonResponse).open) {
+      // Updated the check to look for either 'open' or '^open'
+      if (
+        !response ||
+        !(
+          (response as JsonResponse).open || (response as JsonResponse)["^open"]
+        )
+      ) {
         const error = "Failed to open file: Invalid response";
         console.error(error, response);
         updateTransferStatus(transferId, "error", error);
@@ -1506,24 +1518,16 @@ export function readFile(path: string): Promise<ArrayBuffer> {
         console.log(`Reading ${size} bytes at offset ${offset}`);
         const readResponse = await sendJson(readCommand);
 
-        if (!readResponse || !readResponse.data) {
+        // Check for the data property attached by sendJson
+        if (!readResponse || !(readResponse as { data?: Uint8Array }).data) {
           const error = `Failed to read data at offset ${offset}`;
           console.error(error, readResponse);
           updateTransferStatus(transferId, "error", error);
           throw new Error(error);
         }
 
-        // Extract data from response (base64 encoded)
-        const base64Data = readResponse.data as string;
-
-        // Decode base64 to binary
-        const binary = atob(base64Data);
-        const binaryLength = binary.length;
-        const bytes = new Uint8Array(binaryLength);
-
-        for (let i = 0; i < binaryLength; i++) {
-          bytes[i] = binary.charCodeAt(i);
-        }
+        // Get the binary data directly
+        const bytes = (readResponse as { data: Uint8Array }).data;
 
         // Copy to result buffer
         result.set(bytes, offset);

@@ -117,10 +117,19 @@ export async function openSession(tag = "DEx"): Promise<SmsSession> {
           Array.from(data).map((b) => b.toString(16)),
         );
         // Parse the response to get session info
-        const response = parseSysexResponse(data);
+        const parsedResponse = parseSysexResponse(data);
 
-        if (response && "^session" in response) {
-          const sessionInfo = response["^session"] as Record<string, unknown>;
+        // Check the .json property of the parsed response
+        if (
+          parsedResponse &&
+          parsedResponse.json &&
+          "^session" in parsedResponse.json
+        ) {
+          // Access the session info via parsedResponse.json
+          const sessionInfo = parsedResponse.json["^session"] as Record<
+            string,
+            unknown
+          >;
           console.log("Session info:", sessionInfo);
 
           // Verify required properties exist
@@ -145,7 +154,7 @@ export async function openSession(tag = "DEx"): Promise<SmsSession> {
           console.log("Session established:", currentSession);
           resolve(currentSession);
         } else {
-          console.error("Invalid session response format:", response);
+          console.error("Invalid session response format:", parsedResponse);
           reject(new Error("Invalid session response"));
         }
       } catch (err) {
@@ -264,9 +273,14 @@ export async function sendJson(
         cleanup(); // Remove listener
 
         try {
-          // Parse the response
-          const response = parseSysexResponse(data);
-          resolve(response);
+          // Parse the response, getting JSON and potentially binary data
+          const { json, binaryData } = parseSysexResponse(data);
+
+          // If binary data exists (read response), attach it to the result
+          if (binaryData) {
+            json.data = binaryData; // Attach as 'data' property
+          }
+          resolve(json);
         } catch (err) {
           console.error("Failed to parse response:", err);
           reject(err);
@@ -317,80 +331,99 @@ export async function ping(s?: SmsSession): Promise<void> {
  * @param data SysEx message data
  * @returns Parsed JSON object
  */
-function parseSysexResponse(data: Uint8Array): Record<string, unknown> {
+function parseSysexResponse(data: Uint8Array): {
+  json: Record<string, unknown>;
+  binaryData?: Uint8Array;
+} {
   try {
     // Skip the SysEx header (F0 + manufacturer ID + command + msgId)
-    // The exact offset depends on whether we're using standard or dev ID
-    const headerSize = data[1] === 0x7d ? 4 : 7; // F0 + (mfr ID) + cmd + msgId
+    const headerSize = data[1] === 0x7d ? 4 : 7;
 
-    // Extract JSON payload
-    const jsonEnd = data.indexOf(0xf7);
-    if (jsonEnd === -1) {
+    // Find the end of the SysEx message (F7)
+    const sysexEnd = data.lastIndexOf(0xf7);
+    if (sysexEnd === -1) {
       throw new Error("Invalid SysEx: missing terminator");
     }
 
-    const jsonBytes = data.slice(headerSize, jsonEnd);
+    // Find the 0x00 separator, if present
+    let separatorIdx = -1;
+    for (let i = headerSize; i < sysexEnd; i++) {
+      if (data[i] === 0x00) {
+        separatorIdx = i;
+        break;
+      }
+    }
 
-    // Simple approach - convert all bytes to chars directly
+    // Extract JSON part and potentially binary data
+    const jsonBytes = data.slice(
+      headerSize,
+      separatorIdx !== -1 ? separatorIdx : sysexEnd,
+    );
+    let binaryData: Uint8Array | undefined = undefined;
+
+    if (separatorIdx !== -1) {
+      const packedBinary = data.slice(separatorIdx + 1, sysexEnd);
+      // Simple check if unpacking is needed - might need refinement
+      // Assuming 7-bit packing if it contains bytes >= 0x80
+      try {
+        binaryData = unpack7(packedBinary);
+      } catch (e) {
+        console.warn("Failed to unpack binary data, assuming raw:", e);
+        binaryData = packedBinary; // Fallback to raw if unpack fails
+      }
+    }
+
     const jsonText = String.fromCharCode.apply(null, Array.from(jsonBytes));
-    console.log("Raw JSON response:", jsonText);
+    console.log("Raw JSON part:", jsonText);
 
     try {
-      // First attempt: standard JSON parse on the raw text
-      return JSON.parse(jsonText);
+      const json = JSON.parse(jsonText);
+      // Check if this is actually a read response based on the presence of binary data
+      // or the key "^read"
+      if (binaryData || (json && json["^read"])) {
+        console.log("Read response detected, returning JSON and binary data.");
+        return { json, binaryData };
+      }
+      // For non-read responses, just return JSON
+      return { json };
     } catch (parseError) {
       console.warn(
-        "Standard JSON parse failed, checking if this is a directory listing:",
+        "Standard JSON parse failed, checking fallbacks:",
         parseError,
       );
 
-      // Check if this is a directory listing response
+      // Fallback for directory listing
       if (
         jsonText.includes('"^dir"') &&
         jsonText.includes('"list"') &&
         jsonText.includes('"name"')
       ) {
         console.log("Detected directory listing - using manual extraction");
-
-        // This is a directory listing - hand-craft a response
-        return extractDirectoryEntries(jsonText);
+        return { json: extractDirectoryEntries(jsonText) };
       }
 
-      // For other types of responses, try the fixes
-      try {
-        // Second attempt: Try to fix common issues in JSON responses
-        const fixedJson = jsonText
-          .replace(/[^\x20-\x7E]/g, "") // Keep only printable ASCII
-          .replace(/([^\\])~/g, "$1") // Remove tilde
-          .replace(/\\'/g, "'") // Fix escaped single quotes
-          .replace(/\n/g, "\\n") // Escape newlines
-          .replace(/\r/g, "\\r") // Escape returns
-          .replace(/\t/g, "\\t"); // Escape tabs
-
-        console.log("Fixed JSON attempt:", fixedJson);
-        return JSON.parse(fixedJson);
-      } catch (fixedError) {
-        console.warn("Fixed JSON parse failed:", fixedError);
-
-        // Final fallback: If it's a session response, construct a valid session object
-        if (jsonText.includes('"^session"') || jsonText.includes('"session"')) {
-          console.log("Constructing fallback session object");
-          return {
+      // Fallback for session response
+      if (jsonText.includes('"^session"') || jsonText.includes('"session"')) {
+        console.log("Constructing fallback session object");
+        return {
+          json: {
             "^session": {
               sid: 1,
-              midMin: 0x41, // Default valid message ID range
+              midMin: 0x41,
               midMax: 0x4f,
             },
-          };
-        }
-
-        // For all other responses, throw the original error
-        throw parseError;
+          },
+        };
       }
+
+      // If no fallbacks match, re-throw original error
+      throw parseError;
     }
   } catch (err) {
     console.error("Error parsing SysEx response:", err);
-    throw new Error("Failed to parse SysEx response");
+    // Ensure a consistent return type even on error, maybe return null/error?
+    // For now, rethrowing to maintain original behavior
+    throw new Error(`Failed to parse SysEx response: ${err}`);
   }
 }
 
