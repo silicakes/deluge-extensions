@@ -13,4 +13,7 @@ export const globalShortcuts: ShortcutHelpItem[] = [
   { keys: "D", description: "Toggle display colors" },
   { keys: "G", description: "Toggle pixel grid" },
   { keys: "?", description: "Toggle help overlay" },
+  { keys: "1", description: "Select 1st Deluge port" },
+  { keys: "2", description: "Select 2nd Deluge port" },
+  { keys: "3", description: "Select 3rd Deluge port" },
 ];

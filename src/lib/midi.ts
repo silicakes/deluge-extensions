@@ -166,6 +166,44 @@ export function autoConnectDefaultPorts() {
   }
 }
 
+/**
+ * Select both input and output MIDI devices that include the word 'deluge'
+ * This function is used for the numeric shortcuts (1,2,3) to quickly select Deluge devices
+ * @param index The index of the Deluge device to select (0-based)
+ * @returns True if a device was found and selected, false otherwise
+ */
+export function selectDelugeDevice(index: number): boolean {
+  if (!midiAccess) return false;
+
+  // Get all available MIDI devices that include 'deluge' (case insensitive)
+  const delugeInputs = Array.from(midiAccess.inputs.values()).filter((input) =>
+    input.name?.toLowerCase().includes("deluge"),
+  );
+
+  const delugeOutputs = Array.from(midiAccess.outputs.values()).filter(
+    (output) => output.name?.toLowerCase().includes("deluge"),
+  );
+
+  // Check if we have a device at the requested index
+  if (
+    index < 0 ||
+    index >= delugeInputs.length ||
+    index >= delugeOutputs.length
+  ) {
+    console.log(`No Deluge device found at index ${index}`);
+    return false;
+  }
+
+  // Set both input and output to the selected device
+  setMidiInput(delugeInputs[index]);
+  setMidiOutput(delugeOutputs[index]);
+
+  console.log(
+    `Selected Deluge device ${index + 1}: ${delugeInputs[index].name}`,
+  );
+  return true;
+}
+
 /** MIDI message handler – re-export or use event emitter if needed */
 export function subscribeMidiListener(listener: (e: MIDIMessageEvent) => void) {
   midiListeners.add(listener);

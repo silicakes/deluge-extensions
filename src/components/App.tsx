@@ -23,7 +23,7 @@ import { PwaUpdatePrompt } from "./PwaUpdatePrompt";
 import { PixelSizeControls } from "./PixelSizeControls";
 import { DisplayColorDrawer } from "./DisplayColorDrawer";
 import { loadDisplaySettings } from "../hooks/useDisplaySettingsPersistence";
-import { initMidi } from "../lib/midi";
+import { initMidi, selectDelugeDevice } from "../lib/midi";
 import { FileOverrideConfirmation } from "./FileOverrideConfirmation";
 import { AdvancedDisplayControls } from "./AdvancedDisplayControls";
 
@@ -112,6 +112,15 @@ export function App() {
             ...displaySettings.value,
             showPixelGrid: !displaySettings.value.showPixelGrid,
           };
+          break;
+        case "1":
+          selectDelugeDevice(0); // Select first Deluge device
+          break;
+        case "2":
+          selectDelugeDevice(1); // Select second Deluge device
+          break;
+        case "3":
+          selectDelugeDevice(2); // Select third Deluge device
           break;
         default:
           return;
