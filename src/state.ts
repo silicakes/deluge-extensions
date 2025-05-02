@@ -159,3 +159,9 @@ if (typeof window !== "undefined" && "localStorage" in window) {
     console.error("Failed to load DExDisplaySettings from localStorage:", err);
   }
 }
+
+// Preview functionality
+export const previewFile = signal<{
+  path: string;
+  type: "audio" | "text";
+} | null>(null);

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { useSignal } from "@preact/signals";
-import { FileEntry, editingPath } from "../state";
+import { FileEntry, editingPath, previewFile } from "../state";
 import { createDirectory, createFile, deletePath } from "../lib/midi";
+import { isAudio, isText } from "../lib/fileType";
 
 interface FileContextMenuProps {
   path: string;
@@ -227,6 +228,28 @@ export default function FileContextMenu({
     }
   };
 
+  // Handle preview file
+  const handlePreview = () => {
+    if (!entry) return;
+
+    const fullPath = path === "/" ? `/${entry.name}` : `${path}/${entry.name}`;
+
+    console.log("Preview requested for:", fullPath);
+
+    if (isAudio(entry)) {
+      console.log("Setting audio preview for:", fullPath);
+      previewFile.value = { path: fullPath, type: "audio" };
+    } else if (isText(entry)) {
+      console.log("Setting text preview for:", fullPath);
+      previewFile.value = { path: fullPath, type: "text" };
+    }
+
+    onClose();
+  };
+
+  // Check if the file can be previewed
+  const canPreview = entry && !isDirectory && (isAudio(entry) || isText(entry));
+
   return (
     <>
       <div
@@ -269,6 +292,19 @@ export default function FileContextMenu({
                 <hr className="my-1 border-neutral-200 dark:border-neutral-700" />
               </li>
             </>
+          )}
+
+          {/* Preview option for audio and text files */}
+          {canPreview && (
+            <li>
+              <button
+                className="px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 w-full text-left"
+                onClick={handlePreview}
+              >
+                <span className="inline-block w-5 text-center mr-2">👁️</span>
+                Preview
+              </button>
+            </li>
           )}
 
           {/* Show rename only for single selection */}

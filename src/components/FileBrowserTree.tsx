@@ -8,6 +8,7 @@ import {
   selectedPaths,
   fileTransferInProgress,
   editingPath,
+  previewFile,
 } from "../state";
 import {
   listDirectory,
@@ -19,6 +20,7 @@ import {
 } from "../lib/midi";
 import { iconUrlForEntry } from "../lib/fileIcons";
 import { isExternalFileDrag, isInternalDrag } from "../lib/drag";
+import { isAudio, isText } from "../lib/fileType";
 import FileContextMenu from "./FileContextMenu";
 
 // Track last selected path for shift-clicking
@@ -1000,6 +1002,23 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
     // For all other keys, allow default behavior (typing in the input)
   };
 
+  // Handle double-click for file preview
+  const handleDoubleClick = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Don't trigger preview if we're editing
+    if (isEditing) return;
+
+    // Check if this is an audio or text file
+    if (isAudio(entry)) {
+      previewFile.value = { path: childPath, type: "audio" };
+    } else if (isText(entry)) {
+      previewFile.value = { path: childPath, type: "text" };
+    }
+    // Silently ignore other file types for now
+  };
+
   return (
     <li
       className={`py-0.5 px-2 border-b border-neutral-100 dark:border-neutral-800 flex items-center cursor-pointer select-none relative ${
@@ -1042,7 +1061,7 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
           aria-label="Rename file"
         />
       ) : (
-        <span onDblClick={startEdit}>{entry.name}</span>
+        <span onDblClick={handleDoubleClick}>{entry.name}</span>
       )}
 
       {contextMenuPosition.value && (

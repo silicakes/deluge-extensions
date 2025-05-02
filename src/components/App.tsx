@@ -27,6 +27,7 @@ import { initMidi, selectDelugeDevice } from "../lib/midi";
 import { FileOverrideConfirmation } from "./FileOverrideConfirmation";
 import { AdvancedDisplayControls } from "./AdvancedDisplayControls";
 import { shortcuts, registerGlobalShortcuts } from "../lib/shortcuts";
+import PreviewManager from "./PreviewManager";
 
 // Lazily load the file browser sidebar
 const FileBrowserSidebar = lazy(() => import("./FileBrowserSidebar"));
@@ -181,6 +182,13 @@ export function App() {
 
       {/* File Override Confirmation Dialog */}
       <FileOverrideConfirmation />
+
+      {/* File Preview Manager - Debug wrapper to ensure it's rendering */}
+      <div id="preview-manager-container">
+        {console.log("About to render PreviewManager")}
+        <PreviewManager />
+        {console.log("PreviewManager rendered")}
+      </div>
     </div>
   );
 }
