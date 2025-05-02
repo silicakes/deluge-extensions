@@ -165,3 +165,22 @@ export const previewFile = signal<{
   path: string;
   type: "audio" | "text";
 } | null>(null);
+
+// Text editor functionality
+export interface EditingFileState {
+  path: string;
+  initialContent: string;
+  currentContent: string;
+  dirty: boolean;
+  error?: string;
+}
+
+export const editingFileState = signal<{
+  path: string;
+  initialContent: string;
+  currentContent: string;
+  dirty: boolean;
+  error?: string;
+} | null>(null);
+export const pollingIntervalId = signal<number | null>(null);
+export const isSyncEnabled = signal(false);

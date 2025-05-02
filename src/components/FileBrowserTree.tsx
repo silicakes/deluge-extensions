@@ -9,6 +9,7 @@ import {
   fileTransferInProgress,
   editingPath,
   previewFile,
+  editingFileState,
 } from "../state";
 import {
   listDirectory,
@@ -1002,19 +1003,26 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
     // For all other keys, allow default behavior (typing in the input)
   };
 
-  // Handle double-click for file preview
+  // Handle double-click for file preview/edit
   const handleDoubleClick = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    // Don't trigger preview if we're editing
+    // Don't trigger if we're editing
     if (isEditing) return;
 
     // Check if this is an audio or text file
     if (isAudio(entry)) {
+      // For audio files, still use preview mode
       previewFile.value = { path: childPath, type: "audio" };
     } else if (isText(entry)) {
-      previewFile.value = { path: childPath, type: "text" };
+      // For text files, go directly to edit mode instead of preview
+      editingFileState.value = {
+        path: childPath,
+        initialContent: "", // Will be populated when component loads
+        currentContent: "",
+        dirty: false,
+      };
     }
     // Silently ignore other file types for now
   };

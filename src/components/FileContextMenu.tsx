@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { useSignal } from "@preact/signals";
-import { FileEntry, editingPath, previewFile } from "../state";
+import {
+  FileEntry,
+  editingPath,
+  previewFile,
+  editingFileState,
+} from "../state";
 import { createDirectory, createFile, deletePath } from "../lib/midi";
 import { isAudio, isText } from "../lib/fileType";
 
@@ -247,8 +252,30 @@ export default function FileContextMenu({
     onClose();
   };
 
+  // Handle edit text file
+  const handleEditTextFile = () => {
+    if (!entry) return;
+
+    const fullPath = path === "/" ? `/${entry.name}` : `${path}/${entry.name}`;
+
+    console.log("Edit requested for text file:", fullPath);
+
+    // Initialize editor state with path
+    editingFileState.value = {
+      path: fullPath,
+      initialContent: "", // Will be populated when component loads
+      currentContent: "",
+      dirty: false,
+    };
+
+    onClose();
+  };
+
   // Check if the file can be previewed
-  const canPreview = entry && !isDirectory && (isAudio(entry) || isText(entry));
+  const canPreview = entry && !isDirectory && isAudio(entry);
+
+  // Check if the file can be edited
+  const canEdit = entry && !isDirectory && isText(entry);
 
   return (
     <>
@@ -294,7 +321,7 @@ export default function FileContextMenu({
             </>
           )}
 
-          {/* Preview option for audio and text files */}
+          {/* Preview option for audio files only */}
           {canPreview && (
             <li>
               <button
@@ -302,7 +329,20 @@ export default function FileContextMenu({
                 onClick={handlePreview}
               >
                 <span className="inline-block w-5 text-center mr-2">👁️</span>
-                Preview
+                Preview Audio
+              </button>
+            </li>
+          )}
+
+          {/* Edit option for text files */}
+          {canEdit && (
+            <li>
+              <button
+                className="px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 w-full text-left"
+                onClick={handleEditTextFile}
+              >
+                <span className="inline-block w-5 text-center mr-2">📝</span>
+                Edit Text
               </button>
             </li>
           )}
