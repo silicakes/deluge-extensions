@@ -1,13 +1,24 @@
 import { useState, useRef, useEffect, useLayoutEffect } from "preact/hooks";
 import { sendCustomSysEx, getDebug } from "../lib/midi";
-import { clearDebug, useDebugLog } from "../lib/debug";
+import {
+  clearDebug,
+  useDebugLog,
+  setVerboseLogging,
+  getVerboseLoggingState,
+} from "../lib/debug";
 import { fullscreenActive, midiOut } from "../state";
+
+// Match the max size in debug.ts
+const MAX_DEBUG_LOG_SIZE = 500;
 
 export const SysExConsole = () => {
   // State
   const [isOpen, setIsOpen] = useState(false);
   const [sysExInput, setSysExInput] = useState("0xF0 0x7d 0x03 0x00 0x01 0xF7");
   const [autoDebug, setAutoDebug] = useState(false);
+  const [verboseLogging, setVerboseLoggingState] = useState(
+    getVerboseLoggingState(),
+  );
   const debugLogRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const debugLog = useDebugLog();
@@ -31,6 +42,11 @@ export const SysExConsole = () => {
       }
     };
   }, [autoDebug]);
+
+  // Propagate verbose logging changes
+  useEffect(() => {
+    setVerboseLogging(verboseLogging);
+  }, [verboseLogging]);
 
   // Scroll to bottom of log when content changes
   useLayoutEffect(() => {
@@ -69,6 +85,10 @@ export const SysExConsole = () => {
 
   const handleToggleAutoDebug = () => {
     setAutoDebug((prev) => !prev);
+  };
+
+  const handleToggleVerboseLogging = () => {
+    setVerboseLoggingState((prev) => !prev);
   };
 
   const handleClearDebug = () => {
@@ -113,6 +133,7 @@ export const SysExConsole = () => {
         ref={drawerRef}
         className={`fixed left-0 bottom-0 w-96 max-w-full bg-[var(--color-bg-offset)] text-[var(--color-text)] shadow-lg border-t border-[var(--color-border)] z-40 transition-transform duration-300 ${isOpen ? "translate-y-0" : "translate-y-full"} h-96 flex flex-col`}
         aria-hidden={!isOpen}
+        data-console-open={isOpen}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b border-[var(--color-border)]">
@@ -149,7 +170,7 @@ export const SysExConsole = () => {
         </div>
 
         {/* Controls */}
-        <div className="p-2 flex items-center gap-2 border-t border-[var(--color-border)]">
+        <div className="p-2 flex items-center gap-2 border-t border-[var(--color-border)] flex-wrap">
           <button
             onClick={handleClearDebug}
             className="px-3 py-1 bg-red-700 hover:bg-red-600 rounded text-sm text-white"
@@ -167,8 +188,21 @@ export const SysExConsole = () => {
             {autoDebug ? "Stop Auto" : "Auto"}
           </button>
 
-          <span className="ml-2 text-sm">
-            Status: {autoDebug ? "ON" : "OFF"}
+          <button
+            onClick={handleToggleVerboseLogging}
+            className={`px-3 py-1 rounded text-sm text-white ${verboseLogging ? "bg-green-700 hover:bg-green-600" : "bg-blue-700 hover:bg-blue-600"}`}
+            aria-label={
+              verboseLogging
+                ? "Disable verbose logging"
+                : "Enable verbose logging"
+            }
+          >
+            {verboseLogging ? "Verbose: ON" : "Verbose: OFF"}
+          </button>
+
+          <span className="ml-2 text-xs">
+            {autoDebug ? "Auto: ON" : ""} | Log: {debugLog.value.length}/
+            {MAX_DEBUG_LOG_SIZE}
           </span>
         </div>
 

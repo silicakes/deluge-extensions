@@ -12,7 +12,13 @@ import { Header } from "./Header";
 import { SysExConsole } from "./SysExConsole";
 import { DisplayViewer } from "./DisplayViewer";
 import { ShortcutHelpOverlay } from "./ShortcutHelpOverlay";
-import { helpOpen, fileBrowserOpen, displaySettings, midiOut } from "../state";
+import {
+  helpOpen,
+  fileBrowserOpen,
+  displaySettings,
+  midiOut,
+  fileTransferInProgress,
+} from "../state";
 import { PwaUpdatePrompt } from "./PwaUpdatePrompt";
 import { PixelSizeControls } from "./PixelSizeControls";
 import { DisplayColorDrawer } from "./DisplayColorDrawer";
@@ -42,6 +48,23 @@ export function App() {
       }
     };
     init();
+  }, []);
+
+  // Navigation guard for file transfers
+  useEffect(() => {
+    const beforeUnloadHandler = (e: BeforeUnloadEvent) => {
+      if (fileTransferInProgress.value) {
+        // This shows the browser's standard confirmation dialog
+        e.preventDefault();
+        // This is required for older browsers
+        e.returnValue = "";
+        return "";
+      }
+    };
+
+    window.addEventListener("beforeunload", beforeUnloadHandler);
+    return () =>
+      window.removeEventListener("beforeunload", beforeUnloadHandler);
   }, []);
 
   // Register global keyboard shortcuts

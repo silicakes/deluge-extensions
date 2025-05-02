@@ -7,7 +7,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 export default defineConfig([
   { files: ["**/*.{js,mjs,cjs,ts}"], plugins: { js }, extends: ["js/recommended"] },
   { files: ["**/*.{js,mjs,cjs,ts}"], languageOptions: { globals: globals.browser } },
-  { ignores: ["node_modules", "dist", "legacy"] },
+  { ignores: ["node_modules", "dist", "legacy", ".vite"] },
   globalIgnores(["./src/legacy/*"]),
   tseslint.configs.recommended,
 ]);

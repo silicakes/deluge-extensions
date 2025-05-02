@@ -52,6 +52,7 @@ describe("Pixel Grid Toggle", () => {
     // Call our internal renderOledCanvas function
     // We need to access it through the module's internal scope
     const renderFn =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (display as any).__test__?.renderOledCanvas ||
       (() => {
         display.drawOled(canvasMock, createSysExMock(testFrame));
@@ -65,7 +66,7 @@ describe("Pixel Grid Toggle", () => {
 
     // Check some fillRect calls to ensure they have inset
     const insetCalls = fillRectSpy.mock.calls.filter(
-      (call: any[]) =>
+      (call: number[]) =>
         call[0] % 1 === 0.5 &&
         call[1] % 1 === 0.5 &&
         call[2] % 1 === 0 &&
@@ -91,6 +92,7 @@ describe("Pixel Grid Toggle", () => {
 
     // Call our internal renderOledCanvas function
     const renderFn =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (display as any).__test__?.renderOledCanvas ||
       (() => {
         display.drawOled(canvasMock, createSysExMock(testFrame));
@@ -104,7 +106,7 @@ describe("Pixel Grid Toggle", () => {
     // For pixels, we should see calls with integer coordinates and full width/height
     // Check that all pixel fillRect calls use whole pixels (no 0.5 inset)
     const integralCalls = fillRectSpy.mock.calls.filter(
-      (call: any[]) =>
+      (call: number[]) =>
         call[0] % 1 === 0 &&
         call[1] % 1 === 0 &&
         // Skip the background rect which is always integral

@@ -40,6 +40,7 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 - **🔄 Update Notifications**: When a new version is available, you'll get a notification allowing you to update instantly.
 - **🔄 Display Type Toggle**: Switch between the OLED (right) and 7-Segment (left) displays using the convenient slider.
 - **🗂️ SD-Card File Browser** _(requires Deluge **Community Firmware ≥ 1.3.0** – currently in **beta**)_:
+
   - Explore your card with a **lazy-loaded tree view** that only requests directory contents on demand.
   - **Sidebar UI** with file-type icons, single-selection highlight, and keyboard navigation.
   - **Drag-and-drop** inside the tree to move files & folders.
@@ -48,9 +49,7 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
   - Built-in transfer queue, visual progress bar, and conflict-resolution prompts ensure safe operations.
   - Works entirely over MIDI – no additional drivers or SD-card removal required!
 
- 
   <img width="1871" alt="image" src="https://github.com/user-attachments/assets/8ba53855-ec9b-4226-812e-bde4d5bf2e06" />
-
 
 ## Getting Started 🚀
 

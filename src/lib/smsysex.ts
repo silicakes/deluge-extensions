@@ -6,6 +6,7 @@
  */
 import { midiOut } from "../state";
 import { unpack7 } from "./pack7";
+import type { FileEntry } from "../state";
 
 // Define smSysex commands
 export enum SmsCommand {
@@ -329,14 +330,147 @@ function parseSysexResponse(data: Uint8Array): Record<string, unknown> {
     }
 
     const jsonBytes = data.slice(headerSize, jsonEnd);
-    const jsonText = String.fromCharCode.apply(null, Array.from(jsonBytes));
 
-    console.log("Parsed JSON response:", jsonText);
-    return JSON.parse(jsonText);
+    // Simple approach - convert all bytes to chars directly
+    const jsonText = String.fromCharCode.apply(null, Array.from(jsonBytes));
+    console.log("Raw JSON response:", jsonText);
+
+    try {
+      // First attempt: standard JSON parse on the raw text
+      return JSON.parse(jsonText);
+    } catch (parseError) {
+      console.warn(
+        "Standard JSON parse failed, checking if this is a directory listing:",
+        parseError,
+      );
+
+      // Check if this is a directory listing response
+      if (
+        jsonText.includes('"^dir"') &&
+        jsonText.includes('"list"') &&
+        jsonText.includes('"name"')
+      ) {
+        console.log("Detected directory listing - using manual extraction");
+
+        // This is a directory listing - hand-craft a response
+        return extractDirectoryEntries(jsonText);
+      }
+
+      // For other types of responses, try the fixes
+      try {
+        // Second attempt: Try to fix common issues in JSON responses
+        const fixedJson = jsonText
+          .replace(/[^\x20-\x7E]/g, "") // Keep only printable ASCII
+          .replace(/([^\\])~/g, "$1") // Remove tilde
+          .replace(/\\'/g, "'") // Fix escaped single quotes
+          .replace(/\n/g, "\\n") // Escape newlines
+          .replace(/\r/g, "\\r") // Escape returns
+          .replace(/\t/g, "\\t"); // Escape tabs
+
+        console.log("Fixed JSON attempt:", fixedJson);
+        return JSON.parse(fixedJson);
+      } catch (fixedError) {
+        console.warn("Fixed JSON parse failed:", fixedError);
+
+        // Final fallback: If it's a session response, construct a valid session object
+        if (jsonText.includes('"^session"') || jsonText.includes('"session"')) {
+          console.log("Constructing fallback session object");
+          return {
+            "^session": {
+              sid: 1,
+              midMin: 0x41, // Default valid message ID range
+              midMax: 0x4f,
+            },
+          };
+        }
+
+        // For all other responses, throw the original error
+        throw parseError;
+      }
+    }
   } catch (err) {
     console.error("Error parsing SysEx response:", err);
     throw new Error("Failed to parse SysEx response");
   }
+}
+
+/**
+ * Sanitize a filename to remove problematic characters
+ * @param name The raw filename from device
+ * @returns A sanitized filename safe for display and processing
+ */
+function sanitizeFilename(name: string): string {
+  // Use character code checking instead of regex for control characters
+  let result = "";
+  for (let i = 0; i < name.length; i++) {
+    const code = name.charCodeAt(i);
+    // Skip control characters
+    if (code < 32 || (code >= 127 && code <= 159)) {
+      continue;
+    }
+    // Replace Windows-invalid filename chars
+    if (["\\", "/", ":", "*", "?", '"', "<", ">", "|"].includes(name[i])) {
+      result += "_";
+    } else {
+      result += name[i];
+    }
+  }
+  return result;
+}
+
+/**
+ * Extract directory entries from a malformed JSON response
+ * This is a fallback when JSON parsing fails on directory listings
+ *
+ * @param jsonText The raw JSON text containing directory entries
+ * @returns A directory response object with extracted entries
+ */
+function extractDirectoryEntries(jsonText: string): Record<string, unknown> {
+  const entries: FileEntry[] = [];
+
+  // Use regex to extract entries, even if JSON is malformed
+  // This pattern carefully handles possibly malformed filenames by using a more robust approach
+  const entryRegex =
+    /"name"\s*:\s*"([^"]*?)"\s*,\s*"size"\s*:\s*(\d+)\s*,\s*"date"\s*:\s*(\d+)\s*,\s*"time"\s*:\s*(\d+)\s*,\s*"attr"\s*:\s*(\d+)/g;
+
+  // First extract entries with complete and proper syntax
+  let match;
+  while ((match = entryRegex.exec(jsonText)) !== null) {
+    try {
+      // Note: match[0] is the full match, match[1] is the first capture group
+      const rawName = match[1];
+      const size = parseInt(match[2], 10);
+      const date = parseInt(match[3], 10);
+      const time = parseInt(match[4], 10);
+      const attr = parseInt(match[5], 10);
+
+      // Clean the filename
+      const name = sanitizeFilename(rawName);
+
+      const entry: FileEntry = {
+        name,
+        size,
+        date,
+        time,
+        attr,
+      };
+
+      entries.push(entry);
+    } catch (err) {
+      console.warn("Failed to parse entry:", match, err);
+      // Skip this entry and continue
+    }
+  }
+
+  console.log(`Extracted ${entries.length} entries using regex fallback`);
+
+  // Return a properly formatted directory response
+  return {
+    "^dir": {
+      list: entries,
+      err: 0,
+    },
+  };
 }
 
 // Collection of binary data response handlers

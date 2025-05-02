@@ -228,9 +228,6 @@ describe("FileBrowserTree", () => {
   it("context menu should use page coordinates", async () => {
     render(<FileBrowserTree />);
 
-    // Mock file item
-    const fileItem = screen.getByText("example.txt").closest("div");
-
     // Manually create event that will be used by the component
     const mockEvent = {
       preventDefault: vi.fn(),

@@ -1,4 +1,4 @@
-import { signal } from "@preact/signals";
+import { signal, computed } from "@preact/signals";
 
 export const midiIn = signal<MIDIInput | null>(null);
 export const midiOut = signal<MIDIOutput | null>(null);
@@ -54,6 +54,52 @@ export function toggleSelection(path: string): void {
 
 // File transfer progress tracking signals
 export const fileTransferInProgress = signal<boolean>(false);
+
+// Define the type for a single transfer in the queue
+export interface TransferItem {
+  id: string;
+  kind: "upload" | "download" | "move";
+  src: string;
+  dest?: string;
+  bytes: number;
+  total: number;
+  status: "pending" | "active" | "done" | "error" | "canceled";
+  error?: string;
+  controller?: AbortController;
+}
+
+// Ordered list of queued transfers
+export const fileTransferQueue = signal<TransferItem[]>([]);
+
+// Computed helper to get only active transfers
+export const activeTransfers = computed(() =>
+  fileTransferQueue.value.filter((t) => t.status === "active"),
+);
+
+// Computed helper to check if any transfer is in progress
+export const anyTransferInProgress = computed(() =>
+  fileTransferQueue.value.some(
+    (t) => t.status === "active" || t.status === "pending",
+  ),
+);
+
+// Define the type for a single file transfer
+export interface FileTransfer {
+  id: string; // Unique ID for this transfer
+  path: string;
+  bytes: number;
+  total: number;
+  speed: number; // Bytes per second
+  type: "upload" | "download";
+  status: "active" | "paused" | "error";
+  error?: string;
+  startTime: number;
+}
+
+// Track all active file transfers
+export const activeFileTransfers = signal<FileTransfer[]>([]);
+
+// The original transfer progress signal - kept for backward compatibility
 export const fileTransferProgress = signal<{
   path: string;
   bytes: number;

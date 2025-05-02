@@ -29,4 +29,26 @@ body[data-theme="dark"] {
 body {
   background-color: var(--color-bg);
   color: var(--color-text);
-} 
+}
+
+/* width */
+::-webkit-scrollbar {
+  height: 5px;
+  width: 5px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+  background: var(--color-bg-offset);
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 5px;
+}
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border);
+}

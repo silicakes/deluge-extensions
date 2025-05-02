@@ -9,5 +9,5 @@ render(
   <ThemeProvider>
     <App />
   </ThemeProvider>,
-  document.getElementById("app")!
+  document.getElementById("app")!,
 );

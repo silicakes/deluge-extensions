@@ -4,10 +4,10 @@ import {
   fileBrowserOpen,
   midiOut,
   selectedPaths,
-  fileTransferProgress,
   fileTransferInProgress,
   fileTree,
   expandedPaths,
+  anyTransferInProgress,
 } from "../state";
 import {
   readFile,
@@ -17,24 +17,10 @@ import {
   createDirectory,
   createFile,
 } from "../lib/midi";
+import FileTransferQueue from "./FileTransferQueue";
 
 // Lazily load the FileBrowserTree component
 const FileBrowserTree = lazy(() => import("./FileBrowserTree"));
-
-/**
- * Format bytes into a human-readable string
- */
-function formatBytes(bytes: number, decimals = 1) {
-  if (bytes === 0) return "0 Bytes";
-
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
-}
 
 export default function FileBrowserSidebar() {
   const isDraggingOver = useSignal(false);
@@ -198,22 +184,6 @@ export default function FileBrowserSidebar() {
     }
   };
 
-  // Calculate progress percentage for progress bar
-  const progressPercent = fileTransferProgress.value
-    ? Math.round(
-        (100 * fileTransferProgress.value.bytes) /
-          fileTransferProgress.value.total,
-      )
-    : 0;
-
-  // Calculate overall progress if available
-  const overallProgressPercent = fileTransferProgress.value?.overallTotal
-    ? Math.round(
-        (100 * (fileTransferProgress.value.overallBytes || 0)) /
-          fileTransferProgress.value.overallTotal,
-      )
-    : progressPercent;
-
   const handleNewFolder = async () => {
     if (newName.value.trim() === "") {
       return;
@@ -343,12 +313,12 @@ export default function FileBrowserSidebar() {
 
   return (
     <aside
-      className="fixed top-16 bottom-0 left-0 w-72 sm:w-80 bg-neutral-50 dark:bg-neutral-900 shadow-lg z-10 file-browser-sidebar"
+      className="fixed top-0 left-0 h-full w-72 sm:w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-hidden z-20 shadow-md flex flex-col"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <header className="flex items-center justify-between p-2 border-b border-neutral-300 dark:border-neutral-700">
+      <header className="flex items-center justify-between p-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
         <h2 className="font-semibold text-sm">
           SD Card{" "}
           {selectedPaths.value.size > 0 &&
@@ -358,7 +328,7 @@ export default function FileBrowserSidebar() {
           {/* Refresh button */}
           <button
             aria-label="Refresh directory"
-            className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 text-gray-600 dark:text-gray-400"
+            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
             onClick={refreshCurrentDir}
             disabled={isRefreshing.value || fileTransferInProgress.value}
           >
@@ -379,7 +349,7 @@ export default function FileBrowserSidebar() {
           {/* New Folder button - always visible */}
           <button
             aria-label="New Folder"
-            className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 text-green-600 dark:text-green-400"
+            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-green-600 dark:text-green-400"
             onClick={() => {
               newName.value = "";
               showNewFolderModal.value = true;
@@ -400,7 +370,7 @@ export default function FileBrowserSidebar() {
           {/* New File button - always visible */}
           <button
             aria-label="New File"
-            className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 text-blue-600 dark:text-blue-400"
+            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400"
             onClick={() => {
               newName.value = "";
               showNewFileModal.value = true;
@@ -422,7 +392,7 @@ export default function FileBrowserSidebar() {
           {selectedPaths.value.size > 0 && (
             <button
               aria-label="Download selected file"
-              className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800 text-blue-600 dark:text-blue-400"
+              className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400"
               onClick={handleDownload}
               disabled={fileTransferInProgress.value}
             >
@@ -439,7 +409,7 @@ export default function FileBrowserSidebar() {
           )}
           <button
             aria-label="Close"
-            className="p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-800"
+            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
             onClick={() => (fileBrowserOpen.value = false)}
           >
             <svg
@@ -457,7 +427,11 @@ export default function FileBrowserSidebar() {
           </button>
         </div>
       </header>
-      <div className="overflow-y-auto h-[calc(100%-42px-4px)]">
+
+      {/* Main scrollable content area with bottom padding when transfer is in progress */}
+      <div
+        className={`flex-grow overflow-y-auto ${fileTransferInProgress.value ? "pb-20" : ""}`}
+      >
         <Suspense
           fallback={
             <div className="p-4 text-center">Loading file browser...</div>
@@ -467,66 +441,18 @@ export default function FileBrowserSidebar() {
         </Suspense>
       </div>
 
-      {/* Enhanced file transfer progress panel */}
-      {fileTransferInProgress.value && fileTransferProgress.value && (
-        <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-neutral-800 border-t border-neutral-200 dark:border-neutral-700 shadow-md">
-          {/* File info */}
-          <div className="p-2 text-xs">
-            <div className="flex justify-between items-center mb-1">
-              <div className="font-medium truncate">
-                {fileTransferProgress.value.path.split("/").pop()}
-              </div>
-              <div>
-                {fileTransferProgress.value.currentFileIndex !== undefined && (
-                  <span className="text-neutral-500 dark:text-neutral-400">
-                    File {fileTransferProgress.value.currentFileIndex + 1} of{" "}
-                    {fileTransferProgress.value.totalFiles}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Current file progress */}
-            <div className="flex justify-between text-xs text-neutral-500 dark:text-neutral-400 mb-1">
-              <span>
-                {formatBytes(fileTransferProgress.value.bytes)} of{" "}
-                {formatBytes(fileTransferProgress.value.total)}
-              </span>
-              <span>{progressPercent}%</span>
-            </div>
-            <div className="h-1 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden mb-1">
-              <div
-                className="h-1 bg-blue-500 transition-all duration-200"
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
-
-            {/* Overall progress (if multiple files) */}
-            {fileTransferProgress.value.totalFiles &&
-              fileTransferProgress.value.totalFiles > 1 && (
-                <>
-                  <div className="flex justify-between text-xs text-neutral-500 dark:text-neutral-400 mt-2 mb-1">
-                    <span className="font-medium">Overall Progress</span>
-                    <span>{overallProgressPercent}%</span>
-                  </div>
-                  <div className="h-1 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden mb-1">
-                    <div
-                      className="h-1 bg-green-500 transition-all duration-200"
-                      style={{ width: `${overallProgressPercent}%` }}
-                    />
-                  </div>
-                </>
-              )}
-          </div>
+      {/* File Transfer Progress */}
+      {(fileTransferInProgress.value || anyTransferInProgress.value) && (
+        <div className="absolute bottom-0 left-0 right-0 pb-2 px-3 z-10">
+          <FileTransferQueue />
         </div>
       )}
 
-      {/* Upload status indicator - smaller non-blocking indicator */}
+      {/* Keep this existing upload overlay */}
       {isDraggingOver.value && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="absolute inset-0 bg-blue-500/10 dark:bg-blue-800/20 border-2 border-dashed border-blue-400 dark:border-blue-600 rounded m-4"></div>
-          <div className="bg-blue-500 dark:bg-blue-600 text-white text-center text-sm font-medium px-4 py-2 rounded shadow-lg z-10">
-            Drop files to upload to root
+        <div className="absolute inset-0 bg-blue-500 bg-opacity-20 flex items-center justify-center">
+          <div className="text-xl bg-white dark:bg-gray-800 p-5 rounded-lg shadow-lg border-2 border-blue-500">
+            Drop to upload
           </div>
         </div>
       )}
@@ -534,7 +460,7 @@ export default function FileBrowserSidebar() {
       {/* New Folder Modal */}
       {showNewFolderModal.value && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-neutral-800 p-4 rounded-lg shadow-lg max-w-md w-full">
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg max-w-md w-full">
             <h3 className="text-lg font-medium mb-3">New Folder</h3>
             <input
               type="text"
@@ -542,13 +468,13 @@ export default function FileBrowserSidebar() {
               onInput={(e) =>
                 (newName.value = (e.target as HTMLInputElement).value)
               }
-              className="w-full p-2 border border-neutral-300 dark:border-neutral-600 dark:bg-neutral-700 rounded mb-4"
+              className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded mb-4"
               placeholder="Enter folder name"
               autoFocus
             />
             <div className="flex justify-end gap-2">
               <button
-                className="px-4 py-2 bg-neutral-200 dark:bg-neutral-700 rounded"
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded"
                 onClick={() => {
                   showNewFolderModal.value = false;
                   newName.value = "";
@@ -571,7 +497,7 @@ export default function FileBrowserSidebar() {
       {/* New File Modal */}
       {showNewFileModal.value && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-neutral-800 p-4 rounded-lg shadow-lg max-w-md w-full">
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg max-w-md w-full">
             <h3 className="text-lg font-medium mb-3">New File</h3>
             <input
               type="text"
@@ -579,13 +505,13 @@ export default function FileBrowserSidebar() {
               onInput={(e) =>
                 (newName.value = (e.target as HTMLInputElement).value)
               }
-              className="w-full p-2 border border-neutral-300 dark:border-neutral-600 dark:bg-neutral-700 rounded mb-4"
+              className="w-full p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded mb-4"
               placeholder="Enter file name"
               autoFocus
             />
             <div className="flex justify-end gap-2">
               <button
-                className="px-4 py-2 bg-neutral-200 dark:bg-neutral-700 rounded"
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded"
                 onClick={() => {
                   showNewFileModal.value = false;
                   newName.value = "";
