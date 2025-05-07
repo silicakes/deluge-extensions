@@ -83,7 +83,15 @@ export default function BasicTextEditorModal() {
     };
   }, []);
 
-  // Load text file when mounted
+  // Whenever the target path changes, reset retry counter so that
+  // we start fresh for the new file.
+  useEffect(() => {
+    // Avoid redundant state updates
+    setLoadAttempts(0);
+  }, [editingFileState.value?.path]);
+
+  // Load text file on initial mount, when the target path changes, or when we
+  // increment the retry counter after a failed attempt.
   useEffect(() => {
     // Ensure path is defined
     if (!editingFileState.value?.path) {
@@ -170,7 +178,8 @@ export default function BasicTextEditorModal() {
 
     // Start the loading process
     loadTextFile();
-  }, [loadAttempts]);
+    // We re-run this effect whenever the retry counter changes.
+  }, [editingFileState.value?.path, loadAttempts]);
 
   // Effect to set editor content AFTER loading is complete and content is available
   useEffect(() => {
