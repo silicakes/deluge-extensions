@@ -1,4 +1,4 @@
-import { flipScreen } from "../lib/midi";
+import { flipScreen } from "@/commands/display";
 import { displayType, midiOut } from "../state";
 
 export function DisplayTypeSwitch() {

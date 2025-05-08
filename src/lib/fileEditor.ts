@@ -3,10 +3,8 @@
  * Used by BasicTextEditorModal
  */
 
-import { readFile as readFileRaw } from "./midi";
-import { pack7 } from "./pack7";
-import { sendJson } from "./smsysex";
-import { midiOut } from "../state";
+import { readFile } from "@/commands";
+import { writeFile } from "@/commands";
 
 /**
  * Read a text file from the Deluge
@@ -18,7 +16,7 @@ export async function readTextFile(path: string): Promise<string> {
     console.log(`[fileEditor] Starting to read text file: ${path}`);
 
     // Use the existing readFile function which returns an ArrayBuffer
-    const buffer = await readFileRaw(path);
+    const buffer = await readFile({ path });
 
     console.log(
       `[fileEditor] Buffer received, size: ${buffer.byteLength} bytes`,
@@ -77,117 +75,11 @@ export async function writeTextFile(
   path: string,
   content: string,
 ): Promise<void> {
-  if (!midiOut.value) throw new Error("MIDI Output not connected");
-
-  // Calculate FAT date/time
-  const now = new Date();
-  const fatDate =
-    ((now.getFullYear() - 1980) << 9) |
-    ((now.getMonth() + 1) << 5) |
-    now.getDate();
-  const fatTime =
-    (now.getHours() << 11) |
-    (now.getMinutes() << 5) |
-    Math.floor(now.getSeconds() / 2);
-
+  // Use shared writeFile command for writing binary data
+  const encoder = new TextEncoder();
+  const data = encoder.encode(content);
   try {
-    // 1. Open file with write flag
-    const openCommand = {
-      open: {
-        path,
-        write: 1, // 1 = create or truncate
-        date: fatDate,
-        time: fatTime,
-      },
-    };
-
-    // Send open command
-    const response = await sendJson(openCommand);
-
-    // Parse response to get file ID
-    if (
-      !response ||
-      !(response["^open"] || response.open) ||
-      typeof (response["^open"] || response.open) !== "object" ||
-      (response["^open"] || response.open) === null
-    ) {
-      throw new Error("Invalid response from open command");
-    }
-
-    interface OpenObj {
-      fid?: number;
-      size?: number;
-      err?: number;
-    }
-    const openObj: OpenObj | undefined =
-      (response as { open?: OpenObj })?.open ??
-      (response as { "^open"?: OpenObj })["^open"];
-
-    if (!openObj) {
-      throw new Error("Invalid open response from device");
-    }
-
-    // Check for error
-    if (openObj.err !== undefined && openObj.err !== 0) {
-      throw new Error(`Failed to open file: Error ${openObj.err}`);
-    }
-
-    const fileId = openObj.fid ?? 1;
-
-    // 2. Write the content
-    // Convert string to Uint8Array
-    const data = new TextEncoder().encode(content);
-    const chunkSize = 1024; // Max size per write block
-
-    for (let offset = 0; offset < data.length; offset += chunkSize) {
-      const chunk = data.slice(offset, offset + chunkSize);
-
-      // Prepare write command as JSON
-      const writeCommand = {
-        write: {
-          fid: fileId,
-          addr: offset,
-          size: chunk.length,
-        },
-      };
-
-      // Convert JSON to string and then to bytes
-      const writeJsonStr = JSON.stringify(writeCommand);
-      const writeJsonBytes = Array.from(new TextEncoder().encode(writeJsonStr));
-
-      // Encode the binary data in 7-bit format
-      const encodedChunk = pack7(chunk);
-
-      // Write command: JSON header, 0x00 separator, then 7-bit encoded data
-      const writeSysex = [
-        0xf0,
-        0x7d, // Developer ID
-        0x04, // Json command
-        0x09, // Message ID (should be session-based in real impl)
-        ...writeJsonBytes,
-        0x00, // Separator between JSON and binary data
-        ...encodedChunk,
-        0xf7, // End of SysEx
-      ];
-
-      // Send the command
-      if (!midiOut.value) throw new Error("MIDI connection lost during write");
-      midiOut.value.send(writeSysex);
-
-      // Wait for device to process the data
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-
-    // 3. Close the file
-    const closeCommand = {
-      close: {
-        fid: fileId,
-      },
-    };
-
-    await sendJson(closeCommand);
-
-    console.log(`File ${path} successfully written`);
+    await writeFile({ path, data });
   } catch (error) {
     console.error(`Error writing text file ${path}:`, error);
     throw error;

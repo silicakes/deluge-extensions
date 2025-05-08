@@ -9,16 +9,20 @@ import {
   expandedPaths,
   FileEntry,
 } from "../state";
-import { listDirectory } from "../lib/midi";
-import * as midi from "../lib/midi";
+import * as commands from "@/commands";
 
-// Mock the midi module for directory operations
+// Mock the commands module for directory operations
+vi.mock("@/commands", () => ({
+  listDirectory: vi.fn().mockResolvedValue([]),
+  renameFile: vi.fn().mockResolvedValue(undefined),
+}));
+
+// Mock the midi module for other operations
 vi.mock("../lib/midi", () => ({
   movePath: vi.fn().mockResolvedValue(undefined),
   uploadFiles: vi.fn().mockResolvedValue(undefined),
   readFile: vi.fn().mockResolvedValue(new ArrayBuffer(10)),
   triggerBrowserDownload: vi.fn(),
-  listDirectory: vi.fn().mockResolvedValue([]),
   deletePath: vi.fn().mockResolvedValue(undefined),
   renamePath: vi.fn().mockResolvedValue(undefined),
   testSysExConnectivity: vi.fn().mockResolvedValue(true),
@@ -54,7 +58,7 @@ describe("FileBrowserTree", () => {
     vi.clearAllMocks();
 
     // Setup listDirectory mock to handle paths and update state
-    vi.mocked(listDirectory).mockImplementation(async (path) => {
+    vi.mocked(commands.listDirectory).mockImplementation(async ({ path }) => {
       console.log(`Mock listDirectory (beforeEach) called with: ${path}`);
       // Simulate delay
       await new Promise((res) => setTimeout(res, 10));
@@ -96,7 +100,7 @@ describe("FileBrowserTree", () => {
     expect(songsElement).toBeInTheDocument();
 
     // Verify listDirectory was called with root path
-    expect(listDirectory).toHaveBeenCalledWith("/");
+    expect(commands.listDirectory).toHaveBeenCalledWith({ path: "/" });
 
     // Verify other root elements are present
     expect(screen.getByText("SAMPLES")).toBeInTheDocument();
@@ -143,14 +147,14 @@ describe("FileBrowserTree", () => {
     expect(iconContainer).toBeInTheDocument(); // Check if icon container is found
 
     // Verify initial call for root
-    expect(listDirectory).toHaveBeenCalledWith("/");
+    expect(commands.listDirectory).toHaveBeenCalledWith({ path: "/" });
 
     // Act: Click on the EXPAND ICON for the SONGS directory
     await user.click(iconContainer!);
 
     // Assert: Wait for listDirectory to be called again for SONGS path
     await waitFor(() => {
-      expect(listDirectory).toHaveBeenCalledWith("/SONGS");
+      expect(commands.listDirectory).toHaveBeenCalledWith({ path: "/SONGS" });
     });
 
     // Assert: Child files should now be visible
@@ -205,40 +209,32 @@ describe("FileBrowserTree", () => {
   });
 
   describe("Inline Rename", () => {
-    it("rename-persists - successfully calls renamePath", async () => {
-      // Setup initial file tree state
+    it("rename-persists - successfully calls renameFile command", async () => {
       fileTree.value = { "/": mockFileStructure["/"] };
-
-      // Mock renamePath implementation
-      vi.mocked(midi.renamePath).mockResolvedValue(undefined);
-
-      // Directly call renamePath to test it's working
-      await midi.renamePath("/README.txt", "/NEWNAME.txt");
-
-      // Verify renamePath was called with correct params
-      expect(midi.renamePath).toHaveBeenCalledWith(
-        "/README.txt",
-        "/NEWNAME.txt",
-      );
+      // Spy on renameFile
+      const renameMock = vi.spyOn(commands, "renameFile");
+      renameMock.mockResolvedValue(undefined);
+      // Directly call renameFile to test it's working
+      await commands.renameFile({
+        oldPath: "/README.txt",
+        newPath: "/NEWNAME.txt",
+      });
+      expect(renameMock).toHaveBeenCalledWith({
+        oldPath: "/README.txt",
+        newPath: "/NEWNAME.txt",
+      });
     });
 
-    it("rename-abort - checks that renamePath is not called when canceled", async () => {
-      // Setup initial file tree state
+    it("rename-abort - checks that renameFile is not called when canceled", async () => {
       fileTree.value = { "/": mockFileStructure["/"] };
-
+      const renameMock = vi.spyOn(commands, "renameFile");
       render(<FileBrowserTree />);
-
-      // Verify renamePath is not called when no rename is performed
-      expect(midi.renamePath).not.toHaveBeenCalled();
+      expect(renameMock).not.toHaveBeenCalled();
     });
 
     it("rename-initial - verifies that file names are displayed", async () => {
-      // Setup initial file tree state
       fileTree.value = { "/": mockFileStructure["/"] };
-
       render(<FileBrowserTree />);
-
-      // Verify the filename is displayed
       expect(screen.getByText("README.txt")).toBeInTheDocument();
     });
   });

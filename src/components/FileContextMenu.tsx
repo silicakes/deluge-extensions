@@ -6,7 +6,7 @@ import {
   previewFile,
   editingFileState,
 } from "../state";
-import { createDirectory, createFile, deletePath } from "../lib/midi";
+import { makeDirectory, writeFile, deleteFile } from "@/commands";
 import { isAudio, isText } from "../lib/fileType";
 
 interface FileContextMenuProps {
@@ -128,7 +128,7 @@ export default function FileContextMenu({
         // Process deletions one by one to avoid race conditions
         for (const pathToDelete of pathsToDelete) {
           console.log(`Deleting: ${pathToDelete}`);
-          await deletePath(pathToDelete);
+          await deleteFile({ path: pathToDelete });
           console.log(`Successfully deleted: ${pathToDelete}`);
         }
 
@@ -150,7 +150,7 @@ export default function FileContextMenu({
     console.log(`Deleting single file: ${fullPath}`);
 
     try {
-      await deletePath(fullPath);
+      await deleteFile({ path: fullPath });
       console.log("Single file deleted successfully");
       onClose();
     } catch (error) {
@@ -187,7 +187,7 @@ export default function FileContextMenu({
         : `${parentPath}/${newName.value}`;
 
     try {
-      await createDirectory(newDirPath);
+      await makeDirectory({ path: newDirPath });
       onClose();
     } catch (error) {
       console.error("Failed to create directory:", error);
@@ -223,7 +223,7 @@ export default function FileContextMenu({
         : `${parentPath}/${newName.value}`;
 
     try {
-      await createFile(newFilePath, "");
+      await writeFile({ path: newFilePath, data: new Uint8Array(0) });
       onClose();
     } catch (error) {
       console.error("Failed to create file:", error);

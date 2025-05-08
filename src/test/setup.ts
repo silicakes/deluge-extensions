@@ -23,7 +23,6 @@ Object.defineProperty(navigator, "onLine", {
 // Store original method references
 const originalAddEventListener = window.addEventListener;
 const originalRemoveEventListener = window.removeEventListener;
-const originalAlert = window.alert;
 
 // Properly mock window methods
 window.addEventListener = vi.fn().mockImplementation((event, cb) => {

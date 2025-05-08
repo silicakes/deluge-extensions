@@ -1,16 +1,11 @@
 import { useState, useRef, useEffect } from "preact/hooks";
 import { useSignal } from "@preact/signals";
-import {
-  ping,
-  getOled,
-  get7Seg,
-  flipScreen,
-  startMonitor,
-  stopMonitor,
-} from "../lib/midi";
+import { getOled, startMonitor, stopMonitor } from "../lib/midi";
 import { midiOut, monitorMode, autoEnabled } from "../state";
 import { Button } from "./Button";
 import { startPolling, stopPolling } from "../lib/display";
+import { ping } from "@/commands/session";
+import { flipScreen, get7Seg } from "@/commands/display";
 
 export function AdvancedDisplayControls() {
   // State

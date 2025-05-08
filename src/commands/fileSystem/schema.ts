@@ -5,6 +5,12 @@ export const ReqReadFile = z.object({
   path: z.string().nonempty(),
 });
 
+/** Request schema for writeFile command. */
+export const ReqWriteFile = z.object({
+  path: z.string().nonempty(),
+  data: z.instanceof(Uint8Array),
+});
+
 /** Response schema for open file operation. */
 export const RespOpen = z.object({
   fid: z.number().int().nonnegative(),
@@ -23,3 +29,4 @@ export type ReqReadFile = z.infer<typeof ReqReadFile>;
 export type RespOpen = z.infer<typeof RespOpen>;
 export type RespReadChunk = z.infer<typeof RespReadChunk>;
 export type RespClose = z.infer<typeof RespClose>;
+export type ReqWriteFile = z.infer<typeof ReqWriteFile>;

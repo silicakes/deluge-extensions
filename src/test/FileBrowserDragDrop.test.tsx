@@ -10,6 +10,7 @@ import {
 } from "../state";
 import * as midiModule from "../lib/midi";
 import FileBrowserTree from "../components/FileBrowserTree";
+import * as commands from "@/commands";
 
 // Mock the lazy loading
 vi.mock("preact/compat", async () => {
@@ -76,7 +77,7 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
 
   it("should call readFile and triggerBrowserDownload when download button is clicked", async () => {
     // Setup mocks
-    const readFileMock = vi.spyOn(midiModule, "readFile");
+    const readFileMock = vi.spyOn(commands, "readFile");
     const downloadMock = vi.spyOn(midiModule, "triggerBrowserDownload");
 
     // Mock the readFile to return a resolved promise
@@ -98,7 +99,7 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     // Verify correct functions were called
-    expect(readFileMock).toHaveBeenCalledWith("/file1.txt");
+    expect(readFileMock).toHaveBeenCalledWith({ path: "/file1.txt" });
     expect(downloadMock).toHaveBeenCalled();
   });
 

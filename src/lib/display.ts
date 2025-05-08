@@ -201,7 +201,6 @@ function renderOledCanvas(
 }
 
 // Expose internal functions for testing
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const __test__ = {
   renderOledCanvas,
 };

@@ -17,7 +17,6 @@ import { addDebugMessage } from "./debug";
 import {
   ensureSession,
   handleSysexMessage,
-  ping as smsPing,
   sendJson,
   setDeveloperIdMode,
 } from "./smsysex";
@@ -34,7 +33,9 @@ import {
 } from "./sysex_buffer";
 // Near the top of the file, import the throttle utility
 import { throttle } from "./throttle";
-import { encode7Bit as sharedEncode7Bit } from "@/commands/_shared/pack";
+import { encode7Bit } from "../commands/_shared/pack";
+
+// Legacy command wrapper exports removed; UI should import directly from @/commands modules
 
 let midiAccess: MIDIAccess | null = null;
 let monitorInterval: number | null = null;
@@ -81,29 +82,6 @@ function updateFileTransferSpeed(
     activeFileTransfers.value = transfers;
   }
 }
-
-const SYSEX_COMMANDS = {
-  PING: [0xf0, 0x7d, 0x00, 0xf7],
-  GET_OLED: [0xf0, 0x7d, 0x02, 0x00, 0x01, 0xf7],
-  GET_7SEG: [0xf0, 0x7d, 0x02, 0x01, 0x00, 0xf7],
-  GET_DISPLAY: [0xf0, 0x7d, 0x02, 0x00, 0x02, 0xf7],
-  GET_DISPLAY_FORCE: [0xf0, 0x7d, 0x02, 0x00, 0x03, 0xf7],
-  FLIP: [0xf0, 0x7d, 0x02, 0x00, 0x04, 0xf7],
-  GET_DEBUG: [0xf0, 0x7d, 0x03, 0x00, 0x01, 0xf7],
-  GET_FEATURES: [0xf0, 0x7d, 0x03, 0x01, 0x01, 0xf7],
-  GET_VERSION: [0xf0, 0x7d, 0x03, 0x02, 0x01, 0xf7],
-};
-
-const sendSysEx = (command: keyof typeof SYSEX_COMMANDS) => {
-  if (!midiOut.value) {
-    console.error("MIDI Output not selected. Cannot send SysEx command.");
-    return;
-  }
-  midiOut.value.send(SYSEX_COMMANDS[command]);
-};
-
-// Observer pattern so other modules can react to raw MIDI data (e.g. DisplayViewer)
-const midiListeners = new Set<(e: MIDIMessageEvent) => void>();
 
 /** Initialize Web MIDI access and set up event listeners */
 export async function initMidi(
@@ -205,7 +183,8 @@ export function selectDelugeDevice(index: number): boolean {
   return true;
 }
 
-/** MIDI message handler – re-export or use event emitter if needed */
+// Observer pattern so other modules can react to raw MIDI data (e.g. DisplayViewer)
+const midiListeners = new Set<(e: MIDIMessageEvent) => void>();
 export function subscribeMidiListener(listener: (e: MIDIMessageEvent) => void) {
   midiListeners.add(listener);
   return () => midiListeners.delete(listener);
@@ -265,23 +244,6 @@ export function getMidiOutputs(): MIDIOutput[] {
   return midiAccess ? Array.from(midiAccess.outputs.values()) : [];
 }
 
-/** Send ping test command to Deluge */
-export function ping() {
-  if (!midiOut.value) {
-    console.error("MIDI Output not selected. Cannot send ping command.");
-    return;
-  }
-
-  // Try using smSysex ping (new protocol)
-  smsPing().catch((err) => {
-    console.warn("smSysex ping failed, falling back to legacy ping:", err);
-    // Fallback to legacy ping
-    if (midiOut.value) {
-      midiOut.value.send([0xf0, 0x7d, 0x00, 0xf7]);
-    }
-  });
-}
-
 /** Request full OLED display data */
 export function getOled() {
   if (!midiOut.value) {
@@ -291,32 +253,17 @@ export function getOled() {
   midiOut.value.send([0xf0, 0x7d, 0x02, 0x00, 0x01, 0xf7]);
 }
 
-/** Request full 7-segment display data */
-export function get7Seg() {
-  if (!midiOut.value) {
-    console.error("MIDI Output not selected. Cannot send 7-seg command.");
-    return;
-  }
-  sendSysEx("GET_7SEG");
-}
-
-/** Flip the screen orientation */
-export function flipScreen() {
-  if (!midiOut.value) {
-    console.error("MIDI Output not selected. Cannot send flip-screen command.");
-    return;
-  }
-  sendSysEx("FLIP");
-}
-
 /** Request raw display update (force full or delta) */
 export function getDisplay(force: boolean = false) {
   if (!midiOut.value) {
     console.error("MIDI Output not selected. Cannot send display command.");
     return;
   }
-  const command = force ? "GET_DISPLAY_FORCE" : "GET_DISPLAY";
-  sendSysEx(command);
+  // Send full or delta display update based on force flag
+  const payload = force
+    ? [0xf0, 0x7d, 0x02, 0x00, 0x03, 0xf7] // GET_DISPLAY_FORCE
+    : [0xf0, 0x7d, 0x02, 0x00, 0x02, 0xf7]; // GET_DISPLAY
+  midiOut.value.send(payload);
 }
 
 /** Request debug messages from device */
@@ -326,36 +273,8 @@ export function getDebug() {
     addDebugMessage("MIDI Output not selected. Cannot request debug messages.");
     return false;
   }
-  sendSysEx("GET_DEBUG");
+  midiOut.value.send([0xf0, 0x7d, 0x03, 0x00, 0x01, 0xf7]);
   addDebugMessage("Requested debug messages from device");
-  return true;
-}
-
-/** Request features status from device */
-export function getFeatures() {
-  if (!midiOut.value) {
-    console.error(
-      "MIDI Output not selected. Cannot send features status command.",
-    );
-    addDebugMessage(
-      "MIDI Output not selected. Cannot request features status.",
-    );
-    return false;
-  }
-  midiOut.value.send([0xf0, 0x7d, 0x03, 0x01, 0x01, 0xf7]);
-  addDebugMessage("Requested features status from device");
-  return true;
-}
-
-/** Request version information from device */
-export function getVersion() {
-  if (!midiOut.value) {
-    console.error("MIDI Output not selected. Cannot send version command.");
-    addDebugMessage("MIDI Output not selected. Cannot request version info.");
-    return false;
-  }
-  midiOut.value.send([0xf0, 0x7d, 0x03, 0x02, 0x01, 0xf7]);
-  addDebugMessage("Requested version info from device");
   return true;
 }
 
@@ -1026,7 +945,7 @@ export function uploadFiles(
           );
 
           // Encode the binary data in 7-bit format
-          const encodedChunk = sharedEncode7Bit(chunk);
+          const encodedChunk = encode7Bit(chunk);
 
           // Write command: JSON header, 0x00 separator, then 7-bit encoded data
           const writeSysex = [
@@ -1744,8 +1663,6 @@ export function createDirectory(dirPath: string): Promise<void> {
 }
 
 /**
-
-/**
  * Create a new file on the Deluge
  * @param destPath File path to create
  * @param initial Optional initial content (string or ArrayBuffer)
@@ -1928,7 +1845,7 @@ async function uploadSingleChunk(
   const writeJsonBytes = Array.from(new TextEncoder().encode(writeJsonStr));
 
   // Encode the binary data in 7-bit format
-  const encodedChunk = sharedEncode7Bit(data);
+  const encodedChunk = encode7Bit(data);
 
   // Write command: JSON header, 0x00 separator, then 7-bit encoded data
   const writeSysex = [

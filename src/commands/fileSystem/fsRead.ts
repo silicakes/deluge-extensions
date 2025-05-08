@@ -87,7 +87,7 @@ export async function readFile(
     cmdId: SmsCommand.JSON,
     request: { close: { fid } },
     build: () => builder.jsonOnly({ close: { fid } }),
-    parse: parser.expectOk,
+    parse: (raw): RespClose => parser.expectOk(raw) as RespClose,
   });
 
   return result.buffer;

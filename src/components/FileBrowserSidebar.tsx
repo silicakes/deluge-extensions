@@ -9,14 +9,9 @@ import {
   expandedPaths,
   anyTransferInProgress,
 } from "../state";
-import {
-  readFile,
-  triggerBrowserDownload,
-  uploadFiles,
-  listDirectory,
-  createDirectory,
-  createFile,
-} from "../lib/midi";
+import { triggerBrowserDownload, uploadFiles } from "../lib/midi";
+import { makeDirectory, writeFile } from "@/commands";
+import { readFile, listDirectory } from "@/commands";
 import FileTransferQueue from "./FileTransferQueue";
 
 // Lazily load the FileBrowserTree component
@@ -149,7 +144,7 @@ export default function FileBrowserSidebar() {
         .then(() => {
           console.log("Upload completed successfully");
           // Refresh the directory contents to show the new files
-          return listDirectory(targetDir);
+          return listDirectory({ path: targetDir });
         })
         .then(() => {
           console.log(`Directory ${targetDir} refreshed successfully`);
@@ -176,7 +171,7 @@ export default function FileBrowserSidebar() {
 
     try {
       console.log("Attempting to download:", filePath);
-      const data = await readFile(filePath);
+      const data = await readFile({ path: filePath });
       const fileName = filePath.substring(filePath.lastIndexOf("/") + 1);
       triggerBrowserDownload(data, fileName);
     } catch (err) {
@@ -215,12 +210,12 @@ export default function FileBrowserSidebar() {
       targetDir === "/" ? `/${newName.value}` : `${targetDir}/${newName.value}`;
 
     try {
-      await createDirectory(newDirPath);
+      await makeDirectory({ path: newDirPath });
       showNewFolderModal.value = false;
       newName.value = "";
 
       // Refresh directory after creation
-      await listDirectory(targetDir);
+      await listDirectory({ path: targetDir });
     } catch (error) {
       console.error("Failed to create directory:", error);
       alert(
@@ -260,12 +255,12 @@ export default function FileBrowserSidebar() {
       targetDir === "/" ? `/${newName.value}` : `${targetDir}/${newName.value}`;
 
     try {
-      await createFile(newFilePath, "");
+      await writeFile({ path: newFilePath, data: new Uint8Array(0) });
       showNewFileModal.value = false;
       newName.value = "";
 
       // Refresh directory after creation
-      await listDirectory(targetDir);
+      await listDirectory({ path: targetDir });
     } catch (error) {
       console.error("Failed to create file:", error);
       alert(
@@ -302,7 +297,7 @@ export default function FileBrowserSidebar() {
 
     try {
       console.log(`Refreshing directory: ${currentDir}`);
-      await listDirectory(currentDir, { force: true });
+      await listDirectory({ path: currentDir, force: true });
       console.log(`Directory ${currentDir} refreshed successfully`);
     } catch (err) {
       console.error(`Failed to refresh directory ${currentDir}:`, err);

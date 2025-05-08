@@ -12,13 +12,11 @@ import {
   editingFileState,
 } from "../state";
 import {
-  listDirectory,
   testSysExConnectivity,
   checkFirmwareSupport,
   uploadFiles,
-  movePath,
-  renamePath,
 } from "../lib/midi";
+import { listDirectory, renameFile } from "@/commands";
 import { iconUrlForEntry } from "../lib/fileIcons";
 import { isExternalFileDrag, isInternalDrag } from "../lib/drag";
 import { isAudio, isText } from "../lib/fileType";
@@ -162,10 +160,8 @@ function DirectoryItem({
         itemError.value = null;
         console.log(`Loading directory contents for ${childPath}...`);
         try {
-          const entries = await listDirectory(childPath);
-          console.log(
-            `Successfully loaded ${entries?.length || 0} entries for ${childPath}`,
-          );
+          const entries = await listDirectory({ path: childPath });
+          console.log(`Pulled additional files for ${childPath}`);
 
           // Force a UI update if the fileTree was updated but UI didn't refresh
           const dirContents = fileTree.value[childPath] as
@@ -331,7 +327,7 @@ function DirectoryItem({
         .then(() => {
           console.log(`Upload complete, refreshing directory ${childPath}`);
           // Refresh the directory contents to show the new file
-          return listDirectory(childPath);
+          return listDirectory({ path: childPath });
         })
         .then(() => {
           console.log(`Directory ${childPath} refreshed successfully`);
@@ -364,21 +360,12 @@ function DirectoryItem({
 
       console.log(`Moving file from ${sourcePath} to ${targetPath}`);
 
-      // Use direct reference to movePath instead of dynamic import
-      movePath(sourcePath, targetPath)
+      // Use new commands API to move (rename) paths
+      renameFile({ oldPath: sourcePath, newPath: targetPath })
         .then(() => {
           console.log(`Move complete, refreshing directory ${childPath}`);
           // Refresh the directory contents after move
-          return listDirectory(childPath);
-        })
-        .then(() => {
-          // Also refresh the source directory if different
-          if (sourcePath.lastIndexOf("/") !== childPath.lastIndexOf("/")) {
-            const sourceDir =
-              sourcePath.substring(0, sourcePath.lastIndexOf("/")) || "/";
-            console.log(`Refreshing source directory ${sourceDir}`);
-            return listDirectory(sourceDir);
-          }
+          return listDirectory({ path: childPath });
         })
         .then(() => {
           // Force a UI update
@@ -493,7 +480,7 @@ function DirectoryItem({
 
     try {
       cancelEdit(); // Cancel editing BEFORE the API call to prevent any blur events from firing
-      await renamePath(oldPath, newPath);
+      await renameFile({ oldPath, newPath });
     } catch (error) {
       console.error("Failed to rename:", error);
       alert(
@@ -551,7 +538,7 @@ function DirectoryItem({
       cancelEdit();
 
       // Now do the rename
-      renamePath(oldPath, newPath)
+      renameFile({ oldPath, newPath })
         .catch((error) => {
           console.error("Rename failed:", error);
           alert(
@@ -683,7 +670,7 @@ function DirectoryItem({
                   onClick={() => {
                     isLoading.value = true;
                     itemError.value = null;
-                    listDirectory(childPath, { force: true })
+                    listDirectory({ path: childPath, force: true })
                       .then(() => {
                         console.log(`Retry successful for ${childPath}`);
                         // Make sure the directory is marked as expanded
@@ -926,7 +913,7 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
 
     try {
       cancelEdit(); // Cancel editing BEFORE the API call to prevent any blur events from firing
-      await renamePath(oldPath, newPath);
+      await renameFile({ oldPath, newPath });
     } catch (error) {
       console.error("Failed to rename:", error);
       alert(
@@ -984,7 +971,7 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
       cancelEdit();
 
       // Now do the rename
-      renamePath(oldPath, newPath)
+      renameFile({ oldPath, newPath })
         .catch((error) => {
           console.error("Rename failed:", error);
           alert(
@@ -1111,7 +1098,7 @@ export default function FileBrowserTree() {
         })
         .then(() => {
           console.log("Device responded to version request");
-          return listDirectory(rootPath);
+          return listDirectory({ path: rootPath });
         })
         .then((entries) => {
           console.log(`Root directory loaded with ${entries.length} entries`);
@@ -1175,7 +1162,7 @@ export default function FileBrowserTree() {
                   })
                   .then(() => {
                     console.log("Retry: Device responded to version request");
-                    return listDirectory(rootPath, { force: true });
+                    return listDirectory({ path: rootPath, force: true });
                   })
                   .then((entries) => {
                     console.log(

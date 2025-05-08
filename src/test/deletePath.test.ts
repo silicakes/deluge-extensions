@@ -7,7 +7,6 @@ import {
   fileTransferInProgress,
   midiOut,
 } from "../state";
-import { SmsSession } from "../lib/smsysex";
 import * as midi from "../lib/midi";
 
 // Mock only the smsysex module
@@ -57,25 +56,23 @@ describe("deletePath", () => {
     vi.clearAllMocks();
 
     // Setup the conditional sendJson mock for most tests
-    vi.mocked(smsysex.sendJson).mockImplementation(
-      async (cmd: object, _s?: SmsSession | undefined) => {
-        const payload = cmd as SendJsonPayload;
-        if ("delete" in payload) {
-          return { "^delete": { err: 0 } };
-        } else if ("dir" in payload) {
-          if (payload.dir.path === "/") {
-            // Return state *after* potential deletion based on fileTree
-            const postDeleteRoot = fileTree.value["/"] || [];
-            return { "^dir": { list: postDeleteRoot } };
-          } else {
-            return { "^dir": { list: fileTree.value[payload.dir.path] || [] } };
-          }
+    vi.mocked(smsysex.sendJson).mockImplementation(async (cmd: object) => {
+      const payload = cmd as SendJsonPayload;
+      if ("delete" in payload) {
+        return { "^delete": { err: 0 } };
+      } else if ("dir" in payload) {
+        if (payload.dir.path === "/") {
+          // Return state *after* potential deletion based on fileTree
+          const postDeleteRoot = fileTree.value["/"] || [];
+          return { "^dir": { list: postDeleteRoot } };
+        } else {
+          return { "^dir": { list: fileTree.value[payload.dir.path] || [] } };
         }
-        // Add fallbacks for other potential commands if needed
-        console.warn("Unhandled sendJson payload in default mock:", payload);
-        return { unknown_command_response: {} };
-      },
-    );
+      }
+      // Add fallbacks for other potential commands if needed
+      console.warn("Unhandled sendJson payload in default mock:", payload);
+      return { unknown_command_response: {} };
+    });
 
     // Mock listDirectory directly to intercept internal calls and match return type
     vi.spyOn(midi, "listDirectory").mockResolvedValue([]); // Resolve with empty array
@@ -163,27 +160,25 @@ describe("deletePath", () => {
     progressChanges.push(fileTransferInProgress.value);
 
     // Mock sendJson JUST for this test to control progress
-    vi.mocked(smsysex.sendJson).mockImplementation(
-      async (cmd: object, _s?: SmsSession | undefined) => {
-        const payload = cmd as SendJsonPayload;
-        if ("delete" in payload && payload.delete.path === "/file.txt") {
-          fileTransferInProgress.value = true;
-          progressChanges.push(fileTransferInProgress.value);
-          const result = { "^delete": { err: 0 } };
-          fileTransferInProgress.value = false;
-          progressChanges.push(fileTransferInProgress.value);
-          return result;
-        } else if ("dir" in payload && payload.dir.path === "/") {
-          // Handle the listDirectory call after delete
-          return {
-            "^dir": {
-              list: [{ name: "folder", attr: 16, size: 0, date: 0, time: 0 }],
-            },
-          };
-        }
-        return { unknown_command_response: {} };
-      },
-    );
+    vi.mocked(smsysex.sendJson).mockImplementation(async (cmd: object) => {
+      const payload = cmd as SendJsonPayload;
+      if ("delete" in payload && payload.delete.path === "/file.txt") {
+        fileTransferInProgress.value = true;
+        progressChanges.push(fileTransferInProgress.value);
+        const result = { "^delete": { err: 0 } };
+        fileTransferInProgress.value = false;
+        progressChanges.push(fileTransferInProgress.value);
+        return result;
+      } else if ("dir" in payload && payload.dir.path === "/") {
+        // Handle the listDirectory call after delete
+        return {
+          "^dir": {
+            list: [{ name: "folder", attr: 16, size: 0, date: 0, time: 0 }],
+          },
+        };
+      }
+      return { unknown_command_response: {} };
+    });
 
     // Act: Use midi namespace
     await midi.deletePath("/file.txt");
