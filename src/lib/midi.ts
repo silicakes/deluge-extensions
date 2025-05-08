@@ -34,6 +34,7 @@ import {
 } from "./sysex_buffer";
 // Near the top of the file, import the throttle utility
 import { throttle } from "./throttle";
+import { encode7Bit as sharedEncode7Bit } from "@/commands/_shared/pack";
 
 let midiAccess: MIDIAccess | null = null;
 let monitorInterval: number | null = null;
@@ -1025,7 +1026,7 @@ export function uploadFiles(
           );
 
           // Encode the binary data in 7-bit format
-          const encodedChunk = encode7Bit(chunk);
+          const encodedChunk = sharedEncode7Bit(chunk);
 
           // Write command: JSON header, 0x00 separator, then 7-bit encoded data
           const writeSysex = [
@@ -1743,41 +1744,6 @@ export function createDirectory(dirPath: string): Promise<void> {
 }
 
 /**
- * Convert binary data to 7-bit MIDI-safe format (for SysEx)
- * @param data Uint8Array of data to encode
- * @returns Encoded array of 7-bit values
- */
-function encode7Bit(data: Uint8Array): number[] {
-  const result: number[] = [];
-
-  // Process in groups of 7 bytes
-  for (let i = 0; i < data.length; i += 7) {
-    // Calculate how many bytes we have in this group (last group may be partial)
-    const bytesInGroup = Math.min(7, data.length - i);
-
-    // Create a high-bits byte where each bit represents the MSB of a data byte
-    let highBits = 0;
-
-    // For each byte in the group, check if its high bit is set
-    for (let j = 0; j < bytesInGroup; j++) {
-      if (data[i + j] & 0x80) {
-        // Set the corresponding bit in our high-bits byte
-        highBits |= 1 << j;
-      }
-    }
-
-    // Add the high-bits byte first
-    result.push(highBits);
-
-    // Then add the 7 data bytes with their high bits cleared
-    for (let j = 0; j < bytesInGroup; j++) {
-      // Mask off the high bit to ensure it's 7-bit clean
-      result.push(data[i + j] & 0x7f);
-    }
-  }
-
-  return result;
-}
 
 /**
  * Create a new file on the Deluge
@@ -1962,7 +1928,7 @@ async function uploadSingleChunk(
   const writeJsonBytes = Array.from(new TextEncoder().encode(writeJsonStr));
 
   // Encode the binary data in 7-bit format
-  const encodedChunk = encode7Bit(data);
+  const encodedChunk = sharedEncode7Bit(data);
 
   // Write command: JSON header, 0x00 separator, then 7-bit encoded data
   const writeSysex = [
