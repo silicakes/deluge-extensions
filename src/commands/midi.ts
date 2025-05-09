@@ -14,6 +14,5 @@ export {
   initMidi,
   startMonitor,
   stopMonitor,
-  selectDelugeDevice,
   subscribeMidiListener,
 } from "@/lib/midi";

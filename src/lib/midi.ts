@@ -1,5 +1,4 @@
 import {
-  midiIn,
   midiOut,
   fileTree,
   FileEntry,
@@ -21,11 +20,7 @@ import {
   confirmCallback,
 } from "../components/FileOverrideConfirmation";
 // Re-enable buffering with improved filter conditions
-import {
-  handleFragment,
-  setBatchedMessageListener,
-  flushAllMessages,
-} from "./sysex_buffer";
+import { setBatchedMessageListener, flushAllMessages } from "./sysex_buffer";
 // Near the top of the file, import the throttle utility
 import { throttle } from "./throttle";
 import { encode7Bit } from "../commands/_shared/pack";
@@ -33,7 +28,6 @@ import { ping } from "@/commands/session";
 
 // Legacy command wrapper exports removed; UI should import directly from @/commands modules
 
-let midiAccess: MIDIAccess | null = null;
 let monitorInterval: number | null = null;
 
 // Re-enable batched message handling
@@ -56,189 +50,17 @@ function generateTransferId(): string {
   return `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 }
 
-// Update file transfer speed
-function updateFileTransferSpeed(
-  transferId: string,
-  newBytes: number,
-  lastBytes: number,
-  timeDiff: number,
-): void {
-  // Find the transfer
-  const transfers = [...activeFileTransfers.value];
-  const index = transfers.findIndex((t) => t.id === transferId);
-  if (index === -1) return;
-
-  // Calculate speed (bytes per second)
-  const bytesDiff = newBytes - lastBytes;
-  const bytesPerSecond = bytesDiff / (timeDiff / 1000);
-
-  // Only update if we have a meaningful measurement
-  if (bytesPerSecond > 0) {
-    transfers[index].speed = bytesPerSecond;
-    activeFileTransfers.value = transfers;
-  }
-}
-
-/** Initialize Web MIDI access and set up event listeners */
-export async function initMidi(
-  autoConnect: boolean = false,
-): Promise<MIDIAccess | null> {
-  if (!navigator.requestMIDIAccess) {
-    console.error("Web MIDI API not supported");
-    return null;
-  }
-  midiAccess = await navigator.requestMIDIAccess({ sysex: true });
-  midiAccess.onstatechange = handleStateChange;
-  updateDeviceLists();
-  if (autoConnect) {
-    autoConnectDefaultPorts();
-  }
-  return midiAccess;
-}
-
-/** Update the lists of inputs and outputs in state signals */
-function updateDeviceLists() {
-  if (!midiAccess) return;
-  // nothing: component reads lists directly via midiAccess.inputs/outputs
-}
-
-/** Set MIDI input, updating signal and side-effects */
-export function setMidiInput(input: MIDIInput | null) {
-  if (midiIn.value === input) return;
-  if (midiIn.value) {
-    midiIn.value.removeEventListener("midimessage", handleMidiMessage);
-  }
-  midiIn.value = input;
-  if (input) {
-    input.addEventListener("midimessage", handleMidiMessage);
-  }
-}
-
-/** Set MIDI output, updating signal */
-export function setMidiOutput(output: MIDIOutput | null) {
-  midiOut.value = output;
-}
-
-/** Handle hot-plug state changes */
-function handleStateChange() {
-  updateDeviceLists();
-}
-
-/** Auto-connect logic: pick first available ports matching 'Deluge' when autoConnect is true */
-export function autoConnectDefaultPorts() {
-  if (!midiAccess) return;
-  for (const input of midiAccess.inputs.values()) {
-    if (input.name?.includes("Deluge Port 3")) {
-      setMidiInput(input);
-      break;
-    }
-  }
-  for (const output of midiAccess.outputs.values()) {
-    if (output.name?.includes("Deluge Port 3")) {
-      setMidiOutput(output);
-      break;
-    }
-  }
-}
-
-/**
- * Select both input and output MIDI devices that include the word 'deluge'
- * This function is used for the numeric shortcuts (1,2,3) to quickly select Deluge devices
- * @param index The index of the Deluge device to select (0-based)
- * @returns True if a device was found and selected, false otherwise
- */
-export function selectDelugeDevice(index: number): boolean {
-  if (!midiAccess) return false;
-
-  // Get all available MIDI devices that include 'deluge' (case insensitive)
-  const delugeInputs = Array.from(midiAccess.inputs.values()).filter((input) =>
-    input.name?.toLowerCase().includes("deluge"),
-  );
-
-  const delugeOutputs = Array.from(midiAccess.outputs.values()).filter(
-    (output) => output.name?.toLowerCase().includes("deluge"),
-  );
-
-  // Check if we have a device at the requested index
-  if (
-    index < 0 ||
-    index >= delugeInputs.length ||
-    index >= delugeOutputs.length
-  ) {
-    console.log(`No Deluge device found at index ${index}`);
-    return false;
-  }
-
-  // Set both input and output to the selected device
-  setMidiInput(delugeInputs[index]);
-  setMidiOutput(delugeOutputs[index]);
-
-  console.log(
-    `Selected Deluge device ${index + 1}: ${delugeInputs[index].name}`,
-  );
-  return true;
-}
-
-// Observer pattern so other modules can react to raw MIDI data (e.g. DisplayViewer)
-const midiListeners = new Set<(e: MIDIMessageEvent) => void>();
-export function subscribeMidiListener(listener: (e: MIDIMessageEvent) => void) {
-  midiListeners.add(listener);
-  return () => midiListeners.delete(listener);
-}
-
-function handleMidiMessage(event: MIDIMessageEvent) {
-  // Check if it's a SysEx message first (optimization)
-  if (event.data && event.data.length > 0 && event.data[0] === 0xf0) {
-    // Re-enable: Try to buffer the message (only for data transfer messages)
-    handleFragment(event);
-
-    // Directly call handleSysexMessage for all messages
-    handleSysexMessage(event);
-
-    // Forward to regular MIDI listeners
-    midiListeners.forEach((fn) => fn(event));
-
-    const bytes = Array.from(event.data)
-      .map((b) => "0x" + b.toString(16).toUpperCase().padStart(2, "0"))
-      .join(" ");
-    // If this is a debug message from the Deluge (category 0x03)
-    if (
-      event.data.length > 2 &&
-      event.data[1] === 0x7d &&
-      event.data[2] === 0x03
-    ) {
-      // Check if data length is enough to contain text (at least 7 bytes including F0, mfr ID, etc)
-      if (event.data.length > 6) {
-        try {
-          // Extract ASCII text starting from position 5 (after SysEx header and command)
-          const textBytes = event.data.slice(5, event.data.length - 1); // Exclude F7 at the end
-          const text = String.fromCharCode.apply(null, Array.from(textBytes));
-          addDebugMessage(`Message from Deluge: ${text}`);
-        } catch {
-          addDebugMessage(`Debug message received (binary): ${bytes}`);
-        }
-      } else {
-        addDebugMessage(`Debug message received: ${bytes}`);
-      }
-    } else {
-      // For other SysEx messages, just log the raw data
-      addDebugMessage(`SysEx received: ${bytes}`);
-    }
-  } else {
-    // For non-SysEx messages, forward directly to listeners
-    midiListeners.forEach((fn) => fn(event));
-  }
-}
-
-/** Get current MIDI inputs */
-export function getMidiInputs(): MIDIInput[] {
-  return midiAccess ? Array.from(midiAccess.inputs.values()) : [];
-}
-
-/** Get current MIDI outputs */
-export function getMidiOutputs(): MIDIOutput[] {
-  return midiAccess ? Array.from(midiAccess.outputs.values()) : [];
-}
+// FIRST_EDIT: re-export Web-MIDI service functions
+export {
+  initMidi,
+  setMidiInput,
+  setMidiOutput,
+  autoConnectDefaultPorts,
+  subscribeMidiListener,
+  getMidiInputs,
+  getMidiOutputs,
+  selectDelugeDevice,
+} from "./webMidi";
 
 /** Request full OLED display data */
 export function getOled() {
@@ -594,36 +416,6 @@ function enqueue<T>(task: () => Promise<T>, _transferId?: string): Promise<T> {
     });
   queue = promise;
   return promise;
-}
-
-/**
- * Convert FatFS error code to human-readable text
- * @param err FatFS error code
- * @returns Human-readable error message
- */
-function fatErrorToText(err: number): string {
-  const errors: Record<number, string> = {
-    0: "OK",
-    1: "Disk error",
-    2: "Internal error",
-    3: "Drive not ready",
-    4: "File not found",
-    5: "Path not found",
-    6: "Invalid path name",
-    7: "Access denied",
-    8: "File exists",
-    9: "Directory is not empty",
-    10: "Invalid object",
-    11: "Drive is write-protected",
-    12: "Invalid drive",
-    13: "No filesystem",
-    14: "Format aborted",
-    15: "No more files",
-    16: "Cannot allocate memory",
-    17: "Too many open files",
-    18: "Invalid parameter",
-  };
-  return errors[err] || `Unknown error ${err}`;
 }
 
 /**

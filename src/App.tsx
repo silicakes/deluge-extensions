@@ -8,7 +8,6 @@ function App() {
       if (anyTransferInProgress.value) {
         // Standard way to show a confirmation dialog before leaving
         e.preventDefault();
-        e.returnValue = "";
       }
     };
 
