@@ -20,9 +20,13 @@ vi.mock("../lib/display", () => ({
   oledFrame: new Uint8Array(128 * 6),
 }));
 
-vi.mock("../lib/midi", () => ({
-  subscribeMidiListener: vi.fn().mockReturnValue(() => {}),
-}));
+vi.mock("../lib/midi", async (importOriginal) => {
+  const original = await importOriginal();
+  return {
+    ...(original as object),
+    subscribeMidiListener: vi.fn().mockReturnValue(() => {}),
+  };
+});
 
 // Mock the DisplayTypeSwitch component
 vi.mock("../components/DisplayTypeSwitch", () => ({

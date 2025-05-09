@@ -319,7 +319,10 @@ function DirectoryItem({
       const files = e.dataTransfer.files;
       console.log(`Uploading ${files.length} files to directory: ${childPath}`);
 
-      uploadFiles(Array.from(e.dataTransfer.files), childPath)
+      uploadFiles({
+        files: Array.from(e.dataTransfer.files),
+        destDir: childPath,
+      })
         .then(() => {
           console.log(`Upload complete, refreshing directory ${childPath}`);
           // Refresh the directory contents to show the new file

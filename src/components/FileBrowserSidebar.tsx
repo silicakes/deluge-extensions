@@ -145,7 +145,7 @@ export default function FileBrowserSidebar() {
       }
 
       console.log(`Starting upload of ${files.length} files to ${targetDir}`);
-      uploadFiles(Array.from(files), targetDir)
+      uploadFiles({ files: Array.from(files), destDir: targetDir })
         .then(() => {
           console.log("Upload completed successfully");
           // Refresh the directory contents to show the new files
@@ -158,7 +158,7 @@ export default function FileBrowserSidebar() {
         })
         .catch((err) => {
           console.error("Failed to upload files:", err);
-          alert(`Upload failed: ${err.message || "Unknown error"}`);
+          console.error(`Upload failed: ${err.message || "Unknown error"}`);
         });
     }
   };
