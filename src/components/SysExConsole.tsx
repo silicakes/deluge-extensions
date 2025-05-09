@@ -7,6 +7,8 @@ import {
   getVerboseLoggingState,
 } from "../lib/debug";
 import { fullscreenActive, midiOut } from "../state";
+import { sendSysex } from "@/commands/_shared/transport";
+import { addDebugMessage } from "@/lib/debug";
 
 // Match the max size in debug.ts
 const MAX_DEBUG_LOG_SIZE = 500;
@@ -15,6 +17,7 @@ export const SysExConsole = () => {
   // State
   const [isOpen, setIsOpen] = useState(false);
   const [sysExInput, setSysExInput] = useState("0xF0 0x7d 0x03 0x00 0x01 0xF7");
+  const [jsonInput, setJsonInput] = useState<string>('{"ping":{}}');
   const [autoDebug, setAutoDebug] = useState(false);
   const [verboseLogging, setVerboseLoggingState] = useState(
     getVerboseLoggingState(),
@@ -80,6 +83,16 @@ export const SysExConsole = () => {
     const result = sendCustomSysEx(sysExInput);
     if (result) {
       // The message will be processed and displayed in the debug log
+    }
+  };
+
+  const handleSendJSON = async () => {
+    try {
+      const obj = JSON.parse(jsonInput);
+      const raw = (await sendSysex({ json: obj })) as { json: unknown };
+      addDebugMessage(`JSON Response: ${JSON.stringify(raw.json)}`);
+    } catch (e) {
+      addDebugMessage(`ERROR: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -226,6 +239,27 @@ export const SysExConsole = () => {
             disabled={disabled}
           >
             Send
+          </button>
+        </div>
+
+        {/* Custom JSON Input */}
+        <div className="p-2 flex gap-2 border-t border-[var(--color-border)]">
+          <input
+            type="text"
+            value={jsonInput}
+            onChange={(e) => setJsonInput((e.target as HTMLInputElement).value)}
+            className="flex-1 px-3 py-2 bg-[var(--color-bg)] border border-[var(--color-border)] rounded text-sm font-mono"
+            placeholder='{"ping":{}}'
+            aria-label="Custom JSON input"
+          />
+
+          <button
+            onClick={handleSendJSON}
+            className="px-3 py-1 bg-green-700 hover:bg-green-600 rounded text-white"
+            aria-label="Send custom JSON command"
+            disabled={disabled}
+          >
+            Send JSON
           </button>
         </div>
       </div>
