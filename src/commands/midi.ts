@@ -9,7 +9,6 @@ export {
   cancelFileTransfer,
   cancelAllFileTransfers,
   removeTransferFromList,
-  sendCustomSysEx,
   getDebug,
   initMidi,
   startMonitor,
