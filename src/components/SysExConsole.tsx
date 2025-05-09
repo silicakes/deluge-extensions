@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect } from "preact/hooks";
-import { sendCustomSysEx, getDebug } from "../lib/midi";
+import { sendCustomSysEx, getDebug } from "@/commands";
 import {
   clearDebug,
   useDebugLog,

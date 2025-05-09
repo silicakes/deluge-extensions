@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/preact";
 import { AdvancedDisplayControls } from "../components/AdvancedDisplayControls";
 import { midiOut, monitorMode } from "../state";
-import * as midiModule from "../lib/midi";
+import * as midiModule from "@/commands";
 
 // Mock midi functions
 vi.mock("../lib/midi", () => ({

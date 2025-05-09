@@ -237,5 +237,92 @@ describe("FileBrowserTree", () => {
       render(<FileBrowserTree />);
       expect(screen.getByText("README.txt")).toBeInTheDocument();
     });
+
+    it("rename-updates UI after successful file rename", async () => {
+      // Arrange: set initial file tree with a single file in root
+      fileTree.value = {
+        "/": [{ name: "README.txt", attr: 32, size: 1024, date: 0, time: 0 }],
+      };
+      // Mock renameFile and listDirectory behavior
+      const renameMock = vi
+        .spyOn(commands, "renameFile")
+        .mockResolvedValue(undefined);
+      // Next call to listDirectory should update the fileTree with the new name
+      const newEntries = [
+        { name: "NEWREADME.txt", attr: 32, size: 1024, date: 0, time: 0 },
+      ];
+      vi.mocked(commands.listDirectory).mockImplementationOnce(
+        async ({ path }) => {
+          fileTree.value = { [path]: newEntries };
+          return newEntries;
+        },
+      );
+
+      // Act: render and perform inline rename on the file via F2
+      const user = userEvent.setup();
+      render(<FileBrowserTree />);
+      const fileElement = await screen.findByText("README.txt");
+      // Find the row and trigger F2 to start editing
+      const row = fileElement.closest("li");
+      expect(row).not.toBeNull();
+      // Focus the row so it receives the key event
+      (row! as HTMLElement).focus();
+      fireEvent.keyDown(row!, { key: "F2" });
+      // The input field should appear with the original filename
+      const input = await screen.findByDisplayValue("README.txt");
+      await user.clear(input);
+      await user.type(input, "NEWREADME.txt");
+      fireEvent.blur(input);
+
+      // Assert: the new name is shown
+      expect(renameMock).toHaveBeenCalledWith({
+        oldPath: "/README.txt",
+        newPath: "/NEWREADME.txt",
+      });
+      const updated = await screen.findByText("NEWREADME.txt");
+      expect(updated).toBeInTheDocument();
+    });
+
+    it("rename-updates UI when pressing Enter key", async () => {
+      // Arrange: initial file
+      fileTree.value = {
+        "/": [{ name: "README.txt", attr: 32, size: 1024, date: 0, time: 0 }],
+      };
+      // Spy on renameFile and listDirectory
+      const renameMock = vi
+        .spyOn(commands, "renameFile")
+        .mockResolvedValue(undefined);
+      const newEntries = [
+        { name: "ENTERNAME.txt", attr: 32, size: 1024, date: 0, time: 0 },
+      ];
+      vi.mocked(commands.listDirectory).mockImplementationOnce(
+        async ({ path }) => {
+          fileTree.value = { [path]: newEntries };
+          return newEntries;
+        },
+      );
+
+      // Act: render, enter edit mode, change name, press Enter
+      const user = userEvent.setup();
+      render(<FileBrowserTree />);
+      const fileElement = await screen.findByText("README.txt");
+      const row = fileElement.closest("li");
+      expect(row).toBeTruthy();
+      // Start editing
+      fireEvent.keyDown(row!, { key: "F2" });
+      const input = await screen.findByDisplayValue("README.txt");
+      await user.clear(input);
+      await user.type(input, "ENTERNAME.txt");
+      // Press Enter to commit
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+
+      // Assert: rename called and UI updated
+      expect(renameMock).toHaveBeenCalledWith({
+        oldPath: "/README.txt",
+        newPath: "/ENTERNAME.txt",
+      });
+      const updated = await screen.findByText("ENTERNAME.txt");
+      expect(updated).toBeInTheDocument();
+    });
   });
 });

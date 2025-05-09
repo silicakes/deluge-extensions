@@ -5,7 +5,7 @@ import {
   cancelFileTransfer,
   cancelAllFileTransfers,
   removeTransferFromList,
-} from "../lib/midi";
+} from "@/commands";
 
 /**
  * A component that displays a list of all active file transfers with individual cancel buttons

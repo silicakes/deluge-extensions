@@ -1,18 +1,28 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import * as midi from "@/lib/midi";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import { sendSysex } from "@/commands/_shared/transport";
+import { builder } from "../_shared/builder";
 import { renameFile, RenameFileParams } from "./fsRename";
 
-vi.mock("@/lib/midi", () => ({ renamePath: vi.fn() }));
+vi.mock("@/commands/_shared/transport", () => ({ sendSysex: vi.fn() }));
 
 describe("renameFile command", () => {
-  afterEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.mocked(sendSysex).mockResolvedValue({ json: { ok: true } });
+  });
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
 
-  it("calls legacy renamePath with correct paths", async () => {
+  it("sends rename SysEx command with correct JSON payload", async () => {
     const params: RenameFileParams = {
       oldPath: "/old.txt",
       newPath: "/new.txt",
     };
     await renameFile(params);
-    expect(midi.renamePath).toHaveBeenCalledWith("/old.txt", "/new.txt");
+    expect(sendSysex).toHaveBeenCalledWith(
+      builder.jsonOnly({
+        rename: { from: params.oldPath, to: params.newPath },
+      }),
+    );
   });
 });

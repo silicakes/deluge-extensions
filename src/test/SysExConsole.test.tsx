@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/preact";
 import { SysExConsole } from "../components/SysExConsole";
 import { midiOut } from "../state";
-import * as midi from "../lib/midi";
+import * as midi from "@/commands";
 
 // Mock the getDebug function
 vi.mock("../lib/midi", async () => {

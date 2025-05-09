@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "preact/hooks";
 import { useSignal } from "@preact/signals";
 import { previewFile } from "../state";
-import { readFile } from "../lib/midi";
+import { readFile } from "@/commands";
 
 /**
  * Text file preview modal component
@@ -42,7 +42,7 @@ export default function TextPreviewModal() {
       return;
     }
 
-    const path = previewFile.value.path;
+    const fileData = previewFile.value;
 
     async function loadTextFile() {
       try {
@@ -50,14 +50,14 @@ export default function TextPreviewModal() {
         error.value = null;
 
         // Read file from device
-        const buffer = await readFile(path);
+        const buffer = await readFile(fileData);
 
         // Convert buffer to text
         const decoder = new TextDecoder("utf-8");
         let text = decoder.decode(buffer);
 
         // Handle special case for JSON - pretty print it
-        if (path.toLowerCase().endsWith(".json")) {
+        if (fileData.path.toLowerCase().endsWith(".json")) {
           try {
             const json = JSON.parse(text);
             text = JSON.stringify(json, null, 2);

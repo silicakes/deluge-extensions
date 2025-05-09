@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "preact/hooks";
 import { useSignal } from "@preact/signals";
-import { getOled, startMonitor, stopMonitor } from "../lib/midi";
+import { getOLED, startMonitor, stopMonitor } from "@/commands";
 import { midiOut, monitorMode, autoEnabled } from "../state";
 import { Button } from "./Button";
 import { startPolling, stopPolling } from "../lib/display";
@@ -20,7 +20,7 @@ export function AdvancedDisplayControls() {
 
   // Handlers for display controls
   const handlePing = () => ping();
-  const handleOled = () => getOled();
+  const handleOled = () => getOLED();
   const handle7Seg = () => get7Seg();
 
   const toggleRefresh = () => {

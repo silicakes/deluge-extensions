@@ -16,7 +16,7 @@ vi.mock("../lib/midi", async () => {
 
 // Regular imports
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { sendCustomSysEx } from "../lib/midi";
+import { sendCustomSysEx } from "@/commands";
 import { midiOut } from "../state";
 
 describe("sendCustomSysEx", () => {

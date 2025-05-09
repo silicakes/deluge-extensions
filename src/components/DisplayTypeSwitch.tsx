@@ -41,9 +41,7 @@ export function DisplayTypeSwitch() {
         {/* Switch track - blue for OLED, red for 7SEG */}
         <div
           className={`w-10 h-5 rounded-full peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 transition-colors ${
-            is7Seg
-              ? "bg-red-600"
-              : "bg-blue-600 peer-checked:bg-blue-600 bg-gray-300"
+            is7Seg ? "bg-red-600" : "bg-blue-600 peer-checked:bg-blue-600"
           }`}
         ></div>
         {/* Switch knob */}

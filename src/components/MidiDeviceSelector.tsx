@@ -8,13 +8,13 @@ import {
   setMidiInput,
   setMidiOutput,
   autoConnectDefaultPorts,
-} from "../lib/midi";
+} from "@/lib/midi";
 
 export function MidiDeviceSelector() {
   const inputSignal = midiIn;
   const outputSignal = midiOut;
   const autoSignal = useSignal(
-    localStorage.getItem("autoConnectEnabled") === "true"
+    localStorage.getItem("autoConnectEnabled") === "true",
   );
   const inputsSignal = useSignal<MIDIInput[]>([]);
   const outputsSignal = useSignal<MIDIOutput[]>([]);

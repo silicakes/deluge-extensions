@@ -2,7 +2,7 @@ import { useEffect, useRef } from "preact/hooks";
 import { useSignal, useSignalEffect } from "@preact/signals";
 import { fileTransferProgress } from "../state";
 import { formatBytes } from "../lib/format";
-import { cancelAllFileTransfers } from "../lib/midi";
+import { cancelAllFileTransfers } from "@/commands";
 import { throttle } from "../lib/throttle";
 
 // Number of speed history entries to keep

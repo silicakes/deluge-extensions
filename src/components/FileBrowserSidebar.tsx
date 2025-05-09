@@ -9,9 +9,14 @@ import {
   expandedPaths,
   anyTransferInProgress,
 } from "../state";
-import { triggerBrowserDownload, uploadFiles } from "../lib/midi";
-import { makeDirectory, writeFile } from "@/commands";
-import { readFile, listDirectory } from "@/commands";
+import {
+  triggerBrowserDownload,
+  uploadFiles,
+  makeDirectory,
+  writeFile,
+  readFile,
+  listDirectory,
+} from "@/commands";
 import FileTransferQueue from "./FileTransferQueue";
 
 // Lazily load the FileBrowserTree component

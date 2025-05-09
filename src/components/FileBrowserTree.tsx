@@ -11,12 +11,8 @@ import {
   previewFile,
   editingFileState,
 } from "../state";
-import {
-  testSysExConnectivity,
-  checkFirmwareSupport,
-  uploadFiles,
-} from "../lib/midi";
-import { listDirectory, renameFile } from "@/commands";
+import { testSysExConnectivity, checkFirmwareSupport } from "@/lib/midi";
+import { listDirectory, renameFile, uploadFiles } from "@/commands";
 import { iconUrlForEntry } from "../lib/fileIcons";
 import { isExternalFileDrag, isInternalDrag } from "../lib/drag";
 import { isAudio, isText } from "../lib/fileType";
@@ -481,6 +477,7 @@ function DirectoryItem({
     try {
       cancelEdit(); // Cancel editing BEFORE the API call to prevent any blur events from firing
       await renameFile({ oldPath, newPath });
+      await listDirectory({ path: dirPath });
     } catch (error) {
       console.error("Failed to rename:", error);
       alert(
@@ -539,6 +536,10 @@ function DirectoryItem({
 
       // Now do the rename
       renameFile({ oldPath, newPath })
+        .then(() => {
+          // Refresh the directory contents after rename (file entries)
+          return listDirectory({ path: dirPath });
+        })
         .catch((error) => {
           console.error("Rename failed:", error);
           alert(
@@ -914,6 +915,7 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
     try {
       cancelEdit(); // Cancel editing BEFORE the API call to prevent any blur events from firing
       await renameFile({ oldPath, newPath });
+      await listDirectory({ path: dirPath });
     } catch (error) {
       console.error("Failed to rename:", error);
       alert(
@@ -972,6 +974,10 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
 
       // Now do the rename
       renameFile({ oldPath, newPath })
+        .then(() => {
+          // Refresh the directory contents after rename (file entries)
+          return listDirectory({ path: dirPath });
+        })
         .catch((error) => {
           console.error("Rename failed:", error);
           alert(

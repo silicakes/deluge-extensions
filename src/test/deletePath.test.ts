@@ -7,7 +7,7 @@ import {
   fileTransferInProgress,
   midiOut,
 } from "../state";
-import * as midi from "../lib/midi";
+import * as midi from "@/commands";
 
 // Mock only the smsysex module
 vi.mock("../lib/smsysex", () => ({
@@ -86,7 +86,7 @@ describe("deletePath", () => {
 
   it("should delete a file and update the file tree", async () => {
     // Act: Use midi namespace
-    await midi.deletePath("/file.txt");
+    await midi.deleteFile({ path: "/file.txt" });
 
     // Assert
     expect(smsysex.sendJson).toHaveBeenCalledWith({
@@ -102,7 +102,7 @@ describe("deletePath", () => {
 
   it("should delete a directory and its subdirectories from the file tree", async () => {
     // Act: Use midi namespace
-    await midi.deletePath("/folder");
+    await midi.deleteFile({ path: "/folder" });
 
     // Assert
     expect(smsysex.sendJson).toHaveBeenCalledWith({
@@ -122,13 +122,13 @@ describe("deletePath", () => {
     selectedPaths.value = new Set(["/file.txt", "/folder/subfile.txt"]);
 
     // Act: Use midi namespace
-    await midi.deletePath("/file.txt");
+    await midi.deleteFile({ path: "/file.txt" });
     // Assert
     expect(selectedPaths.value.has("/file.txt")).toBe(false);
     expect(selectedPaths.value.has("/folder/subfile.txt")).toBe(true);
 
     // Act: Use midi namespace
-    await midi.deletePath("/folder");
+    await midi.deleteFile({ path: "/folder" });
     // Assert
     expect(selectedPaths.value.has("/folder/subfile.txt")).toBe(false);
     expect(selectedPaths.value.size).toBe(0);
@@ -141,7 +141,7 @@ describe("deletePath", () => {
     });
 
     // Act & Assert
-    await expect(midi.deletePath("/file.txt")).rejects.toThrow(
+    await expect(midi.deleteFile({ path: "/file.txt" })).rejects.toThrow(
       "Failed to delete: Error 42",
     );
     // Check spy via midi namespace - should NOT be called
@@ -181,7 +181,7 @@ describe("deletePath", () => {
     });
 
     // Act: Use midi namespace
-    await midi.deletePath("/file.txt");
+    await midi.deleteFile({ path: "/file.txt" });
 
     // Assert
     expect(progressChanges).toEqual([false, true, false]);

@@ -3,7 +3,7 @@ import { useComputed } from "@preact/signals";
 import { memo } from "preact/compat";
 import { fileTransferQueue, TransferItem } from "../state";
 import { formatBytes } from "../lib/format";
-import { cancelFileTransfer } from "../lib/midi";
+import { cancelFileTransfer } from "@/commands";
 
 // Memoized transfer item component to prevent unnecessary renders
 const TransferQueueItem = memo(

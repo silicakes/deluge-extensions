@@ -8,7 +8,7 @@ import {
   setMidiInput,
   setMidiOutput,
   autoConnectDefaultPorts,
-} from "../lib/midi";
+} from "@/lib/midi";
 
 export function useMidiNavbar() {
   const inputSignal = midiIn;

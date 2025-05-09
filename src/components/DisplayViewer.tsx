@@ -10,7 +10,7 @@ import {
   copyCanvasToBase64,
   oledFrame,
 } from "../lib/display";
-import { subscribeMidiListener } from "../lib/midi";
+import { subscribeMidiListener } from "@/commands";
 import { displaySettings, fullscreenActive } from "../state";
 import { addDebugMessage } from "../lib/debug";
 import { DisplayTypeSwitch } from "./DisplayTypeSwitch";

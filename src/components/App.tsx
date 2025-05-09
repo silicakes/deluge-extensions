@@ -23,7 +23,7 @@ import { PwaUpdatePrompt } from "./PwaUpdatePrompt";
 import { PixelSizeControls } from "./PixelSizeControls";
 import { DisplayColorDrawer } from "./DisplayColorDrawer";
 import { loadDisplaySettings } from "../hooks/useDisplaySettingsPersistence";
-import { initMidi, selectDelugeDevice } from "../lib/midi";
+import { initMidi, selectDelugeDevice } from "@/commands";
 import { FileOverrideConfirmation } from "./FileOverrideConfirmation";
 import { AdvancedDisplayControls } from "./AdvancedDisplayControls";
 import { shortcuts, registerGlobalShortcuts } from "../lib/shortcuts";
