@@ -7,5 +7,6 @@ export { openSession, closeSession } from "./session/session";
 export { getVersion, getFeatures } from "./deviceStatus";
 export { getOLED, get7Seg, flipScreen } from "./display";
 export { sendCustomSysEx } from "./sendCustomSysEx";
+export { testSysExConnectivity } from "./testSysExConnectivity";
 export * from "./fileSystem";
 export * from "./midi";

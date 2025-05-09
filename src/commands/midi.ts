@@ -3,7 +3,6 @@
  */
 export {
   uploadFiles,
-  testSysExConnectivity,
   checkFirmwareSupport,
   triggerBrowserDownload,
   cancelFileTransfer,

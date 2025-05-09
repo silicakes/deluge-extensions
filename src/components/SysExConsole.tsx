@@ -144,7 +144,7 @@ export const SysExConsole = () => {
       {/* Drawer */}
       <div
         ref={drawerRef}
-        className={`fixed left-0 bottom-0 w-96 max-w-full bg-[var(--color-bg-offset)] text-[var(--color-text)] shadow-lg border-t border-[var(--color-border)] z-40 transition-transform duration-300 ${isOpen ? "translate-y-0" : "translate-y-full"} h-96 flex flex-col`}
+        className={`fixed left-0 bottom-0 w-full bg-[var(--color-bg-offset)] text-[var(--color-text)] shadow-lg border-t border-[var(--color-border)] z-40 transition-transform duration-300 ${isOpen ? "translate-y-0" : "translate-y-full"} h-96 flex flex-col`}
         aria-hidden={!isOpen}
         data-console-open={isOpen}
       >
