@@ -34,6 +34,22 @@ export const ReqRenameFile = z.object({
 /** Response schema for renameFile command. */
 export const RespRenameFile = z.object({ ok: z.literal(true) });
 
+/** Request schema for makeDirectory command. */
+export const ReqMakeDirectory = z.object({
+  path: z.string().nonempty(),
+});
+
+/** Response schema for makeDirectory command. */
+export const RespMakeDirectory = z.object({ ok: z.boolean() });
+
+/** Request schema for deleteFile command. */
+export const ReqDeleteFile = z.object({
+  path: z.string().nonempty(),
+});
+
+/** Response schema for deleteFile command. */
+export const RespDeleteFile = z.object({ ok: z.boolean() });
+
 export type ReqReadFile = z.infer<typeof ReqReadFile>;
 export type RespOpen = z.infer<typeof RespOpen>;
 export type RespReadChunk = z.infer<typeof RespReadChunk>;
@@ -41,3 +57,7 @@ export type RespClose = z.infer<typeof RespClose>;
 export type ReqWriteFile = z.infer<typeof ReqWriteFile>;
 export type ReqRenameFile = z.infer<typeof ReqRenameFile>;
 export type RespRenameFile = z.infer<typeof RespRenameFile>;
+export type ReqMakeDirectory = z.infer<typeof ReqMakeDirectory>;
+export type RespMakeDirectory = z.infer<typeof RespMakeDirectory>;
+export type ReqDeleteFile = z.infer<typeof ReqDeleteFile>;
+export type RespDeleteFile = z.infer<typeof RespDeleteFile>;

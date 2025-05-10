@@ -1,15 +1,23 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import * as midi from "@/lib/midi";
-import { deleteFile, DeleteFileParams } from "./fsDelete";
+import { deleteFile } from "./fsDelete";
+import { executeCommand } from "../_shared/executor";
+import { SmsCommand } from "../_shared/types";
 
-vi.mock("@/lib/midi", () => ({ deletePath: vi.fn() }));
+// Mock the executor for SysEx transport
+vi.mock("../_shared/executor", () => ({ executeCommand: vi.fn() }));
 
 describe("deleteFile command", () => {
   afterEach(() => vi.clearAllMocks());
 
-  it("calls legacy deletePath with correct path", async () => {
-    const params: DeleteFileParams = { path: "/test.txt" };
+  it("sends SysEx delete command with correct request", async () => {
+    const params = { path: "/test.txt" };
     await deleteFile(params);
-    expect(midi.deletePath).toHaveBeenCalledWith("/test.txt");
+    expect(executeCommand).toHaveBeenCalledTimes(1);
+    expect(executeCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cmdId: SmsCommand.JSON,
+        request: expect.objectContaining({ delete: { path: "/test.txt" } }),
+      }),
+    );
   });
 });

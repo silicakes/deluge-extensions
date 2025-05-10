@@ -1,15 +1,23 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import * as midi from "@/lib/midi";
-import { makeDirectory, MakeDirectoryParams } from "./fsMkdir";
+import { executeCommand } from "../_shared/executor";
+import { SmsCommand } from "../_shared/types";
+import { makeDirectory } from "./fsMkdir";
 
-vi.mock("@/lib/midi", () => ({ createDirectory: vi.fn() }));
+// Mock the executor for SysEx transport
+vi.mock("../_shared/executor", () => ({ executeCommand: vi.fn() }));
 
 describe("makeDirectory command", () => {
   afterEach(() => vi.clearAllMocks());
 
-  it("calls legacy createDirectory with correct path", async () => {
-    const params: MakeDirectoryParams = { path: "/newdir" };
+  it("sends SysEx mkdir command with correct request", async () => {
+    const params = { path: "/newdir" };
     await makeDirectory(params);
-    expect(midi.createDirectory).toHaveBeenCalledWith("/newdir");
+    expect(executeCommand).toHaveBeenCalledTimes(1);
+    expect(executeCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cmdId: SmsCommand.JSON,
+        request: expect.objectContaining({ mkdir: { path: "/newdir" } }),
+      }),
+    );
   });
 });
