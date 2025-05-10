@@ -11,10 +11,11 @@ import {
 } from "../state";
 import * as commands from "@/commands";
 
-// Mock the commands module for directory operations
+// Mock command APIs for directory operations and file uploads
 vi.mock("@/commands", () => ({
   listDirectory: vi.fn().mockResolvedValue([]),
   renameFile: vi.fn().mockResolvedValue(undefined),
+  uploadFiles: vi.fn().mockResolvedValue(undefined),
   testSysExConnectivity: vi.fn().mockResolvedValue(true),
   checkFirmwareSupport: vi.fn().mockResolvedValue(true),
 }));

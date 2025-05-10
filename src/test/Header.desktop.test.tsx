@@ -3,16 +3,6 @@ import { render, screen } from "@testing-library/preact";
 import { Header } from "../components/Header";
 import { autoEnabled } from "../state";
 
-// Mock the midi library
-vi.mock("../lib/midi", () => ({
-  initMidi: vi.fn(),
-  getMidiInputs: vi.fn().mockReturnValue([]),
-  getMidiOutputs: vi.fn().mockReturnValue([]),
-  setMidiInput: vi.fn(),
-  setMidiOutput: vi.fn(),
-  autoConnectDefaultPorts: vi.fn(),
-}));
-
 // Mock the useMidiNavbar hook
 vi.mock("../hooks/useMidiNavbar", () => ({
   useMidiNavbar: () => ({

@@ -4,12 +4,9 @@ import { AdvancedDisplayControls } from "../components/AdvancedDisplayControls";
 import { midiOut, monitorMode } from "../state";
 import * as midiModule from "@/commands";
 
-// Mock midi functions
-vi.mock("../lib/midi", () => ({
-  ping: vi.fn(),
-  getOled: vi.fn(),
-  get7Seg: vi.fn(),
-  flipScreen: vi.fn(),
+// Mock command APIs
+vi.mock("@/commands", () => ({
+  getOLED: vi.fn(),
   startMonitor: vi.fn(),
   stopMonitor: vi.fn(),
 }));

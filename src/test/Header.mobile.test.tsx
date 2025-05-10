@@ -3,8 +3,8 @@ import { render, screen, fireEvent } from "@testing-library/preact";
 import { Header } from "../components/Header";
 import { autoEnabled } from "../state";
 
-// Mock the midi library
-vi.mock("../lib/midi", () => ({
+// Mock the webMidi library
+vi.mock("@/lib/webMidi", () => ({
   initMidi: vi.fn(),
   getMidiInputs: vi.fn().mockReturnValue([]),
   getMidiOutputs: vi.fn().mockReturnValue([]),
