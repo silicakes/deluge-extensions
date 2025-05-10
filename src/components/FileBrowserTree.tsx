@@ -7,11 +7,12 @@ import {
   FileEntry,
   selectedPaths,
   fileTransferInProgress,
+  fileTransferProgress,
   editingPath,
   previewFile,
   editingFileState,
 } from "../state";
-import { testSysExConnectivity, checkFirmwareSupport } from "@/lib/midi";
+import { testSysExConnectivity, checkFirmwareSupport } from "@/commands";
 import { listDirectory, renameFile, uploadFiles } from "@/commands";
 import { iconUrlForEntry } from "../lib/fileIcons";
 import { isExternalFileDrag, isInternalDrag } from "../lib/drag";
@@ -316,26 +317,41 @@ function DirectoryItem({
 
     // Handle external file upload first
     if (e.dataTransfer?.files.length) {
-      const files = e.dataTransfer.files;
-      console.log(`Uploading ${files.length} files to directory: ${childPath}`);
-
+      const filesArray = Array.from(e.dataTransfer.files);
+      console.log(
+        `Uploading ${filesArray.length} files to directory: ${childPath}`,
+      );
+      fileTransferInProgress.value = true;
       uploadFiles({
-        files: Array.from(e.dataTransfer.files),
+        files: filesArray,
         destDir: childPath,
+        onProgress: (index, sent, total) => {
+          const fileName = filesArray[index].name;
+          fileTransferProgress.value = {
+            path:
+              childPath === "/" ? `/${fileName}` : `${childPath}/${fileName}`,
+            bytes: sent,
+            total,
+            currentFileIndex: index,
+            totalFiles: filesArray.length,
+          };
+        },
       })
         .then(() => {
           console.log(`Upload complete, refreshing directory ${childPath}`);
-          // Refresh the directory contents to show the new file
           return listDirectory({ path: childPath });
         })
         .then(() => {
           console.log(`Directory ${childPath} refreshed successfully`);
-          // Force a UI update - this is crucial to ensure the UI shows the new files
           fileTree.value = { ...fileTree.value };
         })
         .catch((err) => {
           console.error("Failed to upload files:", err);
           alert(`Upload failed: ${err.message || "Unknown error"}`);
+        })
+        .finally(() => {
+          fileTransferInProgress.value = false;
+          fileTransferProgress.value = null;
         });
       return;
     }

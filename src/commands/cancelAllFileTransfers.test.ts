@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import * as libMidi from "@/lib/midi";
 import { cancelAllFileTransfers } from "./cancelAllFileTransfers";
+import * as midi from "@/lib/midi";
 
 describe("cancelAllFileTransfers", () => {
   afterEach(() => {
@@ -9,7 +9,7 @@ describe("cancelAllFileTransfers", () => {
 
   it("calls legacy cancelAllFileTransfers", () => {
     const spy = vi
-      .spyOn(libMidi, "cancelAllFileTransfers")
+      .spyOn(midi, "cancelAllFileTransfers")
       .mockImplementation(() => {});
     cancelAllFileTransfers();
     expect(spy).toHaveBeenCalled();

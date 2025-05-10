@@ -1,10 +1,6 @@
-import * as midiLib from "@/lib/midi";
+import { startPolling } from "@/lib/display";
 
 /**
  * Start polling display data at 1s intervals.
  */
-export const startMonitor: () => void =
-  midiLib.startMonitor ??
-  (() => {
-    /* no-op if underlying implementation is unavailable */
-  });
+export const startMonitor: () => void = startPolling;

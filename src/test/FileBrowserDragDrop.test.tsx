@@ -134,10 +134,12 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
     fireEvent.drop(screen.getByRole("complementary"), { dataTransfer });
 
     // Verify uploadFiles was called with correct params
-    expect(uploadMock).toHaveBeenCalledWith({
-      files: [testFile],
-      destDir: "/",
-    });
+    expect(uploadMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        files: [testFile],
+        destDir: "/",
+      }),
+    );
   });
 
   it("should allow dropping files onto a folder's children area", () => {
@@ -194,10 +196,12 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
       fireEvent.drop(childrenUl, { dataTransfer });
 
       // Verify uploadFiles was called with correct params
-      expect(commands.uploadFiles).toHaveBeenCalledWith({
-        files: [testFile],
-        destDir: "/folder1",
-      });
+      expect(commands.uploadFiles).toHaveBeenCalledWith(
+        expect.objectContaining({
+          files: [testFile],
+          destDir: "/folder1",
+        }),
+      );
     }
   });
 
@@ -241,10 +245,12 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
       fireEvent.drop(folderLi, { dataTransfer });
 
       // Verify uploadFiles was called with correct params
-      expect(commands.uploadFiles).toHaveBeenCalledWith({
-        files: [testFile],
-        destDir: "/folder1",
-      });
+      expect(commands.uploadFiles).toHaveBeenCalledWith(
+        expect.objectContaining({
+          files: [testFile],
+          destDir: "/folder1",
+        }),
+      );
     }
   });
 

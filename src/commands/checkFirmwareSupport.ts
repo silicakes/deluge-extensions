@@ -1,9 +1,9 @@
-import { checkFirmwareSupport as legacyCheckFirmwareSupport } from "@/lib/midi";
+import { checkFirmwareSupport as serviceCheckFirmwareSupport } from "@/lib/checkFirmwareSupport";
 
 /**
  * Check if firmware supports smSysex protocol.
  * @returns Promise resolving to true if supported.
  */
 export async function checkFirmwareSupport(): Promise<boolean> {
-  return legacyCheckFirmwareSupport();
+  return serviceCheckFirmwareSupport();
 }

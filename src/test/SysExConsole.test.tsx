@@ -4,16 +4,6 @@ import { SysExConsole } from "../components/SysExConsole";
 import { midiOut } from "../state";
 import * as midi from "@/commands";
 
-// Mock the MIDI functions, preserving original exports and overriding specific ones
-vi.mock("../lib/midi", async (importOriginal) => {
-  const actual = await importOriginal();
-  return {
-    ...(actual as object),
-    getDebug: vi.fn(),
-    sendCustomSysEx: vi.fn(),
-  };
-});
-
 describe("SysExConsole", () => {
   beforeEach(() => {
     // Reset mocks
@@ -55,7 +45,7 @@ describe("SysExConsole", () => {
   });
 
   it("calls getDebug when 'Fetch once' button is clicked", () => {
-    const spy = vi.spyOn(midi, "getDebug").mockImplementation(() => true);
+    const spy = vi.spyOn(midi, "getDebug").mockResolvedValue(true);
 
     render(<SysExConsole />);
 

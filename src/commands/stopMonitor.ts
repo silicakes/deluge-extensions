@@ -1,10 +1,6 @@
-import * as midiLib from "@/lib/midi";
+import { stopPolling } from "@/lib/display";
 
 /**
  * Stop polling display data.
  */
-export const stopMonitor: () => void =
-  midiLib.stopMonitor ??
-  (() => {
-    /* no-op if underlying implementation is unavailable */
-  });
+export const stopMonitor: () => void = stopPolling;

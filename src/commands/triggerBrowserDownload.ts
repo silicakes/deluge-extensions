@@ -1,4 +1,4 @@
-import { triggerBrowserDownload as legacyTriggerBrowserDownload } from "@/lib/midi";
+import { triggerBrowserDownload as legacyTriggerBrowserDownload } from "@/lib/fileDownload";
 
 /**
  * Trigger browser download of file data.

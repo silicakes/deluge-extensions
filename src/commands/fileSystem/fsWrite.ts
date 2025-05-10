@@ -1,4 +1,4 @@
-import { uploadFiles } from "@/lib/midi";
+import { uploadFiles } from "../uploadFiles";
 
 /**
  * Request to write binary data to a file on the Deluge device.
@@ -21,6 +21,6 @@ export async function writeFile(params: {
     type: "application/octet-stream",
   });
 
-  // Use legacy uploadFiles to write the file
-  await uploadFiles([file], dir);
+  // Upload the file using our new uploadFiles API
+  await uploadFiles({ files: [file], destDir: dir });
 }

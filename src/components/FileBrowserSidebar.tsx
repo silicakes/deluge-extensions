@@ -5,6 +5,7 @@ import {
   midiOut,
   selectedPaths,
   fileTransferInProgress,
+  fileTransferProgress,
   fileTree,
   expandedPaths,
   anyTransferInProgress,
@@ -18,6 +19,7 @@ import {
   listDirectory,
 } from "@/commands";
 import FileTransferQueue from "./FileTransferQueue";
+import FileTransferProgress from "./FileTransferProgress";
 
 // Lazily load the FileBrowserTree component
 const FileBrowserTree = lazy(() => import("./FileBrowserTree"));
@@ -113,53 +115,58 @@ export default function FileBrowserSidebar() {
     isDraggingOver.value = false;
     console.log("File dropped on sidebar (root level)");
 
+    // Determine upload target directory
+    let targetDir = "/";
+    if (selectedPaths.value.size > 0) {
+      const selectedPath = Array.from(selectedPaths.value)[0];
+      if (fileTree.value[selectedPath]) {
+        targetDir = selectedPath;
+      } else {
+        const parent =
+          selectedPath.substring(0, selectedPath.lastIndexOf("/") || 0) || "/";
+        targetDir = parent;
+      }
+    } else {
+      console.log("No selection, uploading to root directory");
+    }
+
     // Handle file upload to root or current selected directory
     if (e.dataTransfer?.files.length) {
-      const files = e.dataTransfer.files;
-      console.log(`Detected ${files.length} files for upload`);
-
-      let targetDir = "/";
-
-      // If a directory is selected, use that as the target
-      if (selectedPaths.value.size > 0) {
-        const selectedPathsList = Array.from(selectedPaths.value);
-        const firstPath = selectedPathsList[0];
-        console.log("Selected path for upload target:", firstPath);
-
-        // Check if the path exists as a key in fileTree (is a directory)
-        if (fileTree.value[firstPath]) {
-          console.log(`${firstPath} is a directory, using as upload target`);
-          targetDir = firstPath;
-        } else {
-          // If it's a file, use its parent directory
-          const parent =
-            firstPath.substring(0, firstPath.lastIndexOf("/") || 0) || "/";
-          console.log(
-            `${firstPath} is a file, using parent dir ${parent} as upload target`,
-          );
-          targetDir = parent;
-        }
-      } else {
-        // No selection, upload to root
-        console.log("No selection, uploading to root directory");
-      }
-
-      console.log(`Starting upload of ${files.length} files to ${targetDir}`);
-      uploadFiles({ files: Array.from(files), destDir: targetDir })
+      const filesArray = Array.from(e.dataTransfer.files);
+      console.log(
+        `Uploading ${filesArray.length} files to directory: ${targetDir}`,
+      );
+      fileTransferInProgress.value = true;
+      uploadFiles({
+        files: filesArray,
+        destDir: targetDir,
+        onProgress: (index, sent, total) => {
+          const fileName = filesArray[index].name;
+          const fullPath = targetDir.endsWith("/")
+            ? `${targetDir}${fileName}`
+            : `${targetDir}/${fileName}`;
+          fileTransferProgress.value = {
+            path: fullPath,
+            bytes: sent,
+            total,
+            currentFileIndex: index + 1,
+            totalFiles: filesArray.length,
+          };
+        },
+      })
+        .then(() => listDirectory({ path: targetDir }))
         .then(() => {
-          console.log("Upload completed successfully");
-          // Refresh the directory contents to show the new files
-          return listDirectory({ path: targetDir });
-        })
-        .then(() => {
-          console.log(`Directory ${targetDir} refreshed successfully`);
-          // Force a UI update to ensure the changes are reflected
           fileTree.value = { ...fileTree.value };
         })
         .catch((err) => {
           console.error("Failed to upload files:", err);
-          console.error(`Upload failed: ${err.message || "Unknown error"}`);
+          alert(`Upload failed: ${err.message || "Unknown error"}`);
+        })
+        .finally(() => {
+          fileTransferInProgress.value = false;
+          fileTransferProgress.value = null;
         });
+      return;
     }
   };
 
@@ -441,8 +448,13 @@ export default function FileBrowserSidebar() {
         </Suspense>
       </div>
 
-      {/* File Transfer Progress */}
-      {(fileTransferInProgress.value || anyTransferInProgress.value) && (
+      {/* File Transfer UI: progress for single transfers or queue for multiple */}
+      {fileTransferInProgress.value && (
+        <div className="absolute bottom-0 left-0 right-0 pb-2 px-3 z-10">
+          <FileTransferProgress />
+        </div>
+      )}
+      {!fileTransferInProgress.value && anyTransferInProgress.value && (
         <div className="absolute bottom-0 left-0 right-0 pb-2 px-3 z-10">
           <FileTransferQueue />
         </div>

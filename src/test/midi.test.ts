@@ -5,15 +5,6 @@ vi.mock("../lib/smsysex", () => ({
   sendJson: vi.fn().mockResolvedValue({ "^delete": { err: 0 } }),
 }));
 
-// Mock the midi module but retain the real sendCustomSysEx for testing
-vi.mock("../lib/midi", async () => {
-  const actual = await vi.importActual("../lib/midi");
-  return {
-    ...actual,
-    listDirectory: vi.fn().mockResolvedValue([]),
-  };
-});
-
 // Regular imports
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { sendCustomSysEx } from "@/commands";

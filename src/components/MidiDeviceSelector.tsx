@@ -8,7 +8,7 @@ import {
   setMidiInput,
   setMidiOutput,
   autoConnectDefaultPorts,
-} from "@/lib/midi";
+} from "@/lib/webMidi";
 
 export function MidiDeviceSelector() {
   const inputSignal = midiIn;

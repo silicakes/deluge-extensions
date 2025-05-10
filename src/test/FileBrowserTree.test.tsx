@@ -15,6 +15,8 @@ import * as commands from "@/commands";
 vi.mock("@/commands", () => ({
   listDirectory: vi.fn().mockResolvedValue([]),
   renameFile: vi.fn().mockResolvedValue(undefined),
+  testSysExConnectivity: vi.fn().mockResolvedValue(true),
+  checkFirmwareSupport: vi.fn().mockResolvedValue(true),
 }));
 
 // Mock the midi module for other operations
