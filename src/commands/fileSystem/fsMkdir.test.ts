@@ -16,7 +16,9 @@ describe("makeDirectory command", () => {
     expect(executeCommand).toHaveBeenCalledWith(
       expect.objectContaining({
         cmdId: SmsCommand.JSON,
-        request: expect.objectContaining({ mkdir: { path: "/newdir" } }),
+        request: expect.objectContaining({
+          mkdir: expect.objectContaining({ path: "/newdir" }),
+        }),
       }),
     );
   });

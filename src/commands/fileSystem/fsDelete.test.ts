@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { deleteFile } from "./fsDelete";
-import { executeCommand } from "../_shared/executor";
-import { SmsCommand } from "../_shared/types";
+import { sendJson, ensureSession } from "../../lib/smsysex";
 
-// Mock the executor for SysEx transport
-vi.mock("../_shared/executor", () => ({ executeCommand: vi.fn() }));
+// Mock the smsysex transport functions
+vi.mock("../../lib/smsysex", () => ({
+  sendJson: vi.fn().mockResolvedValue({ "^delete": { err: 0 } }),
+  ensureSession: vi.fn().mockResolvedValue(undefined),
+}));
 
 describe("deleteFile command", () => {
   afterEach(() => vi.clearAllMocks());
@@ -12,12 +14,7 @@ describe("deleteFile command", () => {
   it("sends SysEx delete command with correct request", async () => {
     const params = { path: "/test.txt" };
     await deleteFile(params);
-    expect(executeCommand).toHaveBeenCalledTimes(1);
-    expect(executeCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        cmdId: SmsCommand.JSON,
-        request: expect.objectContaining({ delete: { path: "/test.txt" } }),
-      }),
-    );
+    expect(ensureSession).toHaveBeenCalledTimes(1);
+    expect(sendJson).toHaveBeenCalledWith({ delete: { path: "/test.txt" } });
   });
 });

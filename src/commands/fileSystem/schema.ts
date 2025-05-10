@@ -50,6 +50,28 @@ export const ReqDeleteFile = z.object({
 /** Response schema for deleteFile command. */
 export const RespDeleteFile = z.object({ ok: z.boolean() });
 
+/** Request schema for listDirectory command. */
+export const ReqListDirectory = z.object({
+  path: z.string().nonempty(),
+  offset: z.number().int().nonnegative().optional(),
+  lines: z.number().int().nonnegative().optional(),
+  force: z.boolean().optional(),
+});
+
+/** Response schema for listDirectory command. */
+export const RespListDirectory = z.object({
+  list: z.array(
+    z.object({
+      name: z.string(),
+      size: z.number().int().nonnegative(),
+      date: z.number().int().nonnegative(),
+      time: z.number().int().nonnegative(),
+      attr: z.number().int().nonnegative(),
+    }),
+  ),
+  err: z.literal(0),
+});
+
 export type ReqReadFile = z.infer<typeof ReqReadFile>;
 export type RespOpen = z.infer<typeof RespOpen>;
 export type RespReadChunk = z.infer<typeof RespReadChunk>;
@@ -61,3 +83,5 @@ export type ReqMakeDirectory = z.infer<typeof ReqMakeDirectory>;
 export type RespMakeDirectory = z.infer<typeof RespMakeDirectory>;
 export type ReqDeleteFile = z.infer<typeof ReqDeleteFile>;
 export type RespDeleteFile = z.infer<typeof RespDeleteFile>;
+export type ReqListDirectory = z.infer<typeof ReqListDirectory>;
+export type RespListDirectory = z.infer<typeof RespListDirectory>;

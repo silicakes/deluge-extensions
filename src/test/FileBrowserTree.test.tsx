@@ -211,6 +211,23 @@ describe("FileBrowserTree", () => {
     });
   });
 
+  // Add a failing test for visibility of root filesystem entries
+  it("should display root filesystem entries on open", async () => {
+    // Override listDirectory to only return entries without updating fileTree state
+    vi.mocked(commands.listDirectory).mockResolvedValue(mockFileStructure["/"]);
+    // Clear any pre-populated state
+    fileTree.value = {};
+    render(<FileBrowserTree />);
+    // Wait for the command to be invoked
+    await waitFor(() =>
+      expect(commands.listDirectory).toHaveBeenCalledWith({ path: "/" }),
+    );
+    // Expect root directories and files to be rendered (this will fail because component doesn't update fileTree)
+    expect(await screen.findByText("SONGS")).toBeInTheDocument();
+    expect(await screen.findByText("SAMPLES")).toBeInTheDocument();
+    expect(await screen.findByText("README.txt")).toBeInTheDocument();
+  });
+
   describe("Inline Rename", () => {
     it("rename-persists - successfully calls renameFile command", async () => {
       fileTree.value = { "/": mockFileStructure["/"] };
@@ -325,6 +342,48 @@ describe("FileBrowserTree", () => {
         newPath: "/ENTERNAME.txt",
       });
       const updated = await screen.findByText("ENTERNAME.txt");
+      expect(updated).toBeInTheDocument();
+    });
+
+    it("directory rename-updates UI after successful directory rename", async () => {
+      // Arrange: set initial file tree with a single directory in root
+      fileTree.value = {
+        "/": [{ name: "SONGS", attr: 16, size: 0, date: 0, time: 0 }],
+      };
+      // Spy on renameFile and prepare listDirectory to update fileTree
+      const renameMock = vi
+        .spyOn(commands, "renameFile")
+        .mockResolvedValue(undefined);
+      const newEntries = [
+        { name: "NEWSONGS", attr: 16, size: 0, date: 0, time: 0 },
+      ];
+      vi.mocked(commands.listDirectory).mockImplementationOnce(
+        async ({ path }) => {
+          fileTree.value = { [path]: newEntries };
+          return newEntries;
+        },
+      );
+
+      // Act: render and perform inline rename on the directory via F2
+      const user = userEvent.setup();
+      render(<FileBrowserTree />);
+      const dirElement = await screen.findByText("SONGS");
+      const row = dirElement.closest("li");
+      expect(row).toBeTruthy();
+      // Focus and start editing
+      row!.focus();
+      fireEvent.keyDown(row!, { key: "F2" });
+      const input = await screen.findByDisplayValue("SONGS");
+      await user.clear(input);
+      await user.type(input, "NEWSONGS");
+      fireEvent.blur(input);
+
+      // Assert: renameFile called with correct args and UI updated
+      expect(renameMock).toHaveBeenCalledWith({
+        oldPath: "/SONGS",
+        newPath: "/NEWSONGS",
+      });
+      const updated = await screen.findByText("NEWSONGS");
       expect(updated).toBeInTheDocument();
     });
   });
