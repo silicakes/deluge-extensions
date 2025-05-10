@@ -364,15 +364,12 @@ describe("FileBrowserTree", () => {
         },
       );
 
-      // Act: render and perform inline rename on the directory via F2
+      // Act: render and perform inline rename on the directory via double-click
       const user = userEvent.setup();
       render(<FileBrowserTree />);
       const dirElement = await screen.findByText("SONGS");
-      const row = dirElement.closest("li");
-      expect(row).toBeTruthy();
-      // Focus and start editing
-      row!.focus();
-      fireEvent.keyDown(row!, { key: "F2" });
+      // Start editing by double-clicking the directory name
+      await user.dblClick(dirElement);
       const input = await screen.findByDisplayValue("SONGS");
       await user.clear(input);
       await user.type(input, "NEWSONGS");
