@@ -418,29 +418,18 @@ function DirectoryItem({
     e.preventDefault();
     e.stopPropagation(); // Stop event bubbling
 
-    // Check if we have multiple selected items AND this item is already selected
-    const hasMultipleSelected = selectedPaths.value.size > 1;
-    const isItemSelected = selectedPaths.value.has(childPath);
-
-    // When right-clicking a file that's part of a multi-selection, keep the selection
-    if (hasMultipleSelected && isItemSelected) {
-      // Do nothing, keep current selection
-      console.log("Right clicked on multi-selected item, preserving selection");
-    }
-    // When no modifier keys are pressed on single selection or non-selected item
-    else if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+    /*
+     * If the user right-clicks on an item that is *already* inside the current
+     * selection we want to keep that multi-selection intact. If the item is
+     * *not* part of the selection we follow desktop-style semantics and make
+     * it the sole selected item.
+     */
+    if (!selectedPaths.value.has(childPath)) {
       selectedPaths.value = new Set([childPath]);
       lastSelectedPath = childPath;
     }
-    // Handle Ctrl/Cmd+click behavior to add to selection
-    else if (!isItemSelected) {
-      // Add this item to selection if it's not already selected (with modifier keys)
-      const newSelection = new Set(selectedPaths.value);
-      newSelection.add(childPath);
-      selectedPaths.value = newSelection;
-      lastSelectedPath = childPath;
-    }
 
+    // Finally, open the context-menu at the cursor position.
     contextMenuPosition.value = { x: e.pageX, y: e.pageY };
   };
 
@@ -860,29 +849,18 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
     e.preventDefault();
     e.stopPropagation(); // Stop event bubbling
 
-    // Check if we have multiple selected items AND this item is already selected
-    const hasMultipleSelected = selectedPaths.value.size > 1;
-    const isItemSelected = selectedPaths.value.has(childPath);
-
-    // When right-clicking a file that's part of a multi-selection, keep the selection
-    if (hasMultipleSelected && isItemSelected) {
-      // Do nothing, keep current selection
-      console.log("Right clicked on multi-selected file, preserving selection");
-    }
-    // When no modifier keys are pressed on single selection or non-selected item
-    else if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+    /*
+     * If the user right-clicks on an item that is *already* inside the current
+     * selection we want to keep that multi-selection intact. If the item is
+     * *not* part of the selection we follow desktop-style semantics and make
+     * it the sole selected item.
+     */
+    if (!selectedPaths.value.has(childPath)) {
       selectedPaths.value = new Set([childPath]);
       lastSelectedPath = childPath;
     }
-    // Handle Ctrl/Cmd+click behavior to add to selection
-    else if (!isItemSelected) {
-      // Add this item to selection if it's not already selected (with modifier keys)
-      const newSelection = new Set(selectedPaths.value);
-      newSelection.add(childPath);
-      selectedPaths.value = newSelection;
-      lastSelectedPath = childPath;
-    }
 
+    // Finally, open the context-menu at the cursor position.
     contextMenuPosition.value = { x: e.pageX, y: e.pageY };
   };
 
@@ -1099,6 +1077,19 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
           onClose={() => {
             contextMenuPosition.value = null;
           }}
+          selectedEntries={
+            Array.from(selectedPaths.value)
+              .map((selPath) => {
+                const dirPath =
+                  selPath.substring(0, selPath.lastIndexOf("/")) || "/";
+                const name = selPath.substring(selPath.lastIndexOf("/") + 1);
+                const selEntry = fileTree.value[dirPath]?.find(
+                  (e) => e.name === name,
+                );
+                return selEntry ? { path: dirPath, entry: selEntry } : null;
+              })
+              .filter(Boolean) as { path: string; entry: FileEntry }[]
+          }
         />
       )}
     </li>

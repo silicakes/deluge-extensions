@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { useSignal } from "@preact/signals";
+import { useSignal, signal } from "@preact/signals";
 import {
   FileEntry,
   editingPath,
   previewFile,
   editingFileState,
+  fileTree,
 } from "../state";
-import { makeDirectory, writeFile, deleteFile } from "@/commands";
+import {
+  makeDirectory,
+  writeFile,
+  deleteFile,
+  listDirectory,
+} from "@/commands";
 import { isAudio, isText } from "../lib/fileType";
 
 interface FileContextMenuProps {
@@ -16,6 +22,59 @@ interface FileContextMenuProps {
   isDirectory: boolean;
   onClose: () => void;
   selectedEntries?: { path: string; entry: FileEntry }[];
+}
+
+// Helper to determine directory flag (same logic as FileBrowserTree)
+function isDirectory(entry: FileEntry): boolean {
+  return (entry.attr & 0x10) !== 0;
+}
+
+// Signals that hold the expanded list of paths to be deleted and its loading state (module-scoped, non-hook)
+const pathsToDeleteList = signal<string[]>([]);
+const isBuildingList = signal(false);
+
+// Build the list of all items that will be removed (expands directories recursively)
+async function buildPathsToDelete(
+  entries: { path: string; entry: FileEntry }[] | null,
+  singleEntryCtx: { path: string; entry: FileEntry } | null,
+) {
+  isBuildingList.value = true;
+  const collected: string[] = [];
+
+  async function addRecursive(parentPath: string, entry: FileEntry) {
+    const fullPath =
+      parentPath === "/" ? `/${entry.name}` : `${parentPath}/${entry.name}`;
+    collected.push(fullPath);
+
+    if (isDirectory(entry)) {
+      // Ensure we have children; fetch if missing
+      let children: FileEntry[] | undefined = fileTree.value[fullPath];
+      if (!children) {
+        try {
+          children = await listDirectory({ path: fullPath });
+        } catch {
+          // ignore errors – deletion may still succeed even if we can't list
+          children = undefined;
+        }
+      }
+      if (children) {
+        for (const child of children) {
+          await addRecursive(fullPath, child);
+        }
+      }
+    }
+  }
+
+  if (entries && entries.length) {
+    for (const item of entries) {
+      await addRecursive(item.path, item.entry);
+    }
+  } else if (singleEntryCtx) {
+    await addRecursive(singleEntryCtx.path, singleEntryCtx.entry);
+  }
+
+  pathsToDeleteList.value = collected;
+  isBuildingList.value = false;
 }
 
 export default function FileContextMenu({
@@ -105,56 +164,42 @@ export default function FileContextMenu({
 
   // Action handlers
   const handleDelete = async () => {
-    // Handle multiple selection case
-    if (selectedEntries.length > 0) {
-      console.log(`Deleting ${selectedEntries.length} items:`, selectedEntries);
+    // Prefer the pre-built comprehensive list if available (ensures directories
+    // have their children enumerated). Fallback to selectedEntries / single
+    // entry if the list is empty (e.g. user didn't trigger build).
 
-      // Extract all the file paths that need to be deleted
-      const pathsToDelete = selectedEntries.map(
-        ({ path: entryPath, entry: entryItem }) => {
-          return entryPath === "/"
-            ? `/${entryItem.name}`
-            : `${entryPath}/${entryItem.name}`;
-        },
+    const listFromSignal = pathsToDeleteList.value;
+
+    let paths: string[] = [];
+
+    if (listFromSignal && listFromSignal.length) {
+      paths = [...listFromSignal];
+    } else if (selectedEntries.length > 0) {
+      paths = selectedEntries.map(({ path: p, entry: e }) =>
+        p === "/" ? `/${e.name}` : `${p}/${e.name}`,
       );
-
-      console.log(`Preparing to delete paths:`, pathsToDelete);
-
-      // Create a queue of deletion operations to process sequentially
-      // This helps ensure reliable deletion even with multiple files
-      try {
-        console.log(`Starting deletion of ${pathsToDelete.length} files...`);
-
-        // Process deletions one by one to avoid race conditions
-        for (const pathToDelete of pathsToDelete) {
-          console.log(`Deleting: ${pathToDelete}`);
-          await deleteFile({ path: pathToDelete });
-          console.log(`Successfully deleted: ${pathToDelete}`);
-        }
-
-        console.log("All files deleted successfully");
-        onClose();
-      } catch (error) {
-        console.error("Failed to delete multiple items:", error);
-        alert(
-          `Delete failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-      return;
+    } else if (entry) {
+      paths = [path === "/" ? `/${entry.name}` : `${path}/${entry.name}`];
     }
 
-    // Handle single selection case
-    if (!entry) return;
+    if (paths.length === 0) return;
 
-    const fullPath = path === "/" ? `/${entry.name}` : `${path}/${entry.name}`;
-    console.log(`Deleting single file: ${fullPath}`);
+    // Sort by depth descending so that children are deleted before parent
+    paths.sort((a, b) => b.split("/").length - a.split("/").length);
 
     try {
-      await deleteFile({ path: fullPath });
-      console.log("Single file deleted successfully");
+      console.log(
+        `Deleting ${paths.length} path(s) (depth-first order):`,
+        paths,
+      );
+      for (const p of paths) {
+        console.log(`Deleting: ${p}`);
+        await deleteFile({ path: p });
+      }
+      console.log("Delete operation completed");
       onClose();
     } catch (error) {
-      console.error("Failed to delete:", error);
+      console.error("Delete failed:", error);
       alert(
         `Delete failed: ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -287,6 +332,7 @@ export default function FileContextMenu({
           top: `${menuPosition.y}px`,
           minWidth: "180px", // Fixed minimum width to prevent narrowing
         }}
+        onClick={(e) => e.stopPropagation()}
       >
         <ul className="py-1 text-sm w-full">
           {isDirectory && (
@@ -390,14 +436,21 @@ export default function FileContextMenu({
               <button
                 className="px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 w-full text-left text-red-600 dark:text-red-400"
                 onClick={() => {
-                  showDeleteModal.value = true;
+                  // Pre-compute list of items that will be deleted, then open modal
+                  buildPathsToDelete(
+                    selectedEntries.length > 0 ? selectedEntries : null,
+                    entry ? { path, entry } : null,
+                  ).finally(() => {
+                    showDeleteModal.value = true;
+                  });
                 }}
               >
                 <span className="inline-block w-5 text-center mr-2">🗑️</span>
-                Delete{" "}
-                {selectedEntries.length > 1
-                  ? `(${selectedEntries.length} items)`
-                  : ""}
+                <span className="ml-1">
+                  {selectedEntries.length > 1
+                    ? `Delete (${selectedEntries.length} items)`
+                    : "Delete"}
+                </span>
               </button>
             </li>
           )}
@@ -415,17 +468,30 @@ export default function FileContextMenu({
             className="bg-white dark:bg-neutral-800 p-4 rounded-lg shadow-lg max-w-md w-full"
           >
             <h3 className="text-lg font-medium mb-3">Confirm Delete</h3>
-            {selectedEntries.length > 0 ? (
+            {isBuildingList.value ? (
+              <div className="mb-4 text-sm text-neutral-600 dark:text-neutral-400">
+                Building list of items…
+              </div>
+            ) : pathsToDeleteList.value.length > 0 ? (
               <div className="mb-4">
                 <p className="mb-2">
-                  Delete {selectedEntries.length} items? This cannot be undone.
+                  Delete {pathsToDeleteList.value.length} items? This cannot be
+                  undone.
                 </p>
                 <div className="max-h-32 overflow-y-auto text-sm text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 rounded p-2">
-                  {selectedEntries.map(({ entry }, index) => (
-                    <div key={index} className="truncate">
-                      • {entry.name}
-                    </div>
-                  ))}
+                  {pathsToDeleteList.value.map((fullPath, index) => {
+                    const relative = fullPath.slice(1); // remove leading slash for display
+                    const depth = relative.split("/").length - 1; // root-level = 0
+                    return (
+                      <div
+                        key={index}
+                        className="truncate"
+                        style={{ paddingLeft: `${depth * 12}px` }}
+                      >
+                        • {relative}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ) : entry ? (

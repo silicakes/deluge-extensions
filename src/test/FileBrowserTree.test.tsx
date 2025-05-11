@@ -18,6 +18,7 @@ vi.mock("@/commands", () => ({
   uploadFiles: vi.fn().mockResolvedValue(undefined),
   testSysExConnectivity: vi.fn().mockResolvedValue(true),
   checkFirmwareSupport: vi.fn().mockResolvedValue(true),
+  deleteFile: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock the midi module for other operations
@@ -383,5 +384,47 @@ describe("FileBrowserTree", () => {
       const updated = await screen.findByText("NEWSONGS");
       expect(updated).toBeInTheDocument();
     });
+  });
+
+  it("displays all selected files in the delete confirmation modal when multiple files are selected", async () => {
+    // Setup file tree with a directory containing two files
+    fileTree.value = {
+      "/": [{ name: "SONGS", attr: 16, size: 0, date: 0, time: 0 }],
+      "/SONGS": [
+        { name: "song1.xml", attr: 32, size: 2048, date: 0, time: 0 },
+        { name: "song2.xml", attr: 32, size: 3072, date: 0, time: 0 },
+      ],
+    };
+    // Expand the directory to render its children
+    expandedPaths.value = new Set(["/SONGS"]);
+    // Select both files
+    selectedPaths.value = new Set(["/SONGS/song1.xml", "/SONGS/song2.xml"]);
+
+    // Render the component
+    render(<FileBrowserTree />);
+
+    // Right-click on one of the selected files to open its context menu
+    const fileSpan = await screen.findByText("song1.xml");
+    const fileLi = fileSpan.closest("li");
+    expect(fileLi).toBeTruthy();
+    fireEvent.contextMenu(fileLi!);
+
+    // Click on "Delete (2 items)" in the context menu
+    const menuDelete = await screen.findByText("Delete (2 items)");
+    fireEvent.click(menuDelete);
+
+    // The confirmation modal should appear with the correct header
+    expect(await screen.findByText("Confirm Delete")).toBeInTheDocument();
+
+    // The modal should indicate 2 items to delete
+    expect(
+      await screen.findByText(/Delete\s*2 items\? This cannot be undone\./),
+    ).toBeInTheDocument();
+
+    // Both selected files should be listed
+    const bulletItems = screen.getAllByText(/^•/);
+    expect(bulletItems).toHaveLength(2);
+    expect(screen.getByText("song1.xml")).toBeInTheDocument();
+    expect(screen.getByText("song2.xml")).toBeInTheDocument();
   });
 });
