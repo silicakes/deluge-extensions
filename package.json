@@ -22,7 +22,8 @@
     "@preact/signals": "^2.0.4",
     "@tailwindcss/vite": "^4.1.4",
     "preact": "^10.26.4",
-    "tailwindcss": "^4.1.4"
+    "tailwindcss": "^4.1.4",
+    "zod": "^3.24.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.1",

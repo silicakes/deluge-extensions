@@ -1,6 +1,6 @@
 /** display.ts - Display rendering helpers ported from legacy code */
 
-import * as midi from "./midi";
+import * as midi from "./webMidi";
 import { displaySettings, displayType, fullscreenActive } from "../state";
 import { isMobile } from "./fullscreen";
 

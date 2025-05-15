@@ -5,7 +5,7 @@ import { fileTree, expandedPaths, selectedPaths } from "../../state";
 /**
  * Delete a file or directory on the Deluge device.
  */
-export async function deleteFile(params: ReqDeleteFile): Promise<void> {
+export async function fsDelete(params: ReqDeleteFile): Promise<void> {
   const { path } = params;
   // Ensure MIDI session is open before sending command
   await ensureSession();

@@ -31,6 +31,18 @@ export async function initMidi(
   return midiAccess;
 }
 
+/** Request raw display update (force full or delta) */
+export function getDisplay(force: boolean = false) {
+  if (!midiOut.value) {
+    console.error("MIDI Output not selected. Cannot send display command.");
+    return;
+  }
+  const command = force
+    ? [0xf0, 0x7d, 0x02, 0x00, 0x03, 0xf7] // GET_DISPLAY_FORCE
+    : [0xf0, 0x7d, 0x02, 0x00, 0x02, 0xf7]; // GET_DISPLAY
+  midiOut.value.send(command);
+}
+
 /** Set MIDI input, updating signal and side-effects */
 export function setMidiInput(input: MIDIInput | null) {
   if (midiIn.value === input) return;
