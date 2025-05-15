@@ -169,25 +169,20 @@ export default function FileContextMenu({
           : [];
     if (pathsToDelete.length === 0) return;
 
-    const confirmMessage =
-      pathsToDelete.length > 1
-        ? `Are you sure you want to delete ${pathsToDelete.length} items?`
-        : `Are you sure you want to delete '${pathsToDelete[0].substring(pathsToDelete[0].lastIndexOf("/") + 1)}'?`;
-
-    if (window.confirm(confirmMessage)) {
-      try {
-        for (const p of pathsToDelete) {
-          await fsDelete({ path: p });
-        }
-        // No specific refresh here, fsDelete itself updates fileTree
-        // Consider if a broad refresh is needed for parent dir if multiple items are deleted from different places.
-      } catch (error) {
-        console.error("Delete failed:", error);
-        alert(
-          `Delete failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
+    try {
+      for (const p of pathsToDelete) {
+        await fsDelete({ path: p });
       }
+      fileTree.value = { ...fileTree.value };
+      // No specific refresh here, fsDelete itself updates fileTree
+      // Consider if a broad refresh is needed for parent dir if multiple items are deleted from different places.
+    } catch (error) {
+      console.error("Delete failed:", error);
+      alert(
+        `Delete failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
+
     onClose();
   };
 
@@ -204,20 +199,37 @@ export default function FileContextMenu({
       return;
     }
 
-    const parentPath =
-      isDirectory && entry
-        ? path === "/"
-          ? `/${entry.name}`
-          : `${path}/${entry.name}`
-        : path;
+    // Explicit parentPath determination
+    let determinedParentPath: string;
+    if (entry && isDirectory) {
+      // Clicked on a directory entry, new item goes inside it.
+      // `path` prop is parent of `entry`. Full path of `entry` is `path/entry.name` or `/entry.name`.
+      determinedParentPath =
+        path === "/" ? `/${entry.name}` : `${path}/${entry.name}`;
+    } else if (entry && !isDirectory) {
+      // Clicked on a file entry, new item goes beside it (in its parent).
+      // `path` prop is already the parent directory of the file.
+      determinedParentPath = path;
+    } else {
+      // No specific entry (e.g., root context menu), or isDirectory is true but no entry (should be root context).
+      // `path` prop is the target directory (e.g., "/").
+      determinedParentPath = path;
+    }
 
     const newDirPath =
-      parentPath === "/"
+      determinedParentPath === "/"
         ? `/${newName.value}`
-        : `${parentPath}/${newName.value}`;
+        : `${determinedParentPath}/${newName.value}`;
 
     try {
       await makeDirectory({ path: newDirPath });
+      const updatedEntries = await listDirectory({
+        path: determinedParentPath,
+      });
+      fileTree.value = {
+        ...fileTree.value,
+        [determinedParentPath]: updatedEntries,
+      };
       onClose();
     } catch (error) {
       console.error("Failed to create directory:", error);
@@ -240,20 +252,31 @@ export default function FileContextMenu({
       return;
     }
 
-    const parentPath =
-      isDirectory && entry
-        ? path === "/"
-          ? `/${entry.name}`
-          : `${path}/${entry.name}`
-        : path;
+    // Explicit parentPath determination (same logic as for folder)
+    let determinedParentPath: string;
+    if (entry && isDirectory) {
+      determinedParentPath =
+        path === "/" ? `/${entry.name}` : `${path}/${entry.name}`;
+    } else if (entry && !isDirectory) {
+      determinedParentPath = path;
+    } else {
+      determinedParentPath = path;
+    }
 
     const newFilePath =
-      parentPath === "/"
+      determinedParentPath === "/"
         ? `/${newName.value}`
-        : `${parentPath}/${newName.value}`;
+        : `${determinedParentPath}/${newName.value}`;
 
     try {
       await writeFile({ path: newFilePath, data: new Uint8Array(0) });
+      const updatedEntries = await listDirectory({
+        path: determinedParentPath,
+      });
+      fileTree.value = {
+        ...fileTree.value,
+        [determinedParentPath]: updatedEntries,
+      };
       onClose();
     } catch (error) {
       console.error("Failed to create file:", error);

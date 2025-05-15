@@ -7,7 +7,6 @@ import {
   fileTransferInProgress,
   fileTransferProgress,
   fileTree,
-  expandedPaths,
   anyTransferInProgress,
 } from "../state";
 import {
@@ -227,7 +226,11 @@ export default function FileBrowserSidebar() {
       newName.value = "";
 
       // Refresh directory after creation
-      await listDirectory({ path: targetDir });
+      const updatedEntries = await listDirectory({ path: targetDir });
+      fileTree.value = {
+        ...fileTree.value,
+        [targetDir]: updatedEntries,
+      };
     } catch (error) {
       console.error("Failed to create directory:", error);
       alert(
@@ -272,7 +275,11 @@ export default function FileBrowserSidebar() {
       newName.value = "";
 
       // Refresh directory after creation
-      await listDirectory({ path: targetDir });
+      const updatedEntries = await listDirectory({ path: targetDir });
+      fileTree.value = {
+        ...fileTree.value,
+        [targetDir]: updatedEntries,
+      };
     } catch (error) {
       console.error("Failed to create file:", error);
       alert(
@@ -281,38 +288,28 @@ export default function FileBrowserSidebar() {
     }
   };
 
-  // Determine current directory for refresh functionality
-  const getCurrentDirectory = () => {
-    // If a directory is selected, use that
-    if (selectedPaths.value.size > 0) {
-      const path = Array.from(selectedPaths.value)[0];
-      if (fileTree.value[path]) {
-        return path; // Selected path is a directory
-      } else {
-        // It's a file, use parent directory
-        return path.substring(0, path.lastIndexOf("/") || 0) || "/";
-      }
-    }
-
-    // If no selection, use first expanded path or default to root
-    return expandedPaths.value.size > 0
-      ? Array.from(expandedPaths.value)[0]
-      : "/";
-  };
-
   // Refresh current directory function
-  const refreshCurrentDir = async () => {
+  const refreshRootDirectory = async () => {
     if (isRefreshing.value) return;
     isRefreshing.value = true;
 
-    const currentDir = getCurrentDirectory();
+    const rootDir = "/"; // Always refresh root
 
     try {
-      console.log(`Refreshing directory: ${currentDir}`);
-      await listDirectory({ path: currentDir, force: true });
-      console.log(`Directory ${currentDir} refreshed successfully`);
+      console.log(`Refreshing root directory: ${rootDir}`);
+      const updatedEntries = await listDirectory({
+        path: rootDir,
+        force: true,
+      });
+      fileTree.value = {
+        ...fileTree.value,
+        [rootDir]: updatedEntries,
+      };
+      console.log(
+        `Root directory ${rootDir} refreshed successfully, UI update triggered`,
+      );
     } catch (err) {
-      console.error(`Failed to refresh directory ${currentDir}:`, err);
+      console.error(`Failed to refresh root directory ${rootDir}:`, err);
     } finally {
       isRefreshing.value = false;
     }
@@ -336,7 +333,7 @@ export default function FileBrowserSidebar() {
           <button
             aria-label="Refresh directory"
             className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
-            onClick={refreshCurrentDir}
+            onClick={refreshRootDirectory}
             disabled={isRefreshing.value || fileTransferInProgress.value}
           >
             <svg

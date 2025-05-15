@@ -158,6 +158,10 @@ function DirectoryItem({
         console.log(`Loading directory contents for ${childPath}...`);
         try {
           const entries = await listDirectory({ path: childPath });
+          fileTree.value = {
+            ...fileTree.value,
+            [childPath]: entries,
+          };
           console.log(`Pulled additional files for ${childPath}`);
 
           // Force a UI update if the fileTree was updated but UI didn't refresh
@@ -341,9 +345,12 @@ function DirectoryItem({
           console.log(`Upload complete, refreshing directory ${childPath}`);
           return listDirectory({ path: childPath });
         })
-        .then(() => {
+        .then((entries) => {
           console.log(`Directory ${childPath} refreshed successfully`);
-          fileTree.value = { ...fileTree.value };
+          fileTree.value = {
+            ...fileTree.value,
+            [childPath]: entries,
+          };
         })
         .catch((err) => {
           console.error("Failed to upload files:", err);
@@ -378,13 +385,10 @@ function DirectoryItem({
       // Use new commands API to move (rename) paths
       renameFile({ oldPath: sourcePath, newPath: targetPath })
         .then(() => {
-          console.log(`Move complete, refreshing directory ${childPath}`);
-          // Refresh the directory contents after move
-          return listDirectory({ path: childPath });
-        })
-        .then(() => {
-          // Force a UI update
-          fileTree.value = { ...fileTree.value };
+          console.log(
+            `Move complete, refreshing tree globally from handleDrop`,
+          );
+          fileTree.value = { ...fileTree.value }; // Global refresh
         })
         .catch((err) => {
           console.error("Failed to move file:", err);
@@ -486,8 +490,9 @@ function DirectoryItem({
       cancelEdit(); // Cancel editing BEFORE the API call to prevent any blur events from firing
       await renameFile({ oldPath, newPath });
       // Refresh directory contents in state after renaming
-      const entries = await listDirectory({ path: dirPath });
-      fileTree.value = { ...fileTree.value, [dirPath]: entries };
+      // const entries = await listDirectory({ path: dirPath });
+      // fileTree.value = { ...fileTree.value, [dirPath]: entries };
+      fileTree.value = { ...fileTree.value }; // Global refresh
     } catch (error) {
       console.error("Failed to rename:", error);
       alert(
@@ -546,10 +551,8 @@ function DirectoryItem({
 
       // Now do the rename
       renameFile({ oldPath, newPath })
-        .then(() => listDirectory({ path: dirPath }))
-        .then((entries) => {
-          // Refresh directory contents in state
-          fileTree.value = { ...fileTree.value, [dirPath]: entries };
+        .then(() => {
+          fileTree.value = { ...fileTree.value }; // Global refresh
         })
         .catch((error) => {
           console.error("Rename failed:", error);
@@ -683,7 +686,11 @@ function DirectoryItem({
                     isLoading.value = true;
                     itemError.value = null;
                     listDirectory({ path: childPath, force: true })
-                      .then(() => {
+                      .then((entries) => {
+                        fileTree.value = {
+                          ...fileTree.value,
+                          [childPath]: entries,
+                        };
                         console.log(`Retry successful for ${childPath}`);
                         // Make sure the directory is marked as expanded
                         const newExpanded = new Set(expandedPaths.value);
@@ -916,8 +923,9 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
       cancelEdit(); // Cancel editing BEFORE the API call to prevent any blur events from firing
       await renameFile({ oldPath, newPath });
       // Refresh directory contents in state after renaming
-      const entries = await listDirectory({ path: dirPath });
-      fileTree.value = { ...fileTree.value, [dirPath]: entries };
+      // const entries = await listDirectory({ path: dirPath });
+      // fileTree.value = { ...fileTree.value, [dirPath]: entries };
+      fileTree.value = { ...fileTree.value }; // Global refresh
     } catch (error) {
       console.error("Failed to rename:", error);
       alert(
@@ -976,10 +984,8 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
 
       // Now do the rename
       renameFile({ oldPath, newPath })
-        .then(() => listDirectory({ path: dirPath }))
-        .then((entries) => {
-          // Refresh directory contents in state
-          fileTree.value = { ...fileTree.value, [dirPath]: entries };
+        .then(() => {
+          fileTree.value = { ...fileTree.value }; // Global refresh
         })
         .catch((error) => {
           console.error("Rename failed:", error);
@@ -1156,6 +1162,7 @@ export default function FileBrowserTree() {
     <div
       className="h-full flex flex-col font-mono text-sm"
       onContextMenu={handleRootContextMenu}
+      data-testid="file-browser-tree-root"
     >
       <div className="flex-grow overflow-y-auto">
         {isLoading.value ? (
@@ -1192,6 +1199,10 @@ export default function FileBrowserTree() {
                     console.log(
                       `Retry: Root directory loaded with ${entries.length} entries`,
                     );
+                    fileTree.value = {
+                      ...fileTree.value,
+                      [rootPath]: entries,
+                    };
                   })
                   .catch((err) => {
                     console.error("Retry: Failed to load root directory:", err);
