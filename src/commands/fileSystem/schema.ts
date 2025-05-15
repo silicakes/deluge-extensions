@@ -42,13 +42,13 @@ export const ReqMakeDirectory = z.object({
 /** Response schema for makeDirectory command. */
 export const RespMakeDirectory = z.object({ ok: z.boolean() });
 
-/** Request schema for deleteFile command. */
-export const ReqDeleteFile = z.object({
+/** Request schema for fsDelete command. */
+export const ReqFsDelete = z.object({
   path: z.string().nonempty(),
 });
 
-/** Response schema for deleteFile command. */
-export const RespDeleteFile = z.object({ ok: z.boolean() });
+/** Response schema for fsDelete command. */
+export const RespFsDelete = z.object({ ok: z.boolean() });
 
 /** Request schema for listDirectory command. */
 export const ReqListDirectory = z.object({
@@ -81,7 +81,7 @@ export type ReqRenameFile = z.infer<typeof ReqRenameFile>;
 export type RespRenameFile = z.infer<typeof RespRenameFile>;
 export type ReqMakeDirectory = z.infer<typeof ReqMakeDirectory>;
 export type RespMakeDirectory = z.infer<typeof RespMakeDirectory>;
-export type ReqDeleteFile = z.infer<typeof ReqDeleteFile>;
-export type RespDeleteFile = z.infer<typeof RespDeleteFile>;
+export type ReqFsDelete = z.infer<typeof ReqFsDelete>;
+export type RespFsDelete = z.infer<typeof RespFsDelete>;
 export type ReqListDirectory = z.infer<typeof ReqListDirectory>;
 export type RespListDirectory = z.infer<typeof RespListDirectory>;

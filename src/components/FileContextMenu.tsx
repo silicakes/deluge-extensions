@@ -7,12 +7,7 @@ import {
   editingFileState,
   fileTree,
 } from "../state";
-import {
-  makeDirectory,
-  writeFile,
-  deleteFile,
-  listDirectory,
-} from "@/commands";
+import { makeDirectory, writeFile, fsDelete, listDirectory } from "@/commands";
 import { isAudio, isText } from "../lib/fileType";
 
 interface FileContextMenuProps {
@@ -164,46 +159,36 @@ export default function FileContextMenu({
 
   // Action handlers
   const handleDelete = async () => {
-    // Prefer the pre-built comprehensive list if available (ensures directories
-    // have their children enumerated). Fallback to selectedEntries / single
-    // entry if the list is empty (e.g. user didn't trigger build).
+    const pathsToDelete =
+      selectedEntries.length > 0
+        ? selectedEntries.map((s) =>
+            s.path === "/" ? `/${s.entry.name}` : `${s.path}/${s.entry.name}`,
+          )
+        : entry
+          ? [path === "/" ? `/${entry.name}` : `${path}/${entry.name}`]
+          : [];
+    if (pathsToDelete.length === 0) return;
 
-    const listFromSignal = pathsToDeleteList.value;
+    const confirmMessage =
+      pathsToDelete.length > 1
+        ? `Are you sure you want to delete ${pathsToDelete.length} items?`
+        : `Are you sure you want to delete '${pathsToDelete[0].substring(pathsToDelete[0].lastIndexOf("/") + 1)}'?`;
 
-    let paths: string[] = [];
-
-    if (listFromSignal && listFromSignal.length) {
-      paths = [...listFromSignal];
-    } else if (selectedEntries.length > 0) {
-      paths = selectedEntries.map(({ path: p, entry: e }) =>
-        p === "/" ? `/${e.name}` : `${p}/${e.name}`,
-      );
-    } else if (entry) {
-      paths = [path === "/" ? `/${entry.name}` : `${path}/${entry.name}`];
-    }
-
-    if (paths.length === 0) return;
-
-    // Sort by depth descending so that children are deleted before parent
-    paths.sort((a, b) => b.split("/").length - a.split("/").length);
-
-    try {
-      console.log(
-        `Deleting ${paths.length} path(s) (depth-first order):`,
-        paths,
-      );
-      for (const p of paths) {
-        console.log(`Deleting: ${p}`);
-        await deleteFile({ path: p });
+    if (window.confirm(confirmMessage)) {
+      try {
+        for (const p of pathsToDelete) {
+          await fsDelete({ path: p });
+        }
+        // No specific refresh here, fsDelete itself updates fileTree
+        // Consider if a broad refresh is needed for parent dir if multiple items are deleted from different places.
+      } catch (error) {
+        console.error("Delete failed:", error);
+        alert(
+          `Delete failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
-      console.log("Delete operation completed");
-      onClose();
-    } catch (error) {
-      console.error("Delete failed:", error);
-      alert(
-        `Delete failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
     }
+    onClose();
   };
 
   const handleCreateFolder = async () => {

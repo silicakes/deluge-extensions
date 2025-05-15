@@ -15,10 +15,13 @@ import * as commands from "@/commands";
 vi.mock("@/commands", () => ({
   listDirectory: vi.fn().mockResolvedValue([]),
   renameFile: vi.fn().mockResolvedValue(undefined),
+  makeDirectory: vi.fn().mockResolvedValue(undefined),
+  fsDelete: vi.fn().mockResolvedValue(undefined),
   uploadFiles: vi.fn().mockResolvedValue(undefined),
+  checkFirmwareSupport: vi
+    .fn()
+    .mockResolvedValue({ supported: true, version: "1.0.0" }),
   testSysExConnectivity: vi.fn().mockResolvedValue(true),
-  checkFirmwareSupport: vi.fn().mockResolvedValue(true),
-  deleteFile: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock the midi module for other operations
