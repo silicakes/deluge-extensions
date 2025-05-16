@@ -6,6 +6,7 @@
  */
 import { midiOut } from "../state";
 import { decode7Bit } from "@/commands/_shared/pack";
+import { pack_8bit_to_7bit } from "./sysexPacking";
 import type { FileEntry } from "../state";
 
 // Define smSysex commands
@@ -188,11 +189,13 @@ export async function ensureSession(): Promise<SmsSession> {
 /**
  * Send a JSON command to the Deluge and wait for the response
  * @param cmd The JSON command object
+ * @param binaryPayload Optional binary payload for write commands
  * @param s The session to use
  * @returns Promise resolving to the JSON response
  */
 export async function sendJson(
   cmd: object,
+  binaryPayload?: Uint8Array,
   s?: SmsSession,
 ): Promise<Record<string, unknown>> {
   if (!midiOut.value) {
@@ -226,11 +229,32 @@ export async function sendJson(
   const sysexHeader = [0xf0, ...manufacturerId, SmsCommand.JSON, msgId];
   const sysexFooter = [0xf7];
 
-  const message = new Uint8Array([
-    ...sysexHeader,
-    ...Array.from(jsonBytes),
-    ...sysexFooter,
-  ]);
+  let message: Uint8Array;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((cmd as any).write && binaryPayload) {
+    console.log(
+      "[smsysex] Detected 'write' command with binary data. Packing and appending.",
+    );
+    const packedBinary = pack_8bit_to_7bit(binaryPayload);
+    const separator = new Uint8Array([0x00]);
+    message = new Uint8Array([
+      ...sysexHeader,
+      ...Array.from(jsonBytes),
+      ...separator,
+      ...packedBinary,
+      ...sysexFooter,
+    ]);
+    console.log(
+      `[smsysex] Combined message length for write: ${message.length}`,
+    );
+  } else {
+    message = new Uint8Array([
+      ...sysexHeader,
+      ...Array.from(jsonBytes),
+      ...sysexFooter,
+    ]);
+  }
 
   console.log(
     "SysEx message:",
@@ -320,7 +344,7 @@ export async function ping(s?: SmsSession): Promise<void> {
   // Ping command: empty JSON object
   const cmd = { ping: {} };
 
-  return sendJson(cmd, s).then(() => {
+  return sendJson(cmd, undefined, s).then(() => {
     // If sendJson resolves, ping succeeded
     return;
   });

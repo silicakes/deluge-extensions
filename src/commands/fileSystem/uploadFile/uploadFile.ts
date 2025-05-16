@@ -46,17 +46,44 @@ export async function uploadFile(
     data,
     512,
     async (chunk, offset) => {
-      await executeCommand<object, object>({
+      const writeHeader = { write: { fid, addr: offset, size: chunk.length } };
+      const response = await executeCommand<
+        object,
+        { addr: number; size: number; err: number }
+      >({
         cmdId: SmsCommand.JSON,
-        request: { write: { fid, addr: offset, size: chunk.length } },
-        build: () =>
-          builder.jsonPlusBinary(
-            { write: { fid, addr: offset, size: chunk.length } },
-            chunk,
-          ),
-        parse: parser.expectOk,
+        request: writeHeader,
+        build: () => builder.jsonPlusBinary(writeHeader, chunk),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        parse: (raw: any) => {
+          if (!raw || !raw.json || !raw.json["^write"]) {
+            console.error(
+              "[uploadFile] Invalid raw response for write command:",
+              raw,
+            );
+            throw new Error("Invalid response structure for write command");
+          }
+          const writeResponse = raw.json["^write"] as {
+            fid: number;
+            addr: number;
+            size: number;
+            err: number;
+          };
+          if (writeResponse.err !== 0) {
+            console.error(
+              `[uploadFile] Deluge error on write: ${writeResponse.err}, fid: ${fid}, addr: ${offset}, req size: ${chunk.length}`,
+            );
+            throw new Error(`Deluge write error: ${writeResponse.err}`);
+          }
+          if (writeResponse.size !== chunk.length) {
+            console.warn(
+              `[uploadFile] Write size mismatch for fid ${fid}, addr ${offset}: expected ${chunk.length}, got ${writeResponse.size}. Continuing as err=0.`,
+            );
+          }
+          return writeResponse;
+        },
       });
-      opts?.onProgress?.(offset + chunk.length, data.length);
+      opts?.onProgress?.(offset + response.size, data.length);
     },
     opts?.signal,
   );
