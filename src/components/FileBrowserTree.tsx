@@ -451,18 +451,17 @@ function DirectoryItem({
   };
 
   const commitRename = async () => {
-    // Prevent duplicate calls
     if (isProcessingRename.value) return;
     isProcessingRename.value = true;
 
-    if (inputValue.value.trim() === "") {
+    const trimmedNewName = inputValue.value.trim();
+
+    if (trimmedNewName === "") {
       cancelEdit();
       isProcessingRename.value = false;
       return;
     }
-
-    // Don't allow special characters
-    if (/[\/\\:*?"<>|]/.test(inputValue.value.trim())) {
+    if (/[\/\\:*?"<>|]/.test(trimmedNewName)) {
       alert(
         'The name cannot contain the following characters: \\ / : * ? " < > |',
       );
@@ -470,29 +469,51 @@ function DirectoryItem({
       isProcessingRename.value = false;
       return;
     }
-
-    if (inputValue.value.trim() === entry.name) {
-      // No change, just cancel
+    if (trimmedNewName === entry.name) {
       cancelEdit();
       isProcessingRename.value = false;
       return;
     }
 
-    // Construct the old and new paths
-    const dirPath = path;
-    const oldPath = childPath;
+    const oldPath = childPath; // Full path of the item being renamed
+    const parentDir = path; // Parent path of the item being renamed
     const newPath =
-      dirPath === "/"
-        ? `/${inputValue.value.trim()}`
-        : `${dirPath}/${inputValue.value.trim()}`;
+      parentDir === "/"
+        ? `/${trimmedNewName}`
+        : `${parentDir}/${trimmedNewName}`;
 
     try {
-      cancelEdit(); // Cancel editing BEFORE the API call to prevent any blur events from firing
+      cancelEdit();
       await renameFile({ oldPath, newPath });
-      // Refresh directory contents in state after renaming
-      // const entries = await listDirectory({ path: dirPath });
-      // fileTree.value = { ...fileTree.value, [dirPath]: entries };
-      fileTree.value = { ...fileTree.value }; // Global refresh
+
+      // For files, oldParentPath and newParentPath will be the same unless future move logic is added here.
+      // For now, it simplifies to refreshing just one parent directory.
+      const parentPathToRefresh = parentDir; // Same as oldParentPath and newParentPath for file rename
+
+      const updatedEntries = await listDirectory({
+        path: parentPathToRefresh,
+        force: true,
+      });
+      const newFileTreeData = {
+        ...fileTree.peek(),
+        [parentPathToRefresh]: updatedEntries,
+      };
+
+      // File items are not keys in fileTree for children, so no key renaming needed for fileTreeData itself.
+      // File items are not typically in expandedPaths unless we change that feature.
+
+      if (selectedPaths.value.has(oldPath)) {
+        const newSelection = new Set(selectedPaths.value);
+        newSelection.delete(oldPath);
+        newSelection.add(newPath);
+        selectedPaths.value = newSelection;
+      }
+      // Also update lastSelectedPath if it was the one renamed
+      if (lastSelectedPath === oldPath) {
+        lastSelectedPath = newPath;
+      }
+
+      fileTree.value = newFileTreeData;
     } catch (error) {
       console.error("Failed to rename:", error);
       alert(
@@ -504,72 +525,14 @@ function DirectoryItem({
   };
 
   const handleEditKeyDown = (e: KeyboardEvent) => {
-    // Always stop propagation to prevent global shortcuts, but don't prevent default for all keys
     e.stopPropagation();
-
     if (e.key === "Enter") {
-      // For Enter key, prevent default to avoid form submission
       e.preventDefault();
-
-      // Don't process if already handling a rename
-      if (isProcessingRename.value) return;
-      isProcessingRename.value = true;
-
-      // Validation checks
-      if (inputValue.value.trim() === "") {
-        cancelEdit();
-        isProcessingRename.value = false;
-        return;
-      }
-
-      if (/[\/\\:*?"<>|]/.test(inputValue.value.trim())) {
-        alert(
-          'The name cannot contain the following characters: \\ / : * ? " < > |',
-        );
-        cancelEdit();
-        isProcessingRename.value = false;
-        return;
-      }
-
-      if (inputValue.value.trim() === entry.name) {
-        // No change, just cancel
-        cancelEdit();
-        isProcessingRename.value = false;
-        return;
-      }
-
-      // Construct paths
-      const dirPath = path;
-      const oldPath = childPath;
-      const newPath =
-        dirPath === "/"
-          ? `/${inputValue.value.trim()}`
-          : `${dirPath}/${inputValue.value.trim()}`;
-
-      // Cancel editing first to prevent blurring from triggering another rename
-      cancelEdit();
-
-      // Now do the rename
-      renameFile({ oldPath, newPath })
-        .then(() => {
-          fileTree.value = { ...fileTree.value }; // Global refresh
-        })
-        .catch((error) => {
-          console.error("Rename failed:", error);
-          alert(
-            `Rename failed: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        })
-        .finally(() => {
-          // Reset processing flag after operation completes
-          isProcessingRename.value = false;
-        });
+      commitRename(); // commitRename will use inputValue and component props
     } else if (e.key === "Escape") {
-      // For Escape key, prevent default to avoid browser behavior
       e.preventDefault();
       cancelEdit();
     }
-    // For all other keys, allow default behavior (typing in the input)
   };
 
   return (
@@ -884,18 +847,17 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
   };
 
   const commitRename = async () => {
-    // Prevent duplicate calls
     if (isProcessingRename.value) return;
     isProcessingRename.value = true;
 
-    if (inputValue.value.trim() === "") {
+    const trimmedNewName = inputValue.value.trim();
+
+    if (trimmedNewName === "") {
       cancelEdit();
       isProcessingRename.value = false;
       return;
     }
-
-    // Don't allow special characters
-    if (/[\/\\:*?"<>|]/.test(inputValue.value.trim())) {
+    if (/[\/\\:*?"<>|]/.test(trimmedNewName)) {
       alert(
         'The name cannot contain the following characters: \\ / : * ? " < > |',
       );
@@ -903,29 +865,51 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
       isProcessingRename.value = false;
       return;
     }
-
-    if (inputValue.value.trim() === entry.name) {
-      // No change, just cancel
+    if (trimmedNewName === entry.name) {
       cancelEdit();
       isProcessingRename.value = false;
       return;
     }
 
-    // Construct the old and new paths
-    const dirPath = path;
-    const oldPath = childPath;
+    const oldPath = childPath; // Full path of the item being renamed
+    const parentDir = path; // Parent path of the item being renamed
     const newPath =
-      dirPath === "/"
-        ? `/${inputValue.value.trim()}`
-        : `${dirPath}/${inputValue.value.trim()}`;
+      parentDir === "/"
+        ? `/${trimmedNewName}`
+        : `${parentDir}/${trimmedNewName}`;
 
     try {
-      cancelEdit(); // Cancel editing BEFORE the API call to prevent any blur events from firing
+      cancelEdit();
       await renameFile({ oldPath, newPath });
-      // Refresh directory contents in state after renaming
-      // const entries = await listDirectory({ path: dirPath });
-      // fileTree.value = { ...fileTree.value, [dirPath]: entries };
-      fileTree.value = { ...fileTree.value }; // Global refresh
+
+      // For files, oldParentPath and newParentPath will be the same unless future move logic is added here.
+      // For now, it simplifies to refreshing just one parent directory.
+      const parentPathToRefresh = parentDir; // Same as oldParentPath and newParentPath for file rename
+
+      const updatedEntries = await listDirectory({
+        path: parentPathToRefresh,
+        force: true,
+      });
+      const newFileTreeData = {
+        ...fileTree.peek(),
+        [parentPathToRefresh]: updatedEntries,
+      };
+
+      // File items are not keys in fileTree for children, so no key renaming needed for fileTreeData itself.
+      // File items are not typically in expandedPaths unless we change that feature.
+
+      if (selectedPaths.value.has(oldPath)) {
+        const newSelection = new Set(selectedPaths.value);
+        newSelection.delete(oldPath);
+        newSelection.add(newPath);
+        selectedPaths.value = newSelection;
+      }
+      // Also update lastSelectedPath if it was the one renamed
+      if (lastSelectedPath === oldPath) {
+        lastSelectedPath = newPath;
+      }
+
+      fileTree.value = newFileTreeData;
     } catch (error) {
       console.error("Failed to rename:", error);
       alert(
@@ -937,72 +921,14 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
   };
 
   const handleEditKeyDown = (e: KeyboardEvent) => {
-    // Always stop propagation to prevent global shortcuts, but don't prevent default for all keys
     e.stopPropagation();
-
     if (e.key === "Enter") {
-      // For Enter key, prevent default to avoid form submission
       e.preventDefault();
-
-      // Don't process if already handling a rename
-      if (isProcessingRename.value) return;
-      isProcessingRename.value = true;
-
-      // Validation checks
-      if (inputValue.value.trim() === "") {
-        cancelEdit();
-        isProcessingRename.value = false;
-        return;
-      }
-
-      if (/[\/\\:*?"<>|]/.test(inputValue.value.trim())) {
-        alert(
-          'The name cannot contain the following characters: \\ / : * ? " < > |',
-        );
-        cancelEdit();
-        isProcessingRename.value = false;
-        return;
-      }
-
-      if (inputValue.value.trim() === entry.name) {
-        // No change, just cancel
-        cancelEdit();
-        isProcessingRename.value = false;
-        return;
-      }
-
-      // Construct paths
-      const dirPath = path;
-      const oldPath = childPath;
-      const newPath =
-        dirPath === "/"
-          ? `/${inputValue.value.trim()}`
-          : `${dirPath}/${inputValue.value.trim()}`;
-
-      // Cancel editing first to prevent blurring from triggering another rename
-      cancelEdit();
-
-      // Now do the rename
-      renameFile({ oldPath, newPath })
-        .then(() => {
-          fileTree.value = { ...fileTree.value }; // Global refresh
-        })
-        .catch((error) => {
-          console.error("Rename failed:", error);
-          alert(
-            `Rename failed: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        })
-        .finally(() => {
-          // Reset processing flag after operation completes
-          isProcessingRename.value = false;
-        });
+      commitRename(); // commitRename will use inputValue and component props
     } else if (e.key === "Escape") {
-      // For Escape key, prevent default to avoid browser behavior
       e.preventDefault();
       cancelEdit();
     }
-    // For all other keys, allow default behavior (typing in the input)
   };
 
   // Handle double-click for file preview/edit
