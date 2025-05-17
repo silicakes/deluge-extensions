@@ -37,6 +37,7 @@ export function DisplayTypeSwitch() {
           onChange={handleToggle}
           className="sr-only peer"
           aria-label="Toggle display type"
+          data-testid="hidden-screen-toggle-checkbox"
           disabled={disabled}
         />
         {/* Switch track - blue for OLED, red for 7SEG */}

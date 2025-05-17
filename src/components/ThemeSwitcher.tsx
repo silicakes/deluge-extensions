@@ -56,6 +56,7 @@ export function ThemeSwitcher({
           aria-label="Appearance settings"
           aria-haspopup="dialog"
           aria-expanded={isDrawerOpen}
+          data-testid="appearance-settings-button"
         >
           {theme.value === "light" ? <MoonIcon /> : <SunIcon />}
         </button>

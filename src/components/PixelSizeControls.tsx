@@ -36,13 +36,14 @@ export function PixelSizeControls() {
       className="bg-[var(--color-bg-offset)] rounded-lg p-2 shadow-sm border border-[var(--color-border)] flex items-center justify-between mx-auto max-w-md"
     >
       <div className="flex items-center space-x-2">
-        <span className="text-sm font-medium mr-2">Pixel Size:</span>
+        <span className="text-sm font-medium mr-2">Screen (pixel) Size:</span>
 
         <button
           onClick={handleDecrease}
           disabled={pixelSize.value.width <= displaySettings.value.minSize}
           className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--color-bg-hover)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           aria-label="Decrease pixel size"
+          data-testid="decrease-screen-size-button"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -59,7 +60,7 @@ export function PixelSizeControls() {
           </svg>
         </button>
 
-        <span className="font-mono">
+        <span className="font-mono" data-testid="pixel-size-indicator">
           {pixelSize.value.width}×{pixelSize.value.height}
         </span>
 
@@ -67,7 +68,8 @@ export function PixelSizeControls() {
           onClick={handleIncrease}
           disabled={pixelSize.value.width >= displaySettings.value.maxSize}
           className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--color-bg-hover)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-          aria-label="Increase pixel size"
+          aria-label="Increase screen size"
+          data-testid="increase-screen-size-button"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
