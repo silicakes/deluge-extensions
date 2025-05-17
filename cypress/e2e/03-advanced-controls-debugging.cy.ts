@@ -87,7 +87,7 @@ describe("Advanced Controls and Debugging", () => {
       });
   });
 
-  it.only("5. Test flip screen", () => {
+  it("5. Test flip screen", () => {
     openAdvancedControls();
     const { FLIP_SCREEN_BUTTON } = Elements;
     cy.getBySel(FLIP_SCREEN_BUTTON).click();
