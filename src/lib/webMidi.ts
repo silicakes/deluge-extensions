@@ -64,13 +64,13 @@ export function setMidiOutput(output: MIDIOutput | null) {
 export function autoConnectDefaultPorts() {
   if (!midiAccess) return;
   for (const input of midiAccess.inputs.values()) {
-    if (input.name?.includes("Deluge Port 3")) {
+    if (input.name?.includes("Deluge Port 1")) {
       setMidiInput(input);
       break;
     }
   }
   for (const output of midiAccess.outputs.values()) {
-    if (output.name?.includes("Deluge Port 3")) {
+    if (output.name?.includes("Deluge Port 1")) {
       setMidiOutput(output);
       break;
     }

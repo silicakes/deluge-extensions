@@ -150,6 +150,7 @@ export function DisplayViewer() {
       <canvas
         ref={canvasRef}
         className="image-rendering-pixelated border block"
+        data-testid="main-display"
       />
 
       {/* Screenshot and Copy Base64 icons - only visible on hover, hidden in fullscreen */}

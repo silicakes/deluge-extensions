@@ -21,6 +21,7 @@ export function DisplayTypeSwitch() {
       htmlFor="display-type-switch"
       className={`flex items-center cursor-pointer ${disabled ? "opacity-50 pointer-events-none" : ""}`}
       title="Toggle between OLED & 7-segment screens"
+      data-testid="display-type-switch"
     >
       <span
         className={`mr-2 text-sm font-medium ${is7Seg ? "text-red-600 font-bold" : ""}`}

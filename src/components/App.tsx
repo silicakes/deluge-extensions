@@ -1,4 +1,3 @@
-// import { MidiDeviceSelector } from "./MidiDeviceSelector";
 import { useEffect, useState } from "preact/hooks";
 import { Suspense, lazy } from "preact/compat";
 import {
