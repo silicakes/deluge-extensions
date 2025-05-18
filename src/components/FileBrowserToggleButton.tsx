@@ -3,6 +3,7 @@ import { fileBrowserOpen, midiOut } from "../state";
 export default function FileBrowserToggleButton() {
   return (
     <button
+      data-testid="file-browser-toggle-button"
       aria-label="Open file browser"
       className="p-1 focus:outline-none rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 disabled:opacity-40 disabled:cursor-not-allowed"
       disabled={midiOut.value === null}

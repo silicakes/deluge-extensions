@@ -187,7 +187,7 @@ const FileTransferProgress = () => {
       : fileName;
 
   return (
-    <div className="w-full">
+    <div className="w-full" data-testid="transfer-queue">
       {/* Header with file info and cancel button */}
       <div className="flex items-center justify-between mb-1.5">
         <div className="text-xs text-gray-600 dark:text-gray-400 truncate pr-2">
@@ -264,7 +264,10 @@ const FileTransferProgress = () => {
       )}
 
       {/* Progress bar - optimize transition by only applying it when percentage changes */}
-      <div className="w-full bg-gray-200 dark:bg-gray-700 h-1.5 rounded-full">
+      <div
+        data-testid="transfer-progress-bar"
+        className="w-full bg-gray-200 dark:bg-gray-700 h-1.5 rounded-full"
+      >
         <div
           className="bg-blue-600 h-1.5 rounded-full"
           style={{

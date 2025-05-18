@@ -193,7 +193,10 @@ const FileTransferQueue = () => {
   }
 
   return (
-    <div className="flex flex-col gap-2 bg-white dark:bg-gray-800 rounded-md p-3 shadow-md transition-all duration-200 max-h-[50vh] overflow-y-auto">
+    <div
+      data-testid="transfer-queue"
+      className="flex flex-col gap-2 bg-white dark:bg-gray-800 rounded-md p-3 shadow-md transition-all duration-200 max-h-[50vh] overflow-y-auto"
+    >
       <div className="text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
         File Transfers
       </div>

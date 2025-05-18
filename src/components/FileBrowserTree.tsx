@@ -13,7 +13,13 @@ import {
   editingFileState,
 } from "../state";
 import { testSysExConnectivity, checkFirmwareSupport } from "@/commands";
-import { listDirectory, renameFile, uploadFiles } from "@/commands";
+import {
+  listDirectory,
+  renameFile,
+  uploadFiles,
+  readFile,
+  triggerBrowserDownload,
+} from "@/commands";
 import { iconUrlForEntry } from "../lib/fileIcons";
 import { isExternalFileDrag, isInternalDrag } from "../lib/drag";
 import { isAudio, isText } from "../lib/fileType";
@@ -132,7 +138,11 @@ function DirectoryItem({
   const itemError = useSignal<string | null>(null);
   const isDragOver = useSignal(false);
   const isContainerDragOver = useSignal(false);
-  const contextMenuPosition = useSignal<{ x: number; y: number } | null>(null);
+  const contextMenuPosition = useSignal<{
+    x: number;
+    y: number;
+    directAction?: "delete";
+  } | null>(null);
   const isEditing = editingPath.value === childPath;
   const nameInputRef = useSignal<HTMLInputElement | null>(null);
   const inputValue = useSignal(entry.name);
@@ -270,6 +280,20 @@ function DirectoryItem({
       // Spacebar selects
       e.preventDefault(); // Prevent scrolling with spacebar
       handleSelect(e as unknown as MouseEvent);
+    } else if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      // Ensure the current item is selected if not already part of a multi-selection
+      if (!selectedPaths.value.has(childPath)) {
+        selectedPaths.value = new Set([childPath]);
+      } // If already selected (single or multi), respect existing selection for deletion
+
+      const el = e.currentTarget as HTMLElement;
+      const rect = el.getBoundingClientRect();
+      contextMenuPosition.value = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+        directAction: "delete",
+      };
     }
   };
 
@@ -538,6 +562,8 @@ function DirectoryItem({
   return (
     <>
       <li
+        data-testid={`file-tree-folder-${entry.name}`}
+        aria-selected={isSelected}
         className={`${
           isContainerDragOver.value
             ? "drop-target bg-green-50 dark:bg-green-900/20 border-2 border-dashed border-green-500 dark:border-green-600 rounded shadow-sm"
@@ -568,7 +594,7 @@ function DirectoryItem({
           onContextMenu={handleContextMenu}
         >
           <div
-            className="w-4 h-4 mr-1 flex-shrink-0"
+            className="toggle-icon w-4 h-4 mr-1 flex-shrink-0"
             onClick={(e) => {
               e.stopPropagation();
               toggleExpand(e);
@@ -755,7 +781,11 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
   const childPath = path === "/" ? `/${entry.name}` : `${path}/${entry.name}`;
   const isSelected = selectedPaths.value.has(childPath);
   const isDragOver = useSignal(false);
-  const contextMenuPosition = useSignal<{ x: number; y: number } | null>(null);
+  const contextMenuPosition = useSignal<{
+    x: number;
+    y: number;
+    directAction?: "delete";
+  } | null>(null);
   const isEditing = editingPath.value === childPath;
   const nameInputRef = useSignal<HTMLInputElement | null>(null);
   const inputValue = useSignal(entry.name);
@@ -804,6 +834,20 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
       // F2 key starts editing
       e.preventDefault();
       startEdit();
+    } else if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      // Ensure the current item is selected if not already part of a multi-selection
+      if (!selectedPaths.value.has(childPath)) {
+        selectedPaths.value = new Set([childPath]);
+      } // If already selected (single or multi), respect existing selection for deletion
+
+      const el = e.currentTarget as HTMLElement;
+      const rect = el.getBoundingClientRect();
+      contextMenuPosition.value = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+        directAction: "delete",
+      };
     }
   };
 
@@ -955,8 +999,20 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
     // Silently ignore other file types for now
   };
 
+  // Handler for per-file download
+  const handleDownloadFile = async (e: MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const data = await readFile({ path: childPath });
+      triggerBrowserDownload(data, entry.name);
+    } catch (err) {
+      console.error("Download failed:", err);
+    }
+  };
+
   return (
     <li
+      data-testid={`file-tree-item-${entry.name}`}
       className={`py-0.5 px-2 border-b border-neutral-100 dark:border-neutral-800 flex items-center cursor-pointer select-none relative ${
         isSelected ? "bg-blue-100 dark:bg-blue-900" : ""
       } ${
@@ -972,6 +1028,24 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
       role="treeitem"
       aria-selected={isSelected}
     >
+      {/* Download button for individual file */}
+      <button
+        onClick={handleDownloadFile}
+        data-testid={`download-file-button-${entry.name}`}
+        className="cursor-pointer p-1 focus:outline-none hover:scale-120 transition-transform"
+        aria-label={`Download ${entry.name}`}
+      >
+        {/* Download icon */}
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          className="w-4 h-4"
+        >
+          <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
+          <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z" />
+        </svg>
+      </button>
       <span className="mr-1">
         <img
           src={iconUrlForEntry(entry)}

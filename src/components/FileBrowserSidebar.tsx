@@ -30,6 +30,7 @@ export default function FileBrowserSidebar() {
   const showNewFolderModal = useSignal(false);
   const showNewFileModal = useSignal(false);
   const newName = useSignal("");
+  const showConflictDialog = useSignal(false);
   const isRefreshing = useSignal(false);
 
   // Auto-close sidebar when MIDI is disconnected
@@ -190,6 +191,54 @@ export default function FileBrowserSidebar() {
     }
   };
 
+  const handleFileInputChange = (e: Event) => {
+    const input = e.target as HTMLInputElement;
+    if (!input.files?.length) return;
+    const filesArray = Array.from(input.files);
+    // Determine target directory
+    let targetDir = "/";
+    if (selectedPaths.value.size > 0) {
+      const selectedPath = Array.from(selectedPaths.value)[0];
+      if (fileTree.value[selectedPath]) {
+        targetDir = selectedPath;
+      } else {
+        targetDir =
+          selectedPath.substring(0, selectedPath.lastIndexOf("/") || 0) || "/";
+      }
+    }
+    fileTransferInProgress.value = true;
+    uploadFiles({
+      files: filesArray,
+      destDir: targetDir,
+      onProgress: (index, sent, total) => {
+        const fileName = filesArray[index].name;
+        const fullPath = targetDir.endsWith("/")
+          ? `${targetDir}${fileName}`
+          : `${targetDir}/${fileName}`;
+        fileTransferProgress.value = {
+          path: fullPath,
+          bytes: sent,
+          total,
+          currentFileIndex: index + 1,
+          totalFiles: filesArray.length,
+        };
+      },
+    })
+      .then(() => listDirectory({ path: targetDir }))
+      .then(() => {
+        fileTree.value = { ...fileTree.value };
+      })
+      .catch((err) => {
+        console.error("Failed to upload files:", err);
+        alert(`Upload failed: ${err.message || "Unknown error"}`);
+      })
+      .finally(() => {
+        fileTransferInProgress.value = false;
+        fileTransferProgress.value = null;
+        input.value = "";
+      });
+  };
+
   const handleNewFolder = async () => {
     if (newName.value.trim() === "") {
       return;
@@ -215,6 +264,13 @@ export default function FileBrowserSidebar() {
         targetDir =
           selectedPath.substring(0, selectedPath.lastIndexOf("/") || 0) || "/";
       }
+    }
+    // Conflict: duplicate name in directory
+    if (
+      (fileTree.value[targetDir] || []).some((e) => e.name === newName.value)
+    ) {
+      showConflictDialog.value = true;
+      return;
     }
 
     const newDirPath =
@@ -264,6 +320,13 @@ export default function FileBrowserSidebar() {
         targetDir =
           selectedPath.substring(0, selectedPath.lastIndexOf("/") || 0) || "/";
       }
+    }
+    // Conflict: duplicate name in directory
+    if (
+      (fileTree.value[targetDir] || []).some((e) => e.name === newName.value)
+    ) {
+      showConflictDialog.value = true;
+      return;
     }
 
     const newFilePath =
@@ -317,6 +380,7 @@ export default function FileBrowserSidebar() {
 
   return (
     <aside
+      data-testid="file-browser-panel"
       className="fixed top-0 left-0 h-full w-72 sm:w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-hidden z-20 shadow-md flex flex-col"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -353,6 +417,7 @@ export default function FileBrowserSidebar() {
           {/* New Folder button - always visible */}
           <button
             aria-label="New Folder"
+            data-testid="new-folder-button"
             className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-green-600 dark:text-green-400"
             onClick={() => {
               newName.value = "";
@@ -374,6 +439,7 @@ export default function FileBrowserSidebar() {
           {/* New File button - always visible */}
           <button
             aria-label="New File"
+            data-testid="new-file-button"
             className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400"
             onClick={() => {
               newName.value = "";
@@ -432,9 +498,19 @@ export default function FileBrowserSidebar() {
         </div>
       </header>
 
+      {/* Hidden file input for uploads */}
+      <input
+        type="file"
+        className="hidden"
+        data-testid="upload-file-input"
+        multiple
+        onChange={handleFileInputChange}
+      />
+
       {/* Main scrollable content area with bottom padding when transfer is in progress */}
       <div
         className={`flex-grow overflow-y-auto ${fileTransferInProgress.value ? "pb-20" : ""}`}
+        data-testid="file-tree"
       >
         <Suspense
           fallback={
@@ -534,6 +610,52 @@ export default function FileBrowserSidebar() {
                 disabled={fileTransferInProgress.value}
               >
                 Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Conflict resolution dialog for duplicate names */}
+      {showConflictDialog.value && (
+        <div
+          data-testid="conflict-dialog"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+        >
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg max-w-md w-full">
+            <h3 className="text-lg font-medium mb-3">Conflict Resolution</h3>
+            <p className="mb-4">
+              A file or folder named '{newName.value}' already exists. What
+              would you like to do?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-4 py-2 bg-red-500 text-white rounded"
+                data-testid="conflict-overwrite-button"
+                onClick={() => {
+                  /* Overwrite logic placeholder */
+                }}
+              >
+                Overwrite
+              </button>
+              <button
+                className="px-4 py-2 bg-gray-200 rounded"
+                data-testid="conflict-skip-button"
+                onClick={() => {
+                  showConflictDialog.value = false;
+                  newName.value = "";
+                }}
+              >
+                Skip
+              </button>
+              <button
+                className="px-4 py-2 bg-blue-500 text-white rounded"
+                data-testid="conflict-rename-button"
+                onClick={() => {
+                  showConflictDialog.value = false;
+                }}
+              >
+                Rename
               </button>
             </div>
           </div>
