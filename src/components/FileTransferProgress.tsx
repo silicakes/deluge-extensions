@@ -1,10 +1,6 @@
 import { useEffect, useRef } from "preact/hooks";
 import { useSignal, useSignalEffect } from "@preact/signals";
-import {
-  fileTransferProgress,
-  fileTransferInProgress,
-  fileTransferQueue,
-} from "../state";
+import { fileTransferProgress, fileTransferInProgress } from "../state";
 import { formatBytes } from "../lib/format";
 import { cancelAllFileTransfers } from "@/commands";
 import { throttle } from "../lib/throttle";
@@ -13,6 +9,12 @@ import { throttle } from "../lib/throttle";
 const SPEED_HISTORY_SIZE = 5;
 
 const FileTransferProgress = () => {
+  // Don't render if there's no active fileTransferProgress
+  const progress = fileTransferProgress.value;
+  if (!progress) {
+    return null;
+  }
+
   const displayBytes = useSignal("0 Bytes");
   const displayTotal = useSignal("0 Bytes");
   const displayPath = useSignal("");

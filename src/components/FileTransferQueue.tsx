@@ -3,7 +3,7 @@ import { useComputed } from "@preact/signals";
 import { memo } from "preact/compat";
 import { fileTransferQueue, TransferItem } from "../state";
 import { formatBytes } from "../lib/format";
-import { cancelFileTransfer } from "@/commands";
+import { cancelFileTransfer, cancelAllFileTransfers } from "@/commands";
 
 // Memoized transfer item component to prevent unnecessary renders
 const TransferQueueItem = memo(
@@ -139,6 +139,12 @@ const FileTransferQueue = () => {
 
   // Use computed value to make the component reactive to changes
   const transfers = useComputed(() => fileTransferQueue.value);
+  // Compute whether any transfers are still active or pending
+  const hasActiveTransfers = useComputed(() =>
+    transfers.value.some(
+      (t) => t.status === "active" || t.status === "pending",
+    ),
+  );
 
   // Memoize handlers to prevent recreating on each render
   const handleCancelClick = useMemo(
@@ -149,10 +155,12 @@ const FileTransferQueue = () => {
     [],
   );
 
-  // Confirm cancellation
+  // Confirm cancellation (single or all)
   const confirmCancel = useMemo(
     () => () => {
-      if (cancelId) {
+      if (cancelId === "all") {
+        cancelAllFileTransfers();
+      } else if (cancelId) {
         cancelFileTransfer(cancelId);
       }
       setShowCancelModal(false);
@@ -197,8 +205,21 @@ const FileTransferQueue = () => {
       data-testid="transfer-queue"
       className="flex flex-col gap-2 bg-white dark:bg-gray-800 rounded-md p-3 shadow-md transition-all duration-200 max-h-[50vh] overflow-y-auto"
     >
-      <div className="text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-        File Transfers
+      <div className="flex justify-between items-center mb-2">
+        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          File Transfers
+        </h3>
+        {hasActiveTransfers.value && (
+          <button
+            className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+            onClick={() => {
+              setCancelId("all");
+              setShowCancelModal(true);
+            }}
+          >
+            Cancel All
+          </button>
+        )}
       </div>
 
       {/* Transfer list */}
@@ -219,10 +240,13 @@ const FileTransferQueue = () => {
             ref={modalRef}
             className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg max-w-xs w-full"
           >
-            <h3 className="text-lg font-medium mb-2">Cancel Transfer</h3>
+            <h3 className="text-lg font-medium mb-2">
+              {cancelId === "all" ? "Cancel All Transfers" : "Cancel Transfer"}
+            </h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Are you sure you want to cancel this file transfer? This operation
-              cannot be undone.
+              Are you sure you want to cancel{" "}
+              {cancelId === "all" ? "all file transfers" : "this file transfer"}
+              ? This operation cannot be undone.
             </p>
             <div className="flex justify-end gap-2">
               <button

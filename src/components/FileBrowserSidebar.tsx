@@ -4,8 +4,6 @@ import {
   fileBrowserOpen,
   midiOut,
   selectedPaths,
-  fileTransferInProgress,
-  fileTransferProgress,
   fileTree,
   anyTransferInProgress,
   fileTransferQueue,
@@ -25,7 +23,6 @@ import {
   confirmCallback,
 } from "./FileOverrideConfirmation";
 import FileTransferQueue from "./FileTransferQueue";
-import FileTransferProgress from "./FileTransferProgress";
 
 // Lazily load the FileBrowserTree component
 const FileBrowserTree = lazy(() => import("./FileBrowserTree"));
@@ -160,9 +157,6 @@ export default function FileBrowserSidebar() {
         }
       }
 
-      const totalFilesToProcess = allDroppedFiles.length;
-      let filesProcessedSoFar = 0;
-
       const doUpload = async (filesToUpload: File[], overwrite = false) => {
         if (filesToUpload.length === 0) return;
         // Register each file transfer in the global queue with a controller
@@ -188,70 +182,62 @@ export default function FileBrowserSidebar() {
           ...fileTransferQueue.value,
           ...transfersToRegister,
         ];
-        const controller = transfersToRegister[0].controller!;
-        console.log(
-          `[Sidebar Drop] Uploading ${filesToUpload.length} files to ${targetDir} (overwrite: ${overwrite})`,
-        );
-        fileTransferInProgress.value = true;
-        try {
-          await uploadFiles({
-            files: filesToUpload,
-            destDir: targetDir,
-            overwrite: overwrite,
-            signal: controller.signal,
-            onProgress: (index, sent, total) => {
-              const currentFile = filesToUpload[index];
-              const fullPath = targetDir.endsWith("/")
-                ? `${targetDir}${currentFile.name}`
-                : `${targetDir}/${currentFile.name}`;
-              fileTransferProgress.value = {
-                path: fullPath,
-                bytes: sent,
-                total,
-                currentFileIndex: filesProcessedSoFar + index + 1,
-                totalFiles: totalFilesToProcess,
-              };
-              // Update the corresponding queue entry
-              const transferItem = transfersToRegister[index];
-              fileTransferQueue.value = fileTransferQueue.value.map((t) =>
-                t.id === transferItem.id
-                  ? { ...t, status: "active", bytes: sent, total }
-                  : t,
-              );
-            },
-          });
-          const updatedEntries = await listDirectory({
-            path: targetDir,
-            force: true,
-          });
-          fileTree.value = {
-            ...fileTree.value,
-            [targetDir]: updatedEntries,
-          };
-          filesProcessedSoFar += filesToUpload.length;
+        // Sequentially upload each file with its own controller
+        for (let idx = 0; idx < filesToUpload.length; idx++) {
+          const file = filesToUpload[idx];
+          const transferItem = transfersToRegister[idx];
           console.log(
-            `[Sidebar Drop] Batch upload to ${targetDir} successful. Processed: ${filesProcessedSoFar}/${totalFilesToProcess}`,
+            `[Sidebar Drop] Uploading file ${idx + 1}/${filesToUpload.length}: ${transferItem.src} (overwrite: ${overwrite})`,
           );
-          // Mark all registered transfers as done
-          transfersToRegister.forEach(({ id }) => {
+          try {
+            await uploadFiles({
+              files: [file],
+              destDir: targetDir,
+              overwrite,
+              signal: transferItem.controller!.signal,
+              onProgress: (_i, sent, total) => {
+                // Update the corresponding queue entry
+                fileTransferQueue.value = fileTransferQueue.value.map((t) =>
+                  t.id === transferItem.id
+                    ? { ...t, status: "active", bytes: sent, total }
+                    : t,
+                );
+              },
+            });
+            // Mark this transfer as done
             fileTransferQueue.value = fileTransferQueue.value.map((t) =>
-              t.id === id
+              t.id === transferItem.id
                 ? { ...t, status: "done", bytes: t.total, total: t.total }
                 : t,
             );
-          });
-        } catch (err) {
-          console.error("[Sidebar Drop] Failed to upload files:", err);
-          console.warn(
-            `Upload failed: ${err instanceof Error ? err.message : "Unknown error"}`,
-          );
-        } finally {
-          if (filesProcessedSoFar === totalFilesToProcess) {
-            fileTransferInProgress.value = false;
-            fileTransferProgress.value = null;
-            console.log("[Sidebar Drop] All drop uploads finished.");
+          } catch (err) {
+            console.error(
+              `[Sidebar Drop] Upload failed for ${transferItem.src}:`,
+              err,
+            );
+            // Only mark error if not user-cancelled
+            if (!transferItem.controller!.signal.aborted) {
+              fileTransferQueue.value = fileTransferQueue.value.map((t) =>
+                t.id === transferItem.id
+                  ? {
+                      ...t,
+                      status: "error",
+                      error: err instanceof Error ? err.message : String(err),
+                    }
+                  : t,
+              );
+            }
           }
         }
+        // Refresh the directory after all uploads
+        const updatedEntries = await listDirectory({
+          path: targetDir,
+          force: true,
+        });
+        fileTree.value = { ...fileTree.value, [targetDir]: updatedEntries };
+        console.log(
+          `[Sidebar Drop] All uploads finished for ${filesToUpload.length} files.`,
+        );
       };
 
       if (conflictingFiles.length > 0) {
@@ -341,9 +327,6 @@ export default function FileBrowserSidebar() {
       }
     }
 
-    const totalFilesToProcess = allDroppedFiles.length;
-    let filesProcessedSoFar = 0;
-
     const doUpload = async (filesToUpload: File[], overwrite = false) => {
       if (filesToUpload.length === 0) return;
       // Register each file transfer for input upload
@@ -367,73 +350,66 @@ export default function FileBrowserSidebar() {
         ...fileTransferQueue.value,
         ...transfersToRegister,
       ];
-      const controller = transfersToRegister[0].controller!;
-      console.log(
-        `Uploading ${filesToUpload.length} files to directory: ${targetDir} (overwrite: ${overwrite})`,
-      );
-      fileTransferInProgress.value = true; // Set before starting
-
-      try {
-        await uploadFiles({
-          files: filesToUpload,
-          destDir: targetDir,
-          overwrite: overwrite,
-          signal: controller.signal,
-          onProgress: (index, sent, total) => {
-            const currentFile = filesToUpload[index];
-            const fullPath = targetDir.endsWith("/")
-              ? `${targetDir}${currentFile.name}`
-              : `${targetDir}/${currentFile.name}`;
-            fileTransferProgress.value = {
-              path: fullPath,
-              bytes: sent,
-              total,
-              currentFileIndex: filesProcessedSoFar + index + 1, // +1 for 1-based UI if needed
-              totalFiles: totalFilesToProcess,
-            };
-            // Update the corresponding queue entry
-            const transferItem = transfersToRegister[index];
-            fileTransferQueue.value = fileTransferQueue.value.map((t) =>
-              t.id === transferItem.id
-                ? { ...t, status: "active", bytes: sent, total }
-                : t,
-            );
-          },
-        });
-        // Refresh the target directory content after successful upload
-        const updatedEntries = await listDirectory({
-          path: targetDir,
-          force: true,
-        });
-        fileTree.value = {
-          ...fileTree.value,
-          [targetDir]: updatedEntries,
-        };
-        filesProcessedSoFar += filesToUpload.length;
+      // Sequentially upload each file with its own controller
+      for (let idx = 0; idx < filesToUpload.length; idx++) {
+        const file = filesToUpload[idx];
+        const transferItem = transfersToRegister[idx];
         console.log(
-          `Batch upload to ${targetDir} successful, ${filesToUpload.length} files. Processed so far: ${filesProcessedSoFar}/${totalFilesToProcess}`,
+          `[Input Upload] Uploading file ${idx + 1}/${filesToUpload.length}: ${transferItem.src} (overwrite: ${overwrite})`,
         );
-        // Mark all registered transfers as done
-        transfersToRegister.forEach(({ id }) => {
+        try {
+          await uploadFiles({
+            files: [file],
+            destDir: targetDir,
+            overwrite,
+            signal: transferItem.controller!.signal,
+            onProgress: (_i, sent, total) => {
+              // Update the corresponding queue entry
+              fileTransferQueue.value = fileTransferQueue.value.map((t) =>
+                t.id === transferItem.id
+                  ? { ...t, status: "active", bytes: sent, total }
+                  : t,
+              );
+            },
+          });
+          // Mark this transfer as done
           fileTransferQueue.value = fileTransferQueue.value.map((t) =>
-            t.id === id
+            t.id === transferItem.id
               ? { ...t, status: "done", bytes: t.total, total: t.total }
               : t,
           );
-        });
-      } catch (err) {
-        console.error("Failed to upload files from input:", err);
-        alert(
-          `Upload failed: ${err instanceof Error ? err.message : "Unknown error"}`,
-        );
-      } finally {
-        if (filesProcessedSoFar === totalFilesToProcess) {
-          fileTransferInProgress.value = false;
-          fileTransferProgress.value = null;
-          input.value = ""; // Clear input only after all operations are done
-          console.log("All file input uploads finished, input cleared.");
+        } catch (err) {
+          console.error(
+            `[Input Upload] Upload failed for ${transferItem.src}:`,
+            err,
+          );
+          // Only show error if not user-cancelled
+          if (!transferItem.controller!.signal.aborted) {
+            fileTransferQueue.value = fileTransferQueue.value.map((t) =>
+              t.id === transferItem.id
+                ? {
+                    ...t,
+                    status: "error",
+                    error: err instanceof Error ? err.message : String(err),
+                  }
+                : t,
+            );
+            alert(
+              `Upload failed: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
         }
       }
+      // Refresh the directory and clear the input
+      const updatedEntries = await listDirectory({
+        path: targetDir,
+        force: true,
+      });
+      fileTree.value = { ...fileTree.value, [targetDir]: updatedEntries };
+      input.value = "";
+      console.log(
+        `All input uploads finished for ${filesToUpload.length} files.`,
+      );
     };
 
     if (conflictingFiles.length > 0) {
@@ -451,7 +427,7 @@ export default function FileBrowserSidebar() {
           await doUpload(nonConflictingFiles, false);
         }
         // Ensure input is cleared if no further operations pending
-        if (filesProcessedSoFar === totalFilesToProcess && input) {
+        if (input) {
           input.value = "";
         }
       };
@@ -621,7 +597,7 @@ export default function FileBrowserSidebar() {
             aria-label="Refresh directory"
             className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
             onClick={refreshRootDirectory}
-            disabled={isRefreshing.value || fileTransferInProgress.value}
+            disabled={isRefreshing.value || anyTransferInProgress.value}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -646,7 +622,7 @@ export default function FileBrowserSidebar() {
               newName.value = "";
               showNewFolderModal.value = true;
             }}
-            disabled={fileTransferInProgress.value}
+            disabled={anyTransferInProgress.value}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -668,7 +644,7 @@ export default function FileBrowserSidebar() {
               newName.value = "";
               showNewFileModal.value = true;
             }}
-            disabled={fileTransferInProgress.value}
+            disabled={anyTransferInProgress.value}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -687,7 +663,7 @@ export default function FileBrowserSidebar() {
               aria-label="Download selected file"
               className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400"
               onClick={handleDownload}
-              disabled={fileTransferInProgress.value}
+              disabled={anyTransferInProgress.value}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -732,7 +708,7 @@ export default function FileBrowserSidebar() {
 
       {/* Main scrollable content area with bottom padding when transfer is in progress */}
       <div
-        className={`flex-grow overflow-y-auto ${fileTransferInProgress.value ? "pb-20" : ""}`}
+        className={`flex-grow overflow-y-auto ${anyTransferInProgress.value ? "pb-20" : ""}`}
         data-testid="file-tree"
       >
         <Suspense
@@ -745,12 +721,7 @@ export default function FileBrowserSidebar() {
       </div>
 
       {/* File Transfer UI: progress for single transfers or queue for multiple */}
-      {fileTransferInProgress.value && (
-        <div className="absolute bottom-0 left-0 right-0 pb-2 px-3 z-10">
-          <FileTransferProgress />
-        </div>
-      )}
-      {!fileTransferInProgress.value && anyTransferInProgress.value && (
+      {anyTransferInProgress.value && (
         <div className="absolute bottom-0 left-0 right-0 pb-2 px-3 z-10">
           <FileTransferQueue />
         </div>
@@ -793,7 +764,7 @@ export default function FileBrowserSidebar() {
               <button
                 className="px-4 py-2 bg-green-500 text-white rounded"
                 onClick={handleNewFolder}
-                disabled={fileTransferInProgress.value}
+                disabled={anyTransferInProgress.value}
               >
                 Create
               </button>
@@ -830,7 +801,7 @@ export default function FileBrowserSidebar() {
               <button
                 className="px-4 py-2 bg-blue-500 text-white rounded"
                 onClick={handleNewFile}
-                disabled={fileTransferInProgress.value}
+                disabled={anyTransferInProgress.value}
               >
                 Create
               </button>

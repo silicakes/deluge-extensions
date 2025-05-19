@@ -96,9 +96,6 @@ export interface FileTransfer {
   startTime: number;
 }
 
-// Track all active file transfers
-export const activeFileTransfers = signal<FileTransfer[]>([]);
-
 // The original transfer progress signal - kept for backward compatibility
 export const fileTransferProgress = signal<{
   path: string;
