@@ -6,13 +6,23 @@ enum Selectors {
   FILE_BROWSER_TOGGLE = "file-browser-toggle-button",
   FILE_BROWSER_PANEL = "file-browser-panel",
   FILE_TREE = "file-tree",
+  FILE_TREE_FOLDER_PREFIX = "file-tree-folder-",
+  FILE_TREE_ITEM_PREFIX = "file-tree-item-",
   NEW_FOLDER_BUTTON = "new-folder-button",
   RENAME_BUTTON = "rename-button",
   DELETE_BUTTON = "delete-button",
   CONFIRM_DELETE_BUTTON = "confirm-delete-button",
   UPLOAD_INPUT = "upload-file-input",
   TRANSFER_PROGRESS_BAR = "transfer-progress-bar",
+  DOWNLOAD_FILE_BUTTON_PREFIX = "download-file-button-",
   TRANSFER_QUEUE = "transfer-queue",
+  CONFLICT_DIALOG = "conflict-dialog",
+  CONFLICT_DIALOG_OVERRIDE_BUTTON = "conflict-dialog-override-button",
+  CONFLICT_DIALOG_RENAME_BUTTON = "conflict-dialog-rename-button",
+  CONFLICT_DIALOG_SKIP_BUTTON = "conflict-dialog-skip-button",
+  DELETE_CONFIRMATION_DIALOG = "delete-confirmation-dialog",
+  DELETE_CONFIRMATION_DIALOG_MESSAGE = "delete-confirmation-dialog-message",
+  CANCEL_UPLOAD_BUTTON_PREFIX = "cancel-upload-button-",
 }
 
 describe("04 - File Browser Functionality", () => {
@@ -243,5 +253,228 @@ describe("04 - File Browser Functionality", () => {
     cy.get('input[placeholder="Enter folder name"]').type("ConflictFolder");
     cy.contains("button", "Create").click();
     cy.getBySel("conflict-dialog").should("be.visible");
+  });
+
+  it("04-012: Deletion of multi-selected files", () => {
+    const file1Name = "multiDeleteTest1.txt";
+    const file2Name = "multiDeleteTest2.txt";
+    // file1Content and file2Content will come from the fixture
+
+    cy.fixture("example.json", "binary").then((fileContent) => {
+      cy.getBySel(Selectors.FILE_BROWSER_TOGGLE).click();
+      cy.wait(500);
+
+      // Upload file 1 and file 2 in a single operation using fixture content
+      cy.getBySel(Selectors.UPLOAD_INPUT).selectFile(
+        [
+          {
+            contents: Cypress.Blob.binaryStringToBlob(
+              fileContent,
+              "text/plain",
+            ),
+            fileName: file1Name,
+            mimeType: "text/plain", // Even if fixture is json, treat as plain for this test
+          },
+          {
+            contents: Cypress.Blob.binaryStringToBlob(
+              fileContent,
+              "text/plain",
+            ),
+            fileName: file2Name,
+            mimeType: "text/plain", // Even if fixture is json, treat as plain for this test
+          },
+        ],
+        { force: true },
+      );
+
+      cy.wait(500);
+      // Verify both files exist
+      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file1Name}'`).should(
+        "exist",
+      );
+      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file2Name}'`).should(
+        "exist",
+      );
+
+      // Select both files (using shift+click on the second element after clicking the first)
+      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file1Name}'`).click();
+      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file2Name}'`).click({
+        shiftKey: true,
+      });
+
+      // Trigger delete action
+      cy.focused().type("{del}");
+
+      // Verify dialog and filenames
+      cy.getBySel(Selectors.DELETE_CONFIRMATION_DIALOG).should("be.visible");
+      cy.getBySel(Selectors.DELETE_CONFIRMATION_DIALOG_MESSAGE)
+        .should("contain.text", file1Name)
+        .and("contain.text", file2Name);
+
+      // Confirm delete
+      cy.getBySel(Selectors.CONFIRM_DELETE_BUTTON).click();
+      cy.wait(1000); // Allow time for deletion
+
+      // Verify files are deleted
+      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file1Name}'`).should(
+        "not.exist",
+      );
+      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file2Name}'`).should(
+        "not.exist",
+      );
+    });
+  });
+
+  it.only("04-013: File upload conflict - Override", () => {
+    const fileName = "overrideTest.txt";
+    // initialContent and newContent will come from the fixture
+
+    cy.fixture("example.json", "binary").then((fileContent) => {
+      cy.getBySel(Selectors.FILE_BROWSER_TOGGLE).click();
+      cy.wait(500);
+
+      // Upload initial file
+      cy.getBySel(Selectors.UPLOAD_INPUT).selectFile(
+        {
+          contents: Cypress.Blob.binaryStringToBlob(fileContent, "text/plain"),
+          fileName: fileName,
+          mimeType: "text/plain",
+        },
+        { force: true },
+      );
+      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${fileName}'`).should(
+        "exist",
+      );
+      cy.wait(1000); // Allow indexing
+
+      // Attempt to upload the same file (content will also be the same from fixture)
+      cy.getBySel(Selectors.UPLOAD_INPUT).selectFile(
+        {
+          contents: Cypress.Blob.binaryStringToBlob(fileContent, "text/plain"),
+          fileName: fileName,
+          mimeType: "text/plain",
+        },
+        { force: true },
+      );
+
+      // Verify conflict dialog and click override
+      cy.getBySel(Selectors.CONFLICT_DIALOG).should("be.visible");
+      cy.getBySel(Selectors.CONFLICT_DIALOG_OVERRIDE_BUTTON).click();
+      cy.wait(2000); // Allow for override operation
+
+      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${fileName}`).should(
+        "exist",
+      );
+
+      // Cleanup: delete the test file
+      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${fileName}`)
+        .click()
+        .type("{del}");
+      cy.getBySel(Selectors.CONFIRM_DELETE_BUTTON).click();
+      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${fileName}`).should(
+        "not.exist",
+      );
+    });
+  });
+
+  it("04-014: Multiple file uploads are queued and completed", () => {
+    const file1Name = "multiUpload1.txt";
+    const file2Name = "multiUpload2.kic";
+    // file1Content and file2Content will come from the fixture
+
+    cy.fixture("example.json", "binary").then((fileContent) => {
+      cy.getBySel(Selectors.FILE_BROWSER_TOGGLE).click();
+      cy.wait(500);
+
+      // Select multiple files for upload
+      cy.getBySel(Selectors.UPLOAD_INPUT).selectFile(
+        [
+          {
+            contents: Cypress.Blob.binaryStringToBlob(
+              fileContent,
+              "text/plain",
+            ),
+            fileName: file1Name,
+            mimeType: "text/plain",
+          },
+          {
+            contents: Cypress.Blob.binaryStringToBlob(
+              fileContent,
+              "application/octet-stream",
+            ),
+            fileName: file2Name,
+            mimeType: "application/octet-stream", // Example for .kic
+          },
+        ],
+        { force: true },
+      );
+
+      cy.getBySel(Selectors.TRANSFER_QUEUE).should("be.visible");
+      cy.getBySel(Selectors.TRANSFER_PROGRESS_BAR).should("be.visible");
+      cy.wait(5000);
+
+      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${file1Name}`).should(
+        "exist",
+      );
+      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${file2Name}`).should(
+        "exist",
+      );
+
+      // Cleanup
+      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${file1Name}`).click();
+      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${file2Name}`).click({
+        shiftKey: true,
+      });
+      cy.focused().type("{del}");
+      cy.getBySel(Selectors.CONFIRM_DELETE_BUTTON).click();
+      cy.wait(1000);
+      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${file1Name}`).should(
+        "not.exist",
+      );
+      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${file2Name}`).should(
+        "not.exist",
+      );
+    });
+  });
+
+  it("04-015: Cancel file upload", () => {
+    const fileName = "cancelTest.dat";
+    // largeContent will come from the fixture
+
+    cy.fixture("example.json", "binary").then((fileContent) => {
+      // Note: example.json might be small. If test relies on upload taking time,
+      // a larger fixture or different approach might be needed.
+      cy.getBySel(Selectors.FILE_BROWSER_TOGGLE).click();
+      cy.wait(500);
+
+      // Start the upload
+      cy.getBySel(Selectors.UPLOAD_INPUT).selectFile(
+        {
+          contents: Cypress.Blob.binaryStringToBlob(
+            fileContent,
+            "application/octet-stream",
+          ),
+          fileName: fileName,
+          mimeType: "application/octet-stream",
+        },
+        { force: true },
+      );
+
+      cy.getBySel(Selectors.TRANSFER_QUEUE).should("be.visible");
+      cy.getBySel(Selectors.TRANSFER_PROGRESS_BAR).should("be.visible");
+
+      cy.getBySel(`${Selectors.CANCEL_UPLOAD_BUTTON_PREFIX}${fileName}`)
+        .should("be.visible")
+        .click();
+      cy.wait(1000);
+
+      cy.getBySel(Selectors.TRANSFER_QUEUE).should(
+        "not.contain.text",
+        fileName,
+      );
+      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${fileName}`).should(
+        "not.exist",
+      );
+    });
   });
 });

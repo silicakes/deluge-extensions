@@ -480,6 +480,7 @@ export default function FileContextMenu({
           <div
             ref={deleteModalRef}
             className="bg-white dark:bg-neutral-800 p-4 rounded-lg shadow-lg max-w-md w-full"
+            data-testid="delete-confirmation-dialog"
           >
             <h3 className="text-lg font-medium mb-3">Confirm Delete</h3>
             {isBuildingList.value ? (
@@ -492,7 +493,10 @@ export default function FileContextMenu({
                   Delete {pathsToDeleteList.value.length} items? This cannot be
                   undone.
                 </p>
-                <div className="max-h-32 overflow-y-auto text-sm text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 rounded p-2">
+                <div
+                  className="max-h-32 overflow-y-auto text-sm text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 rounded p-2"
+                  data-testid="delete-confirmation-dialog-message"
+                >
                   {pathsToDeleteList.value.map((fullPath, index) => {
                     const relative = fullPath.slice(1);
                     const depth = relative.split("/").length - 1;
