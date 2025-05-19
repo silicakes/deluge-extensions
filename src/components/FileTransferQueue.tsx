@@ -1,7 +1,12 @@
 import { useRef, useState, useEffect, useMemo } from "preact/hooks";
 import { useComputed } from "@preact/signals";
 import { memo } from "preact/compat";
-import { fileTransferQueue, TransferItem } from "../state";
+import {
+  fileTransferQueue,
+  TransferItem,
+  fileTransferProgress,
+  fileTransferInProgress,
+} from "../state";
 import { formatBytes } from "../lib/format";
 import { cancelFileTransfer, cancelAllFileTransfers } from "@/commands";
 
@@ -139,12 +144,6 @@ const FileTransferQueue = () => {
 
   // Use computed value to make the component reactive to changes
   const transfers = useComputed(() => fileTransferQueue.value);
-  // Compute whether any transfers are still active or pending
-  const hasActiveTransfers = useComputed(() =>
-    transfers.value.some(
-      (t) => t.status === "active" || t.status === "pending",
-    ),
-  );
 
   // Memoize handlers to prevent recreating on each render
   const handleCancelClick = useMemo(
@@ -159,7 +158,12 @@ const FileTransferQueue = () => {
   const confirmCancel = useMemo(
     () => () => {
       if (cancelId === "all") {
+        // Abort all controllers and clear the queue immediately
         cancelAllFileTransfers();
+        fileTransferQueue.value = [];
+        // Also clear any single-file progress UI state
+        fileTransferProgress.value = null;
+        fileTransferInProgress.value = false;
       } else if (cancelId) {
         cancelFileTransfer(cancelId);
       }
@@ -209,7 +213,9 @@ const FileTransferQueue = () => {
         <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
           File Transfers
         </h3>
-        {hasActiveTransfers.value && (
+        {transfers.value.some(
+          (t) => t.status === "active" || t.status === "pending",
+        ) ? (
           <button
             className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
             onClick={() => {
@@ -218,6 +224,15 @@ const FileTransferQueue = () => {
             }}
           >
             Cancel All
+          </button>
+        ) : (
+          <button
+            className="text-xs px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+            onClick={() => {
+              fileTransferQueue.value = [];
+            }}
+          >
+            Clear
           </button>
         )}
       </div>
