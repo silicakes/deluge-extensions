@@ -8,7 +8,11 @@ import {
   fileTransferInProgress,
 } from "../state";
 import { formatBytes } from "../lib/format";
-import { cancelFileTransfer, cancelAllFileTransfers } from "@/commands";
+import {
+  cancelFileTransfer,
+  cancelAllFileTransfers,
+  fsDelete,
+} from "@/commands";
 
 // Memoized transfer item component to prevent unnecessary renders
 const TransferQueueItem = memo(
@@ -154,23 +158,30 @@ const FileTransferQueue = () => {
     [],
   );
 
-  // Confirm cancellation (single or all)
+  // Confirm cancellation (single or all), and delete partial files
   const confirmCancel = useMemo(
-    () => () => {
+    () => async () => {
       if (cancelId === "all") {
-        // Abort all controllers and clear the queue immediately
+        // Capture all paths before aborting
+        const paths = transfers.value.map((t) => t.src);
         cancelAllFileTransfers();
+        // Delete each cancelled file on device
+        await Promise.all(paths.map((path) => fsDelete({ path })));
+        // Clear queue and progress UI
         fileTransferQueue.value = [];
-        // Also clear any single-file progress UI state
         fileTransferProgress.value = null;
         fileTransferInProgress.value = false;
       } else if (cancelId) {
+        const transfer = transfers.value.find((t) => t.id === cancelId);
         cancelFileTransfer(cancelId);
+        if (transfer) {
+          await fsDelete({ path: transfer.src });
+        }
       }
       setShowCancelModal(false);
       setCancelId(null);
     },
-    [cancelId],
+    [cancelId, transfers.value],
   );
 
   // Close cancellation modal
