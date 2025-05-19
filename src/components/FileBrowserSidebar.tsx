@@ -8,6 +8,8 @@ import {
   fileTransferProgress,
   fileTree,
   anyTransferInProgress,
+  fileTransferQueue,
+  TransferItem,
 } from "../state";
 import {
   triggerBrowserDownload,
@@ -163,6 +165,30 @@ export default function FileBrowserSidebar() {
 
       const doUpload = async (filesToUpload: File[], overwrite = false) => {
         if (filesToUpload.length === 0) return;
+        // Register each file transfer in the global queue with a controller
+        const transfersToRegister: TransferItem[] = filesToUpload.map(
+          (file) => {
+            const fullPath = targetDir.endsWith("/")
+              ? `${targetDir}${file.name}`
+              : `${targetDir}/${file.name}`;
+            const id = `${fullPath}-${Date.now()}`;
+            const controller = new AbortController();
+            return {
+              id,
+              kind: "upload",
+              src: fullPath,
+              bytes: 0,
+              total: 0,
+              status: "pending",
+              controller,
+            };
+          },
+        );
+        fileTransferQueue.value = [
+          ...fileTransferQueue.value,
+          ...transfersToRegister,
+        ];
+        const controller = transfersToRegister[0].controller!;
         console.log(
           `[Sidebar Drop] Uploading ${filesToUpload.length} files to ${targetDir} (overwrite: ${overwrite})`,
         );
@@ -172,6 +198,7 @@ export default function FileBrowserSidebar() {
             files: filesToUpload,
             destDir: targetDir,
             overwrite: overwrite,
+            signal: controller.signal,
             onProgress: (index, sent, total) => {
               const currentFile = filesToUpload[index];
               const fullPath = targetDir.endsWith("/")
@@ -184,6 +211,13 @@ export default function FileBrowserSidebar() {
                 currentFileIndex: filesProcessedSoFar + index + 1,
                 totalFiles: totalFilesToProcess,
               };
+              // Update the corresponding queue entry
+              const transferItem = transfersToRegister[index];
+              fileTransferQueue.value = fileTransferQueue.value.map((t) =>
+                t.id === transferItem.id
+                  ? { ...t, status: "active", bytes: sent, total }
+                  : t,
+              );
             },
           });
           const updatedEntries = await listDirectory({
@@ -198,9 +232,17 @@ export default function FileBrowserSidebar() {
           console.log(
             `[Sidebar Drop] Batch upload to ${targetDir} successful. Processed: ${filesProcessedSoFar}/${totalFilesToProcess}`,
           );
+          // Mark all registered transfers as done
+          transfersToRegister.forEach(({ id }) => {
+            fileTransferQueue.value = fileTransferQueue.value.map((t) =>
+              t.id === id
+                ? { ...t, status: "done", bytes: t.total, total: t.total }
+                : t,
+            );
+          });
         } catch (err) {
           console.error("[Sidebar Drop] Failed to upload files:", err);
-          alert(
+          console.warn(
             `Upload failed: ${err instanceof Error ? err.message : "Unknown error"}`,
           );
         } finally {
@@ -304,7 +346,28 @@ export default function FileBrowserSidebar() {
 
     const doUpload = async (filesToUpload: File[], overwrite = false) => {
       if (filesToUpload.length === 0) return;
-
+      // Register each file transfer for input upload
+      const transfersToRegister: TransferItem[] = filesToUpload.map((file) => {
+        const fullPath = targetDir.endsWith("/")
+          ? `${targetDir}${file.name}`
+          : `${targetDir}/${file.name}`;
+        const id = `${fullPath}-${Date.now()}`;
+        const controller = new AbortController();
+        return {
+          id,
+          kind: "upload",
+          src: fullPath,
+          bytes: 0,
+          total: 0,
+          status: "pending",
+          controller,
+        };
+      });
+      fileTransferQueue.value = [
+        ...fileTransferQueue.value,
+        ...transfersToRegister,
+      ];
+      const controller = transfersToRegister[0].controller!;
       console.log(
         `Uploading ${filesToUpload.length} files to directory: ${targetDir} (overwrite: ${overwrite})`,
       );
@@ -315,6 +378,7 @@ export default function FileBrowserSidebar() {
           files: filesToUpload,
           destDir: targetDir,
           overwrite: overwrite,
+          signal: controller.signal,
           onProgress: (index, sent, total) => {
             const currentFile = filesToUpload[index];
             const fullPath = targetDir.endsWith("/")
@@ -327,6 +391,13 @@ export default function FileBrowserSidebar() {
               currentFileIndex: filesProcessedSoFar + index + 1, // +1 for 1-based UI if needed
               totalFiles: totalFilesToProcess,
             };
+            // Update the corresponding queue entry
+            const transferItem = transfersToRegister[index];
+            fileTransferQueue.value = fileTransferQueue.value.map((t) =>
+              t.id === transferItem.id
+                ? { ...t, status: "active", bytes: sent, total }
+                : t,
+            );
           },
         });
         // Refresh the target directory content after successful upload
@@ -342,6 +413,14 @@ export default function FileBrowserSidebar() {
         console.log(
           `Batch upload to ${targetDir} successful, ${filesToUpload.length} files. Processed so far: ${filesProcessedSoFar}/${totalFilesToProcess}`,
         );
+        // Mark all registered transfers as done
+        transfersToRegister.forEach(({ id }) => {
+          fileTransferQueue.value = fileTransferQueue.value.map((t) =>
+            t.id === id
+              ? { ...t, status: "done", bytes: t.total, total: t.total }
+              : t,
+          );
+        });
       } catch (err) {
         console.error("Failed to upload files from input:", err);
         alert(

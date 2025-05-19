@@ -23,6 +23,9 @@ enum Selectors {
   DELETE_CONFIRMATION_DIALOG = "delete-confirmation-dialog",
   DELETE_CONFIRMATION_DIALOG_MESSAGE = "delete-confirmation-dialog-message",
   CANCEL_UPLOAD_BUTTON_PREFIX = "cancel-upload-button-",
+  CANCEL_TRANSFER_DIALOG = "cancel-transfer-dialog",
+  CLOSE_CANCEL_TRANSFER_DIALOG_BUTTON = "close-cancel-transfer-dialog-button",
+  CONFIRM_CANCEL_TRANSFER_BUTTON = "confirm-cancel-transfer-button",
 }
 
 describe("04 - File Browser Functionality", () => {
@@ -377,7 +380,7 @@ describe("04 - File Browser Functionality", () => {
     });
   });
 
-  it.only("04-014: Multiple file uploads are queued and completed", () => {
+  it("04-014: Multiple file uploads are queued and completed", () => {
     const file1Name = "multiUpload1.txt";
     const file2Name = "multiUpload2.kic";
     // file1Content and file2Content will come from the fixture
@@ -409,6 +412,7 @@ describe("04 - File Browser Functionality", () => {
         { force: true },
       );
 
+      cy.wait(1000);
       cy.getBySel(Selectors.TRANSFER_QUEUE).should("be.visible");
       cy.getBySel(Selectors.TRANSFER_PROGRESS_BAR).should("be.visible");
       cy.wait(5000);
@@ -437,44 +441,45 @@ describe("04 - File Browser Functionality", () => {
     });
   });
 
-  it("04-015: Cancel file upload", () => {
-    const fileName = "cancelTest.dat";
+  it.only("04-015: Cancel file upload", () => {
+    const fileName = "cancelTest.wav";
     // largeContent will come from the fixture
 
-    cy.fixture("example.json", "binary").then((fileContent) => {
-      // Note: example.json might be small. If test relies on upload taking time,
-      // a larger fixture or different approach might be needed.
-      cy.getBySel(Selectors.FILE_BROWSER_TOGGLE).click();
-      cy.wait(500);
+    cy.readFile("./cypress/fixtures/BOS_80_Drum_Loop_Babylon.wav", "binary")
+      .then(Cypress.Buffer.from)
+      .then((fileContent) => {
+        cy.getBySel(Selectors.FILE_BROWSER_TOGGLE).click();
+        cy.wait(500);
+        cy.getBySel(Selectors.UPLOAD_INPUT, { force: true }).selectFile(
+          {
+            fileName,
+            contents: fileContent,
+            mimeType: "audio/wav",
+            lastModified: new Date().getTime(),
+          },
+          {
+            force: true,
+          },
+        );
 
-      // Start the upload
-      cy.getBySel(Selectors.UPLOAD_INPUT).selectFile(
-        {
-          contents: Cypress.Blob.binaryStringToBlob(
-            fileContent,
-            "application/octet-stream",
-          ),
-          fileName: fileName,
-          mimeType: "application/octet-stream",
-        },
-        { force: true },
-      );
+        cy.getBySel(Selectors.TRANSFER_QUEUE).should("be.visible");
+        cy.getBySel(Selectors.TRANSFER_PROGRESS_BAR).should("be.visible");
 
-      cy.getBySel(Selectors.TRANSFER_QUEUE).should("be.visible");
-      cy.getBySel(Selectors.TRANSFER_PROGRESS_BAR).should("be.visible");
+        cy.getBySel(`'${Selectors.CANCEL_UPLOAD_BUTTON_PREFIX}${fileName}'`)
+          .should("be.visible")
+          .click();
 
-      cy.getBySel(`${Selectors.CANCEL_UPLOAD_BUTTON_PREFIX}${fileName}`)
-        .should("be.visible")
-        .click();
-      cy.wait(1000);
+        cy.getBySel(Selectors.CANCEL_TRANSFER_DIALOG).should("be.visible");
+        cy.getBySel(Selectors.CONFIRM_CANCEL_TRANSFER_BUTTON).click();
+        cy.wait(1000);
 
-      cy.getBySel(Selectors.TRANSFER_QUEUE).should(
-        "not.contain.text",
-        fileName,
-      );
-      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${fileName}`).should(
-        "not.exist",
-      );
-    });
+        cy.getBySel(Selectors.TRANSFER_QUEUE).should(
+          "not.contain.text",
+          fileName,
+        );
+        cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${fileName}'`).should(
+          "not.exist",
+        );
+      });
   });
 });

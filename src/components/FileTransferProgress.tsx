@@ -1,6 +1,10 @@
 import { useEffect, useRef } from "preact/hooks";
 import { useSignal, useSignalEffect } from "@preact/signals";
-import { fileTransferProgress } from "../state";
+import {
+  fileTransferProgress,
+  fileTransferInProgress,
+  fileTransferQueue,
+} from "../state";
 import { formatBytes } from "../lib/format";
 import { cancelAllFileTransfers } from "@/commands";
 import { throttle } from "../lib/throttle";
@@ -139,7 +143,7 @@ const FileTransferProgress = () => {
     );
   });
 
-  // Handler for cancel button click
+  // Handler for cancel button click - open confirmation modal
   const handleCancelClick = (e: MouseEvent) => {
     e.stopPropagation();
     showCancelConfirmation.value = true;
@@ -147,9 +151,15 @@ const FileTransferProgress = () => {
 
   // Handler for confirming cancel
   const confirmCancel = () => {
-    // Cancel the transfer using the MIDI service function
-    cancelAllFileTransfers();
+    // Close the confirmation modal first
     showCancelConfirmation.value = false;
+    // Abort all transfers
+    cancelAllFileTransfers();
+    // Reset transfer state and hide progress UI
+    fileTransferProgress.value = null;
+    fileTransferInProgress.value = false;
+    // Clear displayed path
+    displayPath.value = "";
   };
 
   // Close the modal
@@ -205,6 +215,7 @@ const FileTransferProgress = () => {
           )}
         </div>
         <button
+          data-testid={`cancel-upload-button-${fileName}`}
           className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 transition-colors p-0.5 rounded-full"
           onClick={handleCancelClick}
           aria-label="Cancel transfer"
@@ -283,6 +294,7 @@ const FileTransferProgress = () => {
           <div
             ref={cancelModalRef}
             className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg max-w-xs w-full"
+            data-testid="cancel-transfer-dialog"
           >
             <h3 className="text-lg font-medium mb-2">Cancel Transfer</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -295,12 +307,14 @@ const FileTransferProgress = () => {
               <button
                 className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 rounded"
                 onClick={closeModal}
+                data-testid="close-cancel-transfer-dialog-button"
               >
                 No, Continue
               </button>
               <button
                 className="px-3 py-1.5 text-sm bg-red-500 text-white rounded"
                 onClick={confirmCancel}
+                data-testid="confirm-cancel-transfer-button"
               >
                 Yes, Cancel
               </button>
