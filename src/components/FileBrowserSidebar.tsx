@@ -17,6 +17,11 @@ import {
   readFile,
   listDirectory,
 } from "@/commands";
+import {
+  fileOverrideConfirmationOpen,
+  filesToOverride,
+  confirmCallback,
+} from "./FileOverrideConfirmation";
 import FileTransferQueue from "./FileTransferQueue";
 import FileTransferProgress from "./FileTransferProgress";
 
@@ -95,16 +100,12 @@ export default function FileBrowserSidebar() {
     }
   };
 
-  const handleDrop = (e: DragEvent) => {
+  const handleDrop = async (e: DragEvent) => {
     e.preventDefault();
 
-    // Don't handle the drop if it was caught by a specific folder in the tree
-    // This checks if any parent of the target element has a data-path attribute,
-    // which indicates it's a directory item in the tree (now on the <li> element)
     let element = e.target as HTMLElement;
     while (element && element !== e.currentTarget) {
       if (element.hasAttribute("data-path")) {
-        // The event was caught by a directory item, don't duplicate handling
         console.log("Drop handled by directory item, skipping sidebar handler");
         isDraggingOver.value = false;
         return;
@@ -115,11 +116,13 @@ export default function FileBrowserSidebar() {
     isDraggingOver.value = false;
     console.log("File dropped on sidebar (root level)");
 
-    // Determine upload target directory
     let targetDir = "/";
     if (selectedPaths.value.size > 0) {
       const selectedPath = Array.from(selectedPaths.value)[0];
-      if (fileTree.value[selectedPath]) {
+      if (
+        fileTree.value[selectedPath] &&
+        Array.isArray(fileTree.value[selectedPath])
+      ) {
         targetDir = selectedPath;
       } else {
         const parent =
@@ -127,46 +130,108 @@ export default function FileBrowserSidebar() {
         targetDir = parent;
       }
     } else {
-      console.log("No selection, uploading to root directory");
+      console.log("No selection, uploading to root directory for drop event");
     }
 
-    // Handle file upload to root or current selected directory
     if (e.dataTransfer?.files.length) {
-      const filesArray = Array.from(e.dataTransfer.files);
+      const allDroppedFiles = Array.from(e.dataTransfer.files);
+
       console.log(
-        `Uploading ${filesArray.length} files to directory: ${targetDir}`,
+        `Files dropped on sidebar, processing ${allDroppedFiles.length} files for directory: ${targetDir}`,
       );
-      fileTransferInProgress.value = true;
-      uploadFiles({
-        files: filesArray,
-        destDir: targetDir,
-        onProgress: (index, sent, total) => {
-          const fileName = filesArray[index].name;
-          const fullPath = targetDir.endsWith("/")
-            ? `${targetDir}${fileName}`
-            : `${targetDir}/${fileName}`;
-          fileTransferProgress.value = {
-            path: fullPath,
-            bytes: sent,
-            total,
-            currentFileIndex: index + 1,
-            totalFiles: filesArray.length,
+
+      const existingEntries = fileTree.value[targetDir] || [];
+      const conflictingFiles: File[] = [];
+      const nonConflictingFiles: File[] = [];
+
+      const isDirectoryEntry = (entry: { name: string; attr: number }) =>
+        (entry.attr & 0x10) !== 0;
+
+      for (const file of allDroppedFiles) {
+        const isConflict = existingEntries.some(
+          (entry) => entry.name === file.name && !isDirectoryEntry(entry),
+        );
+        if (isConflict) {
+          conflictingFiles.push(file);
+        } else {
+          nonConflictingFiles.push(file);
+        }
+      }
+
+      const totalFilesToProcess = allDroppedFiles.length;
+      let filesProcessedSoFar = 0;
+
+      const doUpload = async (filesToUpload: File[], overwrite = false) => {
+        if (filesToUpload.length === 0) return;
+        console.log(
+          `[Sidebar Drop] Uploading ${filesToUpload.length} files to ${targetDir} (overwrite: ${overwrite})`,
+        );
+        fileTransferInProgress.value = true;
+        try {
+          await uploadFiles({
+            files: filesToUpload,
+            destDir: targetDir,
+            overwrite: overwrite,
+            onProgress: (index, sent, total) => {
+              const currentFile = filesToUpload[index];
+              const fullPath = targetDir.endsWith("/")
+                ? `${targetDir}${currentFile.name}`
+                : `${targetDir}/${currentFile.name}`;
+              fileTransferProgress.value = {
+                path: fullPath,
+                bytes: sent,
+                total,
+                currentFileIndex: filesProcessedSoFar + index + 1,
+                totalFiles: totalFilesToProcess,
+              };
+            },
+          });
+          const updatedEntries = await listDirectory({
+            path: targetDir,
+            force: true,
+          });
+          fileTree.value = {
+            ...fileTree.value,
+            [targetDir]: updatedEntries,
           };
-        },
-      })
-        .then(() => listDirectory({ path: targetDir }))
-        .then(() => {
-          fileTree.value = { ...fileTree.value };
-        })
-        .catch((err) => {
-          console.error("Failed to upload files:", err);
-          alert(`Upload failed: ${err.message || "Unknown error"}`);
-        })
-        .finally(() => {
-          fileTransferInProgress.value = false;
-          fileTransferProgress.value = null;
-        });
-      return;
+          filesProcessedSoFar += filesToUpload.length;
+          console.log(
+            `[Sidebar Drop] Batch upload to ${targetDir} successful. Processed: ${filesProcessedSoFar}/${totalFilesToProcess}`,
+          );
+        } catch (err) {
+          console.error("[Sidebar Drop] Failed to upload files:", err);
+          alert(
+            `Upload failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+          );
+        } finally {
+          if (filesProcessedSoFar === totalFilesToProcess) {
+            fileTransferInProgress.value = false;
+            fileTransferProgress.value = null;
+            console.log("[Sidebar Drop] All drop uploads finished.");
+          }
+        }
+      };
+
+      if (conflictingFiles.length > 0) {
+        filesToOverride.value = conflictingFiles.map((f) => f.name);
+        confirmCallback.value = async (confirmed) => {
+          fileOverrideConfirmationOpen.value = false;
+          confirmCallback.value = null;
+          if (confirmed) {
+            console.log("[Sidebar Drop] User confirmed overwrite.");
+            await doUpload(conflictingFiles, true);
+            await doUpload(nonConflictingFiles, false);
+          } else {
+            console.log("[Sidebar Drop] User cancelled overwrite.");
+            await doUpload(nonConflictingFiles, false);
+          }
+        };
+        fileOverrideConfirmationOpen.value = true;
+      } else {
+        console.log("[Sidebar Drop] No conflicts, proceeding with upload.");
+        await doUpload(allDroppedFiles, false);
+      }
+      return; // Important to return after initiating async operations
     }
   };
 
@@ -191,52 +256,131 @@ export default function FileBrowserSidebar() {
     }
   };
 
-  const handleFileInputChange = (e: Event) => {
+  const handleFileInputChange = async (e: Event) => {
     const input = e.target as HTMLInputElement;
     if (!input.files?.length) return;
-    const filesArray = Array.from(input.files);
+    const allDroppedFiles = Array.from(input.files);
+
     // Determine target directory
     let targetDir = "/";
     if (selectedPaths.value.size > 0) {
       const selectedPath = Array.from(selectedPaths.value)[0];
-      if (fileTree.value[selectedPath]) {
+      // Check if selected path is a directory by seeing if it's a key in fileTree
+      // and its value is an array (list of entries)
+      if (
+        fileTree.value[selectedPath] &&
+        Array.isArray(fileTree.value[selectedPath])
+      ) {
         targetDir = selectedPath;
       } else {
+        // If it's a file or not a loaded directory, use its parent directory
         targetDir =
           selectedPath.substring(0, selectedPath.lastIndexOf("/") || 0) || "/";
       }
     }
-    fileTransferInProgress.value = true;
-    uploadFiles({
-      files: filesArray,
-      destDir: targetDir,
-      onProgress: (index, sent, total) => {
-        const fileName = filesArray[index].name;
-        const fullPath = targetDir.endsWith("/")
-          ? `${targetDir}${fileName}`
-          : `${targetDir}/${fileName}`;
-        fileTransferProgress.value = {
-          path: fullPath,
-          bytes: sent,
-          total,
-          currentFileIndex: index + 1,
-          totalFiles: filesArray.length,
+    console.log(`File input change, target directory for upload: ${targetDir}`);
+
+    const existingEntries = fileTree.value[targetDir] || [];
+    const conflictingFiles: File[] = [];
+    const nonConflictingFiles: File[] = [];
+
+    // Helper to check if an entry is a directory (can be moved to a lib later)
+    const isDirectoryEntry = (entry: { name: string; attr: number }) =>
+      (entry.attr & 0x10) !== 0;
+
+    for (const file of allDroppedFiles) {
+      const isConflict = existingEntries.some(
+        (entry) => entry.name === file.name && !isDirectoryEntry(entry),
+      );
+      if (isConflict) {
+        conflictingFiles.push(file);
+      } else {
+        nonConflictingFiles.push(file);
+      }
+    }
+
+    const totalFilesToProcess = allDroppedFiles.length;
+    let filesProcessedSoFar = 0;
+
+    const doUpload = async (filesToUpload: File[], overwrite = false) => {
+      if (filesToUpload.length === 0) return;
+
+      console.log(
+        `Uploading ${filesToUpload.length} files to directory: ${targetDir} (overwrite: ${overwrite})`,
+      );
+      fileTransferInProgress.value = true; // Set before starting
+
+      try {
+        await uploadFiles({
+          files: filesToUpload,
+          destDir: targetDir,
+          overwrite: overwrite,
+          onProgress: (index, sent, total) => {
+            const currentFile = filesToUpload[index];
+            const fullPath = targetDir.endsWith("/")
+              ? `${targetDir}${currentFile.name}`
+              : `${targetDir}/${currentFile.name}`;
+            fileTransferProgress.value = {
+              path: fullPath,
+              bytes: sent,
+              total,
+              currentFileIndex: filesProcessedSoFar + index + 1, // +1 for 1-based UI if needed
+              totalFiles: totalFilesToProcess,
+            };
+          },
+        });
+        // Refresh the target directory content after successful upload
+        const updatedEntries = await listDirectory({
+          path: targetDir,
+          force: true,
+        });
+        fileTree.value = {
+          ...fileTree.value,
+          [targetDir]: updatedEntries,
         };
-      },
-    })
-      .then(() => listDirectory({ path: targetDir }))
-      .then(() => {
-        fileTree.value = { ...fileTree.value };
-      })
-      .catch((err) => {
-        console.error("Failed to upload files:", err);
-        alert(`Upload failed: ${err.message || "Unknown error"}`);
-      })
-      .finally(() => {
-        fileTransferInProgress.value = false;
-        fileTransferProgress.value = null;
-        input.value = "";
-      });
+        filesProcessedSoFar += filesToUpload.length;
+        console.log(
+          `Batch upload to ${targetDir} successful, ${filesToUpload.length} files. Processed so far: ${filesProcessedSoFar}/${totalFilesToProcess}`,
+        );
+      } catch (err) {
+        console.error("Failed to upload files from input:", err);
+        alert(
+          `Upload failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+        );
+      } finally {
+        if (filesProcessedSoFar === totalFilesToProcess) {
+          fileTransferInProgress.value = false;
+          fileTransferProgress.value = null;
+          input.value = ""; // Clear input only after all operations are done
+          console.log("All file input uploads finished, input cleared.");
+        }
+      }
+    };
+
+    if (conflictingFiles.length > 0) {
+      filesToOverride.value = conflictingFiles.map((f) => f.name);
+      confirmCallback.value = async (confirmed) => {
+        fileOverrideConfirmationOpen.value = false;
+        confirmCallback.value = null; // Clear callback immediately
+
+        if (confirmed) {
+          console.log("User confirmed overwrite for input upload.");
+          await doUpload(conflictingFiles, true);
+          await doUpload(nonConflictingFiles, false);
+        } else {
+          console.log("User cancelled overwrite for input upload.");
+          await doUpload(nonConflictingFiles, false);
+        }
+        // Ensure input is cleared if no further operations pending
+        if (filesProcessedSoFar === totalFilesToProcess && input) {
+          input.value = "";
+        }
+      };
+      fileOverrideConfirmationOpen.value = true;
+    } else {
+      console.log("No conflicts detected for input upload, proceeding.");
+      await doUpload(allDroppedFiles, false);
+    }
   };
 
   const handleNewFolder = async () => {

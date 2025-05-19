@@ -9,6 +9,7 @@ export interface UploadFilesParams {
   maxConcurrent?: number;
   onProgress?: (index: number, sent: number, total: number) => void;
   signal?: AbortSignal;
+  overwrite?: boolean;
 }
 
 // Helper to read File/Blob as Uint8Array, with fallback for environments without blob.arrayBuffer
@@ -35,7 +36,14 @@ async function toUint8Array(file: File): Promise<Uint8Array> {
  * Upload multiple files with optional concurrency and progress callback.
  */
 export async function uploadFiles(params: UploadFilesParams): Promise<void> {
-  const { files, destDir, maxConcurrent = 1, onProgress, signal } = params;
+  const {
+    files,
+    destDir,
+    maxConcurrent = 1,
+    onProgress,
+    signal,
+    overwrite,
+  } = params;
   let queue: Array<Promise<unknown>> = [];
 
   for (let i = 0; i < files.length; i++) {
@@ -46,7 +54,7 @@ export async function uploadFiles(params: UploadFilesParams): Promise<void> {
       : `${destDir}/${file.name}`;
 
     const task = uploadFile(
-      { path, data },
+      { path, data, overwrite: overwrite },
       {
         signal,
         onProgress: (sent, total) => onProgress?.(i, sent, total),

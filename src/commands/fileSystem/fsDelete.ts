@@ -2,16 +2,42 @@ import type { ReqFsDelete } from "./schema";
 import { fileTree, expandedPaths, selectedPaths, FileEntry } from "../../state";
 import { executeCommand } from "../_shared/executor";
 import { builder } from "../_shared/builder";
-import { parser } from "../_shared/parser";
+// import { parser } from "../_shared/parser"; // Unused import removed
 import { SmsCommand } from "../_shared/types";
 import { listDirectory } from "./fsList";
 
 async function deleteSinglePath(itemPath: string): Promise<void> {
-  await executeCommand<ReqFsDelete, Record<string, unknown>>({
+  const deletePayload = { delete: { path: itemPath } };
+  await executeCommand<typeof deletePayload, { err?: number }>({
     cmdId: SmsCommand.JSON,
-    request: { path: itemPath },
-    build: () => builder.jsonOnly({ delete: { path: itemPath } }),
-    parse: parser.expectOk,
+    request: deletePayload,
+    build: () => builder.jsonOnly(deletePayload),
+    parse: (raw: any) => {
+      if (!raw || !raw.json) {
+        throw new Error(
+          "[deleteSinglePath] Invalid raw response: missing json object",
+        );
+      }
+      const responseKey = Object.keys(raw.json)[0];
+      if (!responseKey || responseKey !== "^delete") {
+        throw new Error(
+          `[deleteSinglePath] Invalid raw response: missing or incorrect key '${responseKey}' in json object`,
+        );
+      }
+      const deleteResponse = raw.json[responseKey] as { err: number };
+      if (deleteResponse.err !== 0 && deleteResponse.err !== 4) {
+        console.error(
+          `[deleteSinglePath] Deluge error on delete: ${deleteResponse.err}, path: ${itemPath}`,
+        );
+        throw new Error(
+          `Deluge delete error: ${deleteResponse.err} for path ${itemPath}`,
+        );
+      }
+      console.log(
+        `[deleteSinglePath] Delete command for ${itemPath} resulted in err: ${deleteResponse.err} (0 or 4 is OK here)`,
+      );
+      return { err: deleteResponse.err };
+    },
   });
 }
 

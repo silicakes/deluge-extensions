@@ -8,6 +8,7 @@ import { z } from "zod";
 export const Req = z.object({
   path: z.string().nonempty(),
   data: z.instanceof(Uint8Array),
+  overwrite: z.boolean().optional(),
 });
 
 /** Response schema indicating success. */

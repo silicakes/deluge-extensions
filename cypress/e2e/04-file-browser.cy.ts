@@ -17,7 +17,7 @@ enum Selectors {
   DOWNLOAD_FILE_BUTTON_PREFIX = "download-file-button-",
   TRANSFER_QUEUE = "transfer-queue",
   CONFLICT_DIALOG = "conflict-dialog",
-  CONFLICT_DIALOG_OVERRIDE_BUTTON = "conflict-dialog-override-button",
+  CONFLICT_DIALOG_OVERRIDE_BUTTON = "conflict-dialog-overwrite-button",
   CONFLICT_DIALOG_RENAME_BUTTON = "conflict-dialog-rename-button",
   CONFLICT_DIALOG_SKIP_BUTTON = "conflict-dialog-skip-button",
   DELETE_CONFIRMATION_DIALOG = "delete-confirmation-dialog",
@@ -325,7 +325,7 @@ describe("04 - File Browser Functionality", () => {
     });
   });
 
-  it.only("04-013: File upload conflict - Override", () => {
+  it("04-013: File upload conflict - Override", () => {
     const fileName = "overrideTest.txt";
     // initialContent and newContent will come from the fixture
 
@@ -362,22 +362,22 @@ describe("04 - File Browser Functionality", () => {
       cy.getBySel(Selectors.CONFLICT_DIALOG_OVERRIDE_BUTTON).click();
       cy.wait(2000); // Allow for override operation
 
-      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${fileName}`).should(
+      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${fileName}'`).should(
         "exist",
       );
 
       // Cleanup: delete the test file
-      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${fileName}`)
+      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${fileName}'`)
         .click()
         .type("{del}");
       cy.getBySel(Selectors.CONFIRM_DELETE_BUTTON).click();
-      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${fileName}`).should(
+      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${fileName}'`).should(
         "not.exist",
       );
     });
   });
 
-  it("04-014: Multiple file uploads are queued and completed", () => {
+  it.only("04-014: Multiple file uploads are queued and completed", () => {
     const file1Name = "multiUpload1.txt";
     const file2Name = "multiUpload2.kic";
     // file1Content and file2Content will come from the fixture
@@ -413,25 +413,25 @@ describe("04 - File Browser Functionality", () => {
       cy.getBySel(Selectors.TRANSFER_PROGRESS_BAR).should("be.visible");
       cy.wait(5000);
 
-      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${file1Name}`).should(
+      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file1Name}'`).should(
         "exist",
       );
-      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${file2Name}`).should(
+      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file2Name}'`).should(
         "exist",
       );
 
       // Cleanup
-      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${file1Name}`).click();
-      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${file2Name}`).click({
+      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file1Name}'`).click();
+      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file2Name}'`).click({
         shiftKey: true,
       });
       cy.focused().type("{del}");
       cy.getBySel(Selectors.CONFIRM_DELETE_BUTTON).click();
       cy.wait(1000);
-      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${file1Name}`).should(
+      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file1Name}'`).should(
         "not.exist",
       );
-      cy.getBySel(`${Selectors.FILE_TREE_ITEM_PREFIX}${file2Name}`).should(
+      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file2Name}'`).should(
         "not.exist",
       );
     });
