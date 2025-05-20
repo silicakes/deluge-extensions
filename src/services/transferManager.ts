@@ -118,7 +118,18 @@ class TransferManager {
     if (id) {
       // Cancel a single transfer
       const task = this.tasks.find((t) => t.item.id === id);
-      task?.item.controller?.abort();
+      if (task) {
+        // Abort the controller
+        task.item.controller?.abort();
+        // Immediately mark in the UI as canceled
+        fileTransferQueue.value = fileTransferQueue.value.map((t) =>
+          t.id === id
+            ? { ...t, status: "canceled", error: "Cancelled by user" }
+            : t,
+        );
+        // Remove any partial file on device
+        fsDelete({ path: task.item.src }).catch(() => {});
+      }
     } else {
       // Cancel all transfers
       this.tasks.forEach((t) => t.item.controller?.abort());

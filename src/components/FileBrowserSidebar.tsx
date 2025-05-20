@@ -23,6 +23,7 @@ import {
   confirmCallback,
 } from "./FileOverrideConfirmation";
 import FileTransferQueue from "./FileTransferQueue";
+import { transferManager } from "@/services/transferManager";
 
 // Lazily load the FileBrowserTree component
 const FileBrowserTree = lazy(() => import("./FileBrowserTree"));
@@ -136,7 +137,7 @@ export default function FileBrowserSidebar() {
       const allDroppedFiles = Array.from(e.dataTransfer.files);
 
       console.log(
-        `Files dropped on sidebar, processing ${allDroppedFiles.length} files for directory: ${targetDir}`,
+        `Files dropped on sidebar, queueing ${allDroppedFiles.length} files for upload to: ${targetDir}`,
       );
 
       const existingEntries = fileTree.value[targetDir] || [];
@@ -157,89 +158,6 @@ export default function FileBrowserSidebar() {
         }
       }
 
-      const doUpload = async (filesToUpload: File[], overwrite = false) => {
-        if (filesToUpload.length === 0) return;
-        // Register each file transfer in the global queue with a controller
-        const transfersToRegister: TransferItem[] = filesToUpload.map(
-          (file) => {
-            const fullPath = targetDir.endsWith("/")
-              ? `${targetDir}${file.name}`
-              : `${targetDir}/${file.name}`;
-            const id = `${fullPath}-${Date.now()}`;
-            const controller = new AbortController();
-            return {
-              id,
-              kind: "upload",
-              src: fullPath,
-              bytes: 0,
-              total: 0,
-              status: "pending",
-              controller,
-            };
-          },
-        );
-        fileTransferQueue.value = [
-          ...fileTransferQueue.value,
-          ...transfersToRegister,
-        ];
-        // Sequentially upload each file with its own controller
-        for (let idx = 0; idx < filesToUpload.length; idx++) {
-          const file = filesToUpload[idx];
-          const transferItem = transfersToRegister[idx];
-          console.log(
-            `[Sidebar Drop] Uploading file ${idx + 1}/${filesToUpload.length}: ${transferItem.src} (overwrite: ${overwrite})`,
-          );
-          try {
-            await uploadFiles({
-              files: [file],
-              destDir: targetDir,
-              overwrite,
-              signal: transferItem.controller!.signal,
-              onProgress: (_i, sent, total) => {
-                // Update the corresponding queue entry
-                fileTransferQueue.value = fileTransferQueue.value.map((t) =>
-                  t.id === transferItem.id
-                    ? { ...t, status: "active", bytes: sent, total }
-                    : t,
-                );
-              },
-            });
-            // Mark this transfer as done
-            fileTransferQueue.value = fileTransferQueue.value.map((t) =>
-              t.id === transferItem.id
-                ? { ...t, status: "done", bytes: t.total, total: t.total }
-                : t,
-            );
-          } catch (err) {
-            console.error(
-              `[Sidebar Drop] Upload failed for ${transferItem.src}:`,
-              err,
-            );
-            // Only mark error if not user-cancelled
-            if (!transferItem.controller!.signal.aborted) {
-              fileTransferQueue.value = fileTransferQueue.value.map((t) =>
-                t.id === transferItem.id
-                  ? {
-                      ...t,
-                      status: "error",
-                      error: err instanceof Error ? err.message : String(err),
-                    }
-                  : t,
-              );
-            }
-          }
-        }
-        // Refresh the directory after all uploads
-        const updatedEntries = await listDirectory({
-          path: targetDir,
-          force: true,
-        });
-        fileTree.value = { ...fileTree.value, [targetDir]: updatedEntries };
-        console.log(
-          `[Sidebar Drop] All uploads finished for ${filesToUpload.length} files.`,
-        );
-      };
-
       if (conflictingFiles.length > 0) {
         filesToOverride.value = conflictingFiles.map((f) => f.name);
         confirmCallback.value = async (confirmed) => {
@@ -247,19 +165,27 @@ export default function FileBrowserSidebar() {
           confirmCallback.value = null;
           if (confirmed) {
             console.log("[Sidebar Drop] User confirmed overwrite.");
-            await doUpload(conflictingFiles, true);
-            await doUpload(nonConflictingFiles, false);
+            transferManager.enqueueUploads(conflictingFiles, targetDir, true);
+            transferManager.enqueueUploads(
+              nonConflictingFiles,
+              targetDir,
+              false,
+            );
           } else {
             console.log("[Sidebar Drop] User cancelled overwrite.");
-            await doUpload(nonConflictingFiles, false);
+            transferManager.enqueueUploads(
+              nonConflictingFiles,
+              targetDir,
+              false,
+            );
           }
         };
         fileOverrideConfirmationOpen.value = true;
       } else {
-        console.log("[Sidebar Drop] No conflicts, proceeding with upload.");
-        await doUpload(allDroppedFiles, false);
+        console.log("[Sidebar Drop] No conflicts, queueing uploads.");
+        transferManager.enqueueUploads(allDroppedFiles, targetDir, false);
       }
-      return; // Important to return after initiating async operations
+      return; // Completed drop handling
     }
   };
 

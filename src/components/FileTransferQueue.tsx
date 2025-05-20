@@ -1,4 +1,10 @@
-import { useRef, useState, useEffect, useMemo } from "preact/hooks";
+import {
+  useRef,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "preact/hooks";
 import { useComputed } from "@preact/signals";
 import { memo } from "preact/compat";
 import {
@@ -8,11 +14,7 @@ import {
   fileTransferInProgress,
 } from "../state";
 import { formatBytes } from "../lib/format";
-import {
-  cancelFileTransfer,
-  cancelAllFileTransfers,
-  fsDelete,
-} from "@/commands";
+import { transferManager } from "@/services/transferManager";
 
 // Memoized transfer item component to prevent unnecessary renders
 const TransferQueueItem = memo(
@@ -144,75 +146,50 @@ const TransferQueueItem = memo(
  * Component to display a stacked list of file transfers with progress and cancel buttons
  */
 const FileTransferQueue = () => {
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [cancelId, setCancelId] = useState<string | null>(null);
+  // State for showing Cancel All modal
+  const [showAllModal, setShowAllModal] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
   // Use computed value to make the component reactive to changes
   const transfers = useComputed(() => fileTransferQueue.value);
 
-  // Memoize handlers to prevent recreating on each render
-  const handleCancelClick = useMemo(
-    () => (id: string) => {
-      setCancelId(id);
-      setShowCancelModal(true);
-    },
-    [],
-  );
+  // Cancel a single transfer immediately
+  const handleItemCancel = useCallback((id: string) => {
+    transferManager.cancel(id);
+  }, []);
 
-  // Confirm cancellation (single or all), and delete partial files
-  const confirmCancel = useMemo(
-    () => async () => {
-      if (cancelId === "all") {
-        // Capture all paths before aborting
-        const paths = transfers.value.map((t) => t.src);
-        cancelAllFileTransfers();
-        // Delete each cancelled file on device
-        await Promise.all(paths.map((path) => fsDelete({ path })));
-        // Clear queue and progress UI
-        fileTransferQueue.value = [];
-        fileTransferProgress.value = null;
-        fileTransferInProgress.value = false;
-      } else if (cancelId) {
-        const transfer = transfers.value.find((t) => t.id === cancelId);
-        // Mark the single transfer canceled and abort its controller
-        cancelFileTransfer(cancelId);
-        // Delete partial file from device
-        if (transfer) {
-          await fsDelete({ path: transfer.src });
-        }
-      }
-      setShowCancelModal(false);
-      setCancelId(null);
-    },
-    [cancelId, transfers.value],
-  );
+  // Confirm cancellation for Cancel All
+  const confirmCancelAll = useCallback(() => {
+    // Abort all and clear queue
+    transferManager.cancel();
+    transferManager.clearAll();
+    // Clear progress UI
+    fileTransferProgress.value = null;
+    fileTransferInProgress.value = false;
+    setShowAllModal(false);
+  }, []);
 
-  // Close cancellation modal
-  const closeModal = useMemo(
-    () => () => {
-      setShowCancelModal(false);
-      setCancelId(null);
-    },
-    [],
-  );
+  // Close Cancel All modal
+  const closeAllModal = useCallback(() => {
+    setShowAllModal(false);
+  }, []);
 
   // Close modal when clicking outside
   useEffect(() => {
-    if (!showCancelModal) return;
+    if (!showAllModal) return;
 
     const handleClickOutside = (event: MouseEvent) => {
       if (
         modalRef.current &&
         !modalRef.current.contains(event.target as Node)
       ) {
-        closeModal();
+        closeAllModal();
       }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showCancelModal, closeModal]);
+  }, [showAllModal, closeAllModal]);
 
   // If the queue is empty, don't render anything
   if (transfers.value.length === 0) {
@@ -233,10 +210,7 @@ const FileTransferQueue = () => {
         ) ? (
           <button
             className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-            onClick={() => {
-              setCancelId("all");
-              setShowCancelModal(true);
-            }}
+            onClick={() => setShowAllModal(true)}
           >
             Cancel All
           </button>
@@ -258,40 +232,37 @@ const FileTransferQueue = () => {
           <TransferQueueItem
             key={transfer.id}
             transfer={transfer}
-            onCancelClick={handleCancelClick}
+            onCancelClick={handleItemCancel}
           />
         ))}
       </div>
 
       {/* Cancellation Confirmation Modal */}
-      {showCancelModal && (
+      {showAllModal && (
         <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
           <div
             ref={modalRef}
             className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg max-w-xs w-full"
             data-testid="cancel-transfer-dialog"
           >
-            <h3 className="text-lg font-medium mb-2">
-              {cancelId === "all" ? "Cancel All Transfers" : "Cancel Transfer"}
-            </h3>
+            <h3 className="text-lg font-medium mb-2">Cancel All Transfers</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Are you sure you want to cancel{" "}
-              {cancelId === "all" ? "all file transfers" : "this file transfer"}
-              ? This operation cannot be undone.
+              Are you sure you want to cancel all file transfers? This operation
+              cannot be undone.
             </p>
             <div className="flex justify-end gap-2">
               <button
                 className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 rounded"
-                onClick={closeModal}
+                onClick={closeAllModal}
               >
                 No, Continue
               </button>
               <button
                 className="px-3 py-1.5 text-sm bg-red-500 text-white rounded"
-                onClick={confirmCancel}
+                onClick={confirmCancelAll}
                 data-testid="confirm-cancel-transfer-button"
               >
-                Yes, Cancel
+                Yes, Cancel All
               </button>
             </div>
           </div>
