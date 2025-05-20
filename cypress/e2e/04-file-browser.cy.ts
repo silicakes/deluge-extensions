@@ -445,7 +445,7 @@ describe("04 - File Browser Functionality", () => {
     const fileName = "cancelTest.wav";
     // largeContent will come from the fixture
 
-    cy.readFile("./cypress/fixtures/BOS_80_Drum_Loop_Babylon.wav", "binary")
+    cy.readFile("./cypress/fixtures/cancelTest.wav", "binary")
       .then(Cypress.Buffer.from)
       .then((fileContent) => {
         cy.getBySel(Selectors.FILE_BROWSER_TOGGLE).click();
@@ -470,8 +470,8 @@ describe("04 - File Browser Functionality", () => {
           .click();
 
         cy.getBySel(Selectors.CANCEL_TRANSFER_DIALOG).should("be.visible");
+        cy.wait(500);
         cy.getBySel(Selectors.CONFIRM_CANCEL_TRANSFER_BUTTON).click();
-        cy.wait(1000);
 
         cy.getBySel(Selectors.TRANSFER_QUEUE).should(
           "not.contain.text",
