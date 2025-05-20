@@ -95,6 +95,7 @@ const TransferQueueItem = memo(
               onClick={() => onCancelClick(transfer.id)}
               aria-label="Cancel transfer"
               className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
+              data-testid={`cancel-upload-button-${transfer.src}`}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -268,6 +269,7 @@ const FileTransferQueue = () => {
           <div
             ref={modalRef}
             className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg max-w-xs w-full"
+            data-testid="cancel-transfer-dialog"
           >
             <h3 className="text-lg font-medium mb-2">
               {cancelId === "all" ? "Cancel All Transfers" : "Cancel Transfer"}
@@ -287,6 +289,7 @@ const FileTransferQueue = () => {
               <button
                 className="px-3 py-1.5 text-sm bg-red-500 text-white rounded"
                 onClick={confirmCancel}
+                data-testid="confirm-cancel-transfer-button"
               >
                 Yes, Cancel
               </button>

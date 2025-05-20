@@ -465,7 +465,7 @@ describe("04 - File Browser Functionality", () => {
         cy.getBySel(Selectors.TRANSFER_QUEUE).should("be.visible");
         cy.getBySel(Selectors.TRANSFER_PROGRESS_BAR).should("be.visible");
 
-        cy.getBySel(`'${Selectors.CANCEL_UPLOAD_BUTTON_PREFIX}${fileName}'`)
+        cy.getBySel(`'${Selectors.CANCEL_UPLOAD_BUTTON_PREFIX}/${fileName}'`)
           .should("be.visible")
           .click();
 
