@@ -146,50 +146,59 @@ const TransferQueueItem = memo(
  * Component to display a stacked list of file transfers with progress and cancel buttons
  */
 const FileTransferQueue = () => {
-  // State for showing Cancel All modal
-  const [showAllModal, setShowAllModal] = useState(false);
+  // State for cancellation confirmation (single or all)
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelId, setCancelId] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
   // Use computed value to make the component reactive to changes
   const transfers = useComputed(() => fileTransferQueue.value);
 
-  // Cancel a single transfer immediately
-  const handleItemCancel = useCallback((id: string) => {
-    transferManager.cancel(id);
+  // Open confirm modal for single or all cancel
+  const handleCancelClick = useCallback((id: string) => {
+    setCancelId(id);
+    setShowCancelModal(true);
   }, []);
 
-  // Confirm cancellation for Cancel All
-  const confirmCancelAll = useCallback(() => {
-    // Abort all and clear queue
-    transferManager.cancel();
-    transferManager.clearAll();
-    // Clear progress UI
-    fileTransferProgress.value = null;
-    fileTransferInProgress.value = false;
-    setShowAllModal(false);
-  }, []);
+  // Confirm cancellation (single or all)
+  const confirmCancel = useCallback(() => {
+    if (cancelId === "all") {
+      // Abort all and clear queue
+      transferManager.cancel();
+      transferManager.clearAll();
+      // Clear progress UI
+      fileTransferProgress.value = null;
+      fileTransferInProgress.value = false;
+    } else if (cancelId) {
+      // Abort single transfer
+      transferManager.cancel(cancelId);
+    }
+    setShowCancelModal(false);
+    setCancelId(null);
+  }, [cancelId]);
 
-  // Close Cancel All modal
-  const closeAllModal = useCallback(() => {
-    setShowAllModal(false);
+  // Close cancellation modal
+  const closeModal = useCallback(() => {
+    setShowCancelModal(false);
+    setCancelId(null);
   }, []);
 
   // Close modal when clicking outside
   useEffect(() => {
-    if (!showAllModal) return;
+    if (!showCancelModal) return;
 
     const handleClickOutside = (event: MouseEvent) => {
       if (
         modalRef.current &&
         !modalRef.current.contains(event.target as Node)
       ) {
-        closeAllModal();
+        closeModal();
       }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showAllModal, closeAllModal]);
+  }, [showCancelModal, closeModal]);
 
   // If the queue is empty, don't render anything
   if (transfers.value.length === 0) {
@@ -210,7 +219,10 @@ const FileTransferQueue = () => {
         ) ? (
           <button
             className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-            onClick={() => setShowAllModal(true)}
+            onClick={() => {
+              setCancelId("all");
+              setShowCancelModal(true);
+            }}
           >
             Cancel All
           </button>
@@ -232,37 +244,40 @@ const FileTransferQueue = () => {
           <TransferQueueItem
             key={transfer.id}
             transfer={transfer}
-            onCancelClick={handleItemCancel}
+            onCancelClick={handleCancelClick}
           />
         ))}
       </div>
 
       {/* Cancellation Confirmation Modal */}
-      {showAllModal && (
+      {showCancelModal && (
         <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
           <div
             ref={modalRef}
             className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg max-w-xs w-full"
             data-testid="cancel-transfer-dialog"
           >
-            <h3 className="text-lg font-medium mb-2">Cancel All Transfers</h3>
+            <h3 className="text-lg font-medium mb-2">
+              {cancelId === "all" ? "Cancel All Transfers" : "Cancel Transfer"}
+            </h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Are you sure you want to cancel all file transfers? This operation
-              cannot be undone.
+              Are you sure you want to cancel{" "}
+              {cancelId === "all" ? "all file transfers" : "this file transfer"}
+              ? This operation cannot be undone.
             </p>
             <div className="flex justify-end gap-2">
               <button
                 className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 rounded"
-                onClick={closeAllModal}
+                onClick={closeModal}
               >
                 No, Continue
               </button>
               <button
                 className="px-3 py-1.5 text-sm bg-red-500 text-white rounded"
-                onClick={confirmCancelAll}
+                onClick={confirmCancel}
                 data-testid="confirm-cancel-transfer-button"
               >
-                Yes, Cancel All
+                Yes, Cancel
               </button>
             </div>
           </div>
