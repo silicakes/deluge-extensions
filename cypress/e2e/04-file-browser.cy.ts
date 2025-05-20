@@ -196,12 +196,12 @@ describe("04 - File Browser Functionality", () => {
     });
   });
 
-  // flaky
   it("04-010: Transfer Queue and Progress Bar", () => {
     cy.readFile("./cypress/fixtures/medium_file.wav", "binary")
       .then(Cypress.Buffer.from)
       .then((fileContent) => {
         cy.getBySel(Selectors.FILE_BROWSER_TOGGLE).click();
+        cy.wait(500);
         cy.getBySel(Selectors.UPLOAD_INPUT).selectFile(
           [
             {
@@ -385,60 +385,55 @@ describe("04 - File Browser Functionality", () => {
     const file2Name = "multiUpload2.kic";
     // file1Content and file2Content will come from the fixture
 
-    cy.fixture("example.json", "binary").then((fileContent) => {
-      cy.getBySel(Selectors.FILE_BROWSER_TOGGLE).click();
-      cy.wait(500);
+    cy.readFile("./cypress/fixtures/medium_file.wav")
+      .then(Cypress.Buffer.from)
+      .then((fileContent) => {
+        cy.getBySel(Selectors.FILE_BROWSER_TOGGLE).click();
+        cy.wait(500);
 
-      // Select multiple files for upload
-      cy.getBySel(Selectors.UPLOAD_INPUT).selectFile(
-        [
-          {
-            contents: Cypress.Blob.binaryStringToBlob(
-              fileContent,
-              "text/plain",
-            ),
-            fileName: file1Name,
-            mimeType: "text/plain",
-          },
-          {
-            contents: Cypress.Blob.binaryStringToBlob(
-              fileContent,
-              "application/octet-stream",
-            ),
-            fileName: file2Name,
-            mimeType: "application/octet-stream", // Example for .kic
-          },
-        ],
-        { force: true },
-      );
+        // Select multiple files for upload
+        cy.getBySel(Selectors.UPLOAD_INPUT).selectFile(
+          [
+            {
+              contents: fileContent,
+              fileName: file1Name,
+              mimeType: "audio/wav",
+            },
+            {
+              contents: fileContent,
+              fileName: file2Name,
+              mimeType: "audio/wav", // Example for .kic
+            },
+          ],
+          { force: true },
+        );
 
-      cy.wait(1000);
-      cy.getBySel(Selectors.TRANSFER_QUEUE).should("be.visible");
-      cy.getBySel(Selectors.TRANSFER_PROGRESS_BAR).should("be.visible");
-      cy.wait(5000);
+        cy.wait(1000);
+        cy.getBySel(Selectors.TRANSFER_QUEUE).should("be.visible");
+        cy.getBySel(Selectors.TRANSFER_PROGRESS_BAR).should("be.visible");
 
-      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file1Name}'`).should(
-        "exist",
-      );
-      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file2Name}'`).should(
-        "exist",
-      );
+        cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file1Name}'`).should(
+          "exist",
+        );
+        cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file2Name}'`).should(
+          "exist",
+        );
 
-      // Cleanup
-      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file1Name}'`).click();
-      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file2Name}'`).click({
-        shiftKey: true,
+        // Cleanup
+        cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file1Name}'`).click();
+        cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file2Name}'`).click({
+          shiftKey: true,
+        });
+        cy.focused().type("{del}");
+        cy.getBySel(Selectors.CONFIRM_DELETE_BUTTON).click();
+        cy.wait(1000);
+        cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file1Name}'`).should(
+          "not.exist",
+        );
+        cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file2Name}'`).should(
+          "not.exist",
+        );
       });
-      cy.focused().type("{del}");
-      cy.getBySel(Selectors.CONFIRM_DELETE_BUTTON).click();
-      cy.wait(1000);
-      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file1Name}'`).should(
-        "not.exist",
-      );
-      cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${file2Name}'`).should(
-        "not.exist",
-      );
-    });
   });
 
   it("04-015: Cancel file upload", () => {
