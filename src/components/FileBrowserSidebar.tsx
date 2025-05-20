@@ -13,6 +13,7 @@ import {
   writeFile,
   readFile,
   listDirectory,
+  fsDelete,
 } from "@/commands";
 import {
   fileOverrideConfirmationOpen,
@@ -32,7 +33,6 @@ export default function FileBrowserSidebar() {
   const showNewFolderModal = useSignal(false);
   const showNewFileModal = useSignal(false);
   const newName = useSignal("");
-  const showConflictDialog = useSignal(false);
   const isRefreshing = useSignal(false);
   // Track which directory was last uploaded to, so we can refresh its contents when transfers complete
   const lastUploadDir = useSignal<string | null>(null);
@@ -316,7 +316,27 @@ export default function FileBrowserSidebar() {
     if (
       (fileTree.value[targetDir] || []).some((e) => e.name === newName.value)
     ) {
-      showConflictDialog.value = true;
+      filesToOverride.value = [newName.value];
+      confirmCallback.value = async (confirmed) => {
+        fileOverrideConfirmationOpen.value = false;
+        confirmCallback.value = null;
+        if (confirmed) {
+          const pathToDelete =
+            targetDir === "/"
+              ? `/${newName.value}`
+              : `${targetDir}/${newName.value}`;
+          await fsDelete({ path: pathToDelete });
+          await makeDirectory({ path: pathToDelete });
+        }
+        showNewFolderModal.value = false;
+        newName.value = "";
+        const updatedEntries = await listDirectory({
+          path: targetDir,
+          force: true,
+        });
+        fileTree.value = { ...fileTree.value, [targetDir]: updatedEntries };
+      };
+      fileOverrideConfirmationOpen.value = true;
       return;
     }
 
@@ -372,7 +392,27 @@ export default function FileBrowserSidebar() {
     if (
       (fileTree.value[targetDir] || []).some((e) => e.name === newName.value)
     ) {
-      showConflictDialog.value = true;
+      filesToOverride.value = [newName.value];
+      confirmCallback.value = async (confirmed) => {
+        fileOverrideConfirmationOpen.value = false;
+        confirmCallback.value = null;
+        if (confirmed) {
+          const pathToDelete =
+            targetDir === "/"
+              ? `/${newName.value}`
+              : `${targetDir}/${newName.value}`;
+          await fsDelete({ path: pathToDelete });
+          await writeFile({ path: pathToDelete, data: new Uint8Array(0) });
+        }
+        showNewFileModal.value = false;
+        newName.value = "";
+        const updatedEntries = await listDirectory({
+          path: targetDir,
+          force: true,
+        });
+        fileTree.value = { ...fileTree.value, [targetDir]: updatedEntries };
+      };
+      fileOverrideConfirmationOpen.value = true;
       return;
     }
 
@@ -652,52 +692,6 @@ export default function FileBrowserSidebar() {
                 disabled={anyTransferInProgress.value}
               >
                 Create
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Conflict resolution dialog for duplicate names */}
-      {showConflictDialog.value && (
-        <div
-          data-testid="conflict-dialog"
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-        >
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg max-w-md w-full">
-            <h3 className="text-lg font-medium mb-3">Conflict Resolution</h3>
-            <p className="mb-4">
-              A file or folder named '{newName.value}' already exists. What
-              would you like to do?
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                className="px-4 py-2 bg-red-500 text-white rounded"
-                data-testid="conflict-overwrite-button"
-                onClick={() => {
-                  /* Overwrite logic placeholder */
-                }}
-              >
-                Overwrite
-              </button>
-              <button
-                className="px-4 py-2 bg-gray-200 rounded"
-                data-testid="conflict-skip-button"
-                onClick={() => {
-                  showConflictDialog.value = false;
-                  newName.value = "";
-                }}
-              >
-                Skip
-              </button>
-              <button
-                className="px-4 py-2 bg-blue-500 text-white rounded"
-                data-testid="conflict-rename-button"
-                onClick={() => {
-                  showConflictDialog.value = false;
-                }}
-              >
-                Rename
               </button>
             </div>
           </div>

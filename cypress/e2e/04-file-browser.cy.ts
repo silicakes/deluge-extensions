@@ -249,13 +249,19 @@ describe("04 - File Browser Functionality", () => {
     cy.getBySel(Selectors.NEW_FOLDER_BUTTON).click();
     cy.get('input[placeholder="Enter folder name"]').type("ConflictFolder");
     cy.contains("button", "Create").click();
-    cy.wait(2000);
-    cy.get('[data-testid="file-tree-folder-ConflictFolder"]').should("exist");
+    cy.wait(500);
+    cy.getBySel("file-tree-folder-ConflictFolder").should("exist");
     // Attempt duplicate
     cy.getBySel(Selectors.NEW_FOLDER_BUTTON).click();
     cy.get('input[placeholder="Enter folder name"]').type("ConflictFolder");
     cy.contains("button", "Create").click();
+
     cy.getBySel("conflict-dialog").should("be.visible");
+    cy.getBySel("conflict-dialog-overwrite-button").click();
+    cy.wait(500);
+
+    cy.getBySel("file-tree-folder-ConflictFolder").type("{del}");
+    cy.getBySel(Selectors.CONFIRM_DELETE_BUTTON).click();
   });
 
   it("04-012: Deletion of multi-selected files", () => {
