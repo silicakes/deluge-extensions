@@ -12,6 +12,7 @@ async function deleteSinglePath(itemPath: string): Promise<void> {
     cmdId: SmsCommand.JSON,
     request: deletePayload,
     build: () => builder.jsonOnly(deletePayload),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     parse: (raw: any) => {
       if (!raw || !raw.json) {
         throw new Error(
@@ -77,13 +78,21 @@ export async function fsDelete(params: ReqFsDelete): Promise<void> {
   const collectedPathsForDeletion: { path: string; isDir: boolean }[] = [];
   let initialPathIsDir = false;
 
+  // Determine if the path is a directory by checking its entry in the parent directory
+  const lastSlashIdx = path.lastIndexOf("/");
+  const parentPath = lastSlashIdx === 0 ? "/" : path.substring(0, lastSlashIdx);
+  const baseName = path.substring(lastSlashIdx + 1);
   try {
-    await listDirectory({ path: path });
-    initialPathIsDir = true;
+    const parentEntries: FileEntry[] = await listDirectory({
+      path: parentPath,
+    });
+    const entry = parentEntries.find((e) => e.name === baseName);
+    if (entry && (entry.attr & 0x10) !== 0) {
+      initialPathIsDir = true;
+    }
   } catch (e: unknown) {
-    initialPathIsDir = false;
     console.warn(
-      `Attempt to list '${path}' before delete failed. Assuming it's a file or non-listable entity. Error:`,
+      `Failed to list parent directory '${parentPath}' for '${path}'. Assuming file. Error:`,
       e,
     );
   }
@@ -92,7 +101,8 @@ export async function fsDelete(params: ReqFsDelete): Promise<void> {
     await getAllDescendantPaths(path, collectedPathsForDeletion);
   }
 
-  collectedPathsForDeletion.push({ path: path, isDir: initialPathIsDir });
+  // Always include the original path for deletion
+  collectedPathsForDeletion.push({ path, isDir: initialPathIsDir });
 
   pathsToDelete = collectedPathsForDeletion.sort((a, b) => {
     const depthA = a.path.split("/").length;

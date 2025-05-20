@@ -6,15 +6,12 @@ import {
   TransferItem,
   fileTransferProgress,
   fileTransferInProgress,
-  fileTree,
 } from "../state";
 import { formatBytes } from "../lib/format";
 import {
   cancelFileTransfer,
   cancelAllFileTransfers,
   fsDelete,
-  removeTransferFromList,
-  listDirectory,
 } from "@/commands";
 
 // Memoized transfer item component to prevent unnecessary renders
@@ -156,61 +153,38 @@ const FileTransferQueue = () => {
   // Memoize handlers to prevent recreating on each render
   const handleCancelClick = useMemo(
     () => (id: string) => {
-      // If this is the only transfer, skip confirmation and remove immediately
-      if (transfers.value.length === 1) {
-        const transfer = transfers.value[0];
-        cancelFileTransfer(id);
-        removeTransferFromList(id);
-        // Async cleanup: delete file and refresh parent directory
-        (async () => {
-          await fsDelete({ path: transfer.src });
-          const dir =
-            transfer.src.substring(0, transfer.src.lastIndexOf("/") || 1) ||
-            "/";
-          const entries = await listDirectory({ path: dir, force: true });
-          fileTree.value = { ...fileTree.value, [dir]: entries };
-        })();
-        return;
-      }
       setCancelId(id);
       setShowCancelModal(true);
     },
-    [transfers.value],
+    [],
   );
 
   // Confirm cancellation (single or all), and delete partial files
   const confirmCancel = useMemo(
-    () => () => {
+    () => async () => {
       if (cancelId === "all") {
-        // Abort all and clear UI immediately
+        // Capture all paths before aborting
         const paths = transfers.value.map((t) => t.src);
         cancelAllFileTransfers();
+        // Delete each cancelled file on device
+        await Promise.all(paths.map((path) => fsDelete({ path })));
+        // Clear queue and progress UI
         fileTransferQueue.value = [];
         fileTransferProgress.value = null;
         fileTransferInProgress.value = false;
-        // Async cleanup: delete all and refresh root
-        (async () => {
-          await Promise.all(paths.map((path) => fsDelete({ path })));
-          const rootEntries = await listDirectory({ path: "/", force: true });
-          fileTree.value = { ...fileTree.value, ["/"]: rootEntries };
-        })();
       } else if (cancelId) {
-        // Cancel single and remove UI immediately
         const transfer = transfers.value.find((t) => t.id === cancelId);
+        // Mark the single transfer canceled and abort its controller
         cancelFileTransfer(cancelId);
-        removeTransferFromList(cancelId);
+        // Delete partial file from device
         if (transfer) {
-          (async () => {
-            await fsDelete({ path: transfer.src });
-            const rootEntries = await listDirectory({ path: "/", force: true });
-            fileTree.value = { ...fileTree.value, ["/"]: rootEntries };
-          })();
+          await fsDelete({ path: transfer.src });
         }
       }
       setShowCancelModal(false);
       setCancelId(null);
     },
-    [cancelId],
+    [cancelId, transfers.value],
   );
 
   // Close cancellation modal
