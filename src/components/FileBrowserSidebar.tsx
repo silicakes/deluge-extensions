@@ -6,12 +6,9 @@ import {
   selectedPaths,
   fileTree,
   anyTransferInProgress,
-  fileTransferQueue,
-  TransferItem,
 } from "../state";
 import {
   triggerBrowserDownload,
-  uploadFiles,
   makeDirectory,
   writeFile,
   readFile,
@@ -37,6 +34,18 @@ export default function FileBrowserSidebar() {
   const newName = useSignal("");
   const showConflictDialog = useSignal(false);
   const isRefreshing = useSignal(false);
+  // Track which directory was last uploaded to, so we can refresh its contents when transfers complete
+  const lastUploadDir = useSignal<string | null>(null);
+  useSignalEffect(() => {
+    // When transfers finish, if we have a pending directory to refresh, do so
+    if (!anyTransferInProgress.value && lastUploadDir.value !== null) {
+      const dir = lastUploadDir.value;
+      listDirectory({ path: dir, force: true }).then((updatedEntries) => {
+        fileTree.value = { ...fileTree.value, [dir]: updatedEntries };
+        lastUploadDir.value = null;
+      });
+    }
+  });
 
   // Auto-close sidebar when MIDI is disconnected
   useSignalEffect(() => {
@@ -134,6 +143,8 @@ export default function FileBrowserSidebar() {
     }
 
     if (e.dataTransfer?.files.length) {
+      // Remember to refresh this directory once the transfer queue drains
+      lastUploadDir.value = targetDir;
       const allDroppedFiles = Array.from(e.dataTransfer.files);
 
       console.log(
@@ -211,156 +222,67 @@ export default function FileBrowserSidebar() {
   };
 
   const handleFileInputChange = async (e: Event) => {
+    // Unified upload via transferManager
     const input = e.target as HTMLInputElement;
     if (!input.files?.length) return;
-    const allDroppedFiles = Array.from(input.files);
+    const files = Array.from(input.files);
 
     // Determine target directory
     let targetDir = "/";
     if (selectedPaths.value.size > 0) {
       const selectedPath = Array.from(selectedPaths.value)[0];
-      // Check if selected path is a directory by seeing if it's a key in fileTree
-      // and its value is an array (list of entries)
       if (
         fileTree.value[selectedPath] &&
         Array.isArray(fileTree.value[selectedPath])
       ) {
         targetDir = selectedPath;
       } else {
-        // If it's a file or not a loaded directory, use its parent directory
         targetDir =
           selectedPath.substring(0, selectedPath.lastIndexOf("/") || 0) || "/";
       }
     }
-    console.log(`File input change, target directory for upload: ${targetDir}`);
+    // Mark this dir for refresh once all uploads finish
+    lastUploadDir.value = targetDir;
 
-    const existingEntries = fileTree.value[targetDir] || [];
-    const conflictingFiles: File[] = [];
-    const nonConflictingFiles: File[] = [];
-
-    // Helper to check if an entry is a directory (can be moved to a lib later)
-    const isDirectoryEntry = (entry: { name: string; attr: number }) =>
-      (entry.attr & 0x10) !== 0;
-
-    for (const file of allDroppedFiles) {
-      const isConflict = existingEntries.some(
-        (entry) => entry.name === file.name && !isDirectoryEntry(entry),
-      );
-      if (isConflict) {
-        conflictingFiles.push(file);
+    // Split conflicts
+    const existing = fileTree.value[targetDir] || [];
+    const isDir = (e: { name: string; attr: number }) => (e.attr & 0x10) !== 0;
+    const conflicts: File[] = [];
+    const nonConflicts: File[] = [];
+    for (const f of files) {
+      if (existing.some((e) => e.name === f.name && !isDir(e))) {
+        conflicts.push(f);
       } else {
-        nonConflictingFiles.push(file);
+        nonConflicts.push(f);
       }
     }
 
-    const doUpload = async (filesToUpload: File[], overwrite = false) => {
-      if (filesToUpload.length === 0) return;
-      // Register each file transfer for input upload
-      const transfersToRegister: TransferItem[] = filesToUpload.map((file) => {
-        const fullPath = targetDir.endsWith("/")
-          ? `${targetDir}${file.name}`
-          : `${targetDir}/${file.name}`;
-        const id = `${fullPath}-${Date.now()}`;
-        const controller = new AbortController();
-        return {
-          id,
-          kind: "upload",
-          src: fullPath,
-          bytes: 0,
-          total: 0,
-          status: "pending",
-          controller,
-        };
-      });
-      fileTransferQueue.value = [
-        ...fileTransferQueue.value,
-        ...transfersToRegister,
-      ];
-      // Sequentially upload each file with its own controller
-      for (let idx = 0; idx < filesToUpload.length; idx++) {
-        const file = filesToUpload[idx];
-        const transferItem = transfersToRegister[idx];
-        console.log(
-          `[Input Upload] Uploading file ${idx + 1}/${filesToUpload.length}: ${transferItem.src} (overwrite: ${overwrite})`,
-        );
-        try {
-          await uploadFiles({
-            files: [file],
-            destDir: targetDir,
-            overwrite,
-            signal: transferItem.controller!.signal,
-            onProgress: (_i, sent, total) => {
-              // Update the corresponding queue entry
-              fileTransferQueue.value = fileTransferQueue.value.map((t) =>
-                t.id === transferItem.id
-                  ? { ...t, status: "active", bytes: sent, total }
-                  : t,
-              );
-            },
-          });
-          // Mark this transfer as done
-          fileTransferQueue.value = fileTransferQueue.value.map((t) =>
-            t.id === transferItem.id
-              ? { ...t, status: "done", bytes: t.total, total: t.total }
-              : t,
-          );
-        } catch (err) {
-          console.error(
-            `[Input Upload] Upload failed for ${transferItem.src}:`,
-            err,
-          );
-          // Only show error if not user-cancelled
-          if (!transferItem.controller!.signal.aborted) {
-            fileTransferQueue.value = fileTransferQueue.value.map((t) =>
-              t.id === transferItem.id
-                ? {
-                    ...t,
-                    status: "error",
-                    error: err instanceof Error ? err.message : String(err),
-                  }
-                : t,
-            );
-            alert(
-              `Upload failed: ${err instanceof Error ? err.message : String(err)}`,
-            );
-          }
-        }
-      }
-      // Refresh the directory and clear the input
+    // Helper to refresh the directory and clear the file input
+    const finish = async () => {
       const updatedEntries = await listDirectory({
         path: targetDir,
         force: true,
       });
       fileTree.value = { ...fileTree.value, [targetDir]: updatedEntries };
       input.value = "";
-      console.log(
-        `All input uploads finished for ${filesToUpload.length} files.`,
-      );
     };
 
-    if (conflictingFiles.length > 0) {
-      filesToOverride.value = conflictingFiles.map((f) => f.name);
-      confirmCallback.value = async (confirmed) => {
+    if (conflicts.length > 0) {
+      filesToOverride.value = conflicts.map((f) => f.name);
+      confirmCallback.value = async (ok) => {
         fileOverrideConfirmationOpen.value = false;
-        confirmCallback.value = null; // Clear callback immediately
+        confirmCallback.value = null;
 
-        if (confirmed) {
-          console.log("User confirmed overwrite for input upload.");
-          await doUpload(conflictingFiles, true);
-          await doUpload(nonConflictingFiles, false);
-        } else {
-          console.log("User cancelled overwrite for input upload.");
-          await doUpload(nonConflictingFiles, false);
+        if (ok) {
+          transferManager.enqueueUploads(conflicts, targetDir, true);
         }
-        // Ensure input is cleared if no further operations pending
-        if (input) {
-          input.value = "";
-        }
+        transferManager.enqueueUploads(nonConflicts, targetDir, false);
+        await finish();
       };
       fileOverrideConfirmationOpen.value = true;
     } else {
-      console.log("No conflicts detected for input upload, proceeding.");
-      await doUpload(allDroppedFiles, false);
+      transferManager.enqueueUploads(files, targetDir, false);
+      await finish();
     }
   };
 

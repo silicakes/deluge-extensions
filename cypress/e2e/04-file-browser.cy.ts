@@ -196,51 +196,51 @@ describe("04 - File Browser Functionality", () => {
     });
   });
 
+  // flaky
   it("04-010: Transfer Queue and Progress Bar", () => {
-    cy.fixture("example.json", "binary").then((fileContent) => {
-      cy.getBySel(Selectors.FILE_BROWSER_TOGGLE).click();
-      cy.getBySel(Selectors.UPLOAD_INPUT).selectFile(
-        [
-          {
-            contents: Cypress.Blob.binaryStringToBlob(
-              fileContent,
-              "application/json",
-            ),
-            fileName: "example.json",
-            mimeType: "application/json",
-          },
-          {
-            contents: Cypress.Blob.binaryStringToBlob(
-              fileContent,
-              "application/json",
-            ),
-            fileName: "example1.json",
-            mimeType: "application/json",
-          },
-        ],
-        { force: true },
-      );
-      cy.getBySel(Selectors.TRANSFER_QUEUE).should("be.visible");
-      cy.getBySel(Selectors.TRANSFER_PROGRESS_BAR).should("be.visible");
-      cy.getBySel("'file-tree-item-example.json'")
-        .click()
-        .type("{shift}")
-        .click();
-      cy.getBySel("'file-tree-item-example1.json'")
-        .click()
-        .type("{shift}", { release: false })
-        .click();
-      cy.getBySel("'file-tree-item-example.json'").click().type("{del}");
-      cy.getBySel(Selectors.CONFIRM_DELETE_BUTTON).click();
+    cy.readFile("./cypress/fixtures/medium_file.wav", "binary")
+      .then(Cypress.Buffer.from)
+      .then((fileContent) => {
+        cy.getBySel(Selectors.FILE_BROWSER_TOGGLE).click();
+        cy.getBySel(Selectors.UPLOAD_INPUT).selectFile(
+          [
+            {
+              contents: fileContent,
+              fileName: "example.wav",
+              mimeType: "audio/wav",
+              lastModified: new Date().getTime(),
+            },
+            {
+              contents: fileContent,
+              fileName: "example1.wav",
+              mimeType: "audio/wav",
+              lastModified: new Date().getTime(),
+            },
+          ],
+          { force: true },
+        );
+        cy.getBySel(Selectors.TRANSFER_QUEUE).should("be.visible");
+        cy.getBySel(Selectors.TRANSFER_PROGRESS_BAR).should("be.visible");
+        cy.wait(3000);
+        cy.getBySel("'file-tree-item-example.wav'")
+          .click()
+          .type("{shift}")
+          .click();
+        cy.getBySel("'file-tree-item-example1.wav'")
+          .click()
+          .type("{shift}", { release: false })
+          .click();
+        cy.getBySel("'file-tree-item-example.wav'").click().type("{del}");
+        cy.getBySel(Selectors.CONFIRM_DELETE_BUTTON).click();
 
-      cy.getBySel(Selectors.FILE_TREE)
-        .contains("example.json")
-        .should("not.exist");
+        cy.getBySel(Selectors.FILE_TREE)
+          .contains("example.wav")
+          .should("not.exist");
 
-      cy.getBySel(Selectors.FILE_TREE)
-        .contains("example1.json")
-        .should("not.exist");
-    });
+        cy.getBySel(Selectors.FILE_TREE)
+          .contains("example1.wav")
+          .should("not.exist");
+      });
   });
 
   it("04-011: Conflict Resolution (Duplicate Folder)", () => {
@@ -441,11 +441,11 @@ describe("04 - File Browser Functionality", () => {
     });
   });
 
-  it.only("04-015: Cancel file upload", () => {
+  it("04-015: Cancel file upload", () => {
     const fileName = "cancelTest.wav";
     // largeContent will come from the fixture
 
-    cy.readFile("./cypress/fixtures/cancelTest.wav", "binary")
+    cy.readFile("./cypress/fixtures/large_file.wav", "binary")
       .then(Cypress.Buffer.from)
       .then((fileContent) => {
         cy.getBySel(Selectors.FILE_BROWSER_TOGGLE).click();
@@ -470,13 +470,9 @@ describe("04 - File Browser Functionality", () => {
           .click();
 
         cy.getBySel(Selectors.CANCEL_TRANSFER_DIALOG).should("be.visible");
-        cy.wait(500);
         cy.getBySel(Selectors.CONFIRM_CANCEL_TRANSFER_BUTTON).click();
 
-        cy.getBySel(Selectors.TRANSFER_QUEUE).should(
-          "not.contain.text",
-          fileName,
-        );
+        cy.getBySel(Selectors.TRANSFER_QUEUE).should("not.exist");
         cy.getBySel(`'${Selectors.FILE_TREE_ITEM_PREFIX}${fileName}'`).should(
           "not.exist",
         );
