@@ -156,58 +156,61 @@ const FileTransferQueue = () => {
   // Memoize handlers to prevent recreating on each render
   const handleCancelClick = useMemo(
     () => (id: string) => {
-      setCancelId(id);
-      setShowCancelModal(true);
-    },
-    [],
-  );
-
-  // Confirm cancellation (single or all), and delete partial files
-  const confirmCancel = useMemo(
-    () => async () => {
-      if (cancelId === "all") {
-        // Gather all file paths to delete
-        const paths = transfers.value.map((t) => t.src);
-        // Abort all controllers
-        cancelAllFileTransfers();
-        // Delete each cancelled file on device
-        await Promise.all(paths.map((path) => fsDelete({ path })));
-        // Refresh each parent directory in the tree
-        const parentDirs = Array.from(
-          new Set(
-            paths.map((p) => p.substring(0, p.lastIndexOf("/") || 1) || "/"),
-          ),
-        );
-        await Promise.all(
-          parentDirs.map(async (dir) => {
-            const entries = await listDirectory({ path: dir, force: true });
-            fileTree.value = { ...fileTree.value, [dir]: entries };
-          }),
-        );
-        // Clear queue and progress UI
-        fileTransferQueue.value = [];
-        fileTransferProgress.value = null;
-        fileTransferInProgress.value = false;
-      } else if (cancelId) {
-        // Cancel and delete a single file
-        const transfer = transfers.value.find((t) => t.id === cancelId);
-        cancelFileTransfer(cancelId);
-        if (transfer) {
+      // If this is the only transfer, skip confirmation and remove immediately
+      if (transfers.value.length === 1) {
+        const transfer = transfers.value[0];
+        cancelFileTransfer(id);
+        removeTransferFromList(id);
+        // Async cleanup: delete file and refresh parent directory
+        (async () => {
           await fsDelete({ path: transfer.src });
-          // Refresh its parent directory
           const dir =
             transfer.src.substring(0, transfer.src.lastIndexOf("/") || 1) ||
             "/";
           const entries = await listDirectory({ path: dir, force: true });
           fileTree.value = { ...fileTree.value, [dir]: entries };
-        }
-        // Remove it from the queue so the UI disappears
+        })();
+        return;
+      }
+      setCancelId(id);
+      setShowCancelModal(true);
+    },
+    [transfers.value],
+  );
+
+  // Confirm cancellation (single or all), and delete partial files
+  const confirmCancel = useMemo(
+    () => () => {
+      if (cancelId === "all") {
+        // Abort all and clear UI immediately
+        const paths = transfers.value.map((t) => t.src);
+        cancelAllFileTransfers();
+        fileTransferQueue.value = [];
+        fileTransferProgress.value = null;
+        fileTransferInProgress.value = false;
+        // Async cleanup: delete all and refresh root
+        (async () => {
+          await Promise.all(paths.map((path) => fsDelete({ path })));
+          const rootEntries = await listDirectory({ path: "/", force: true });
+          fileTree.value = { ...fileTree.value, ["/"]: rootEntries };
+        })();
+      } else if (cancelId) {
+        // Cancel single and remove UI immediately
+        const transfer = transfers.value.find((t) => t.id === cancelId);
+        cancelFileTransfer(cancelId);
         removeTransferFromList(cancelId);
+        if (transfer) {
+          (async () => {
+            await fsDelete({ path: transfer.src });
+            const rootEntries = await listDirectory({ path: "/", force: true });
+            fileTree.value = { ...fileTree.value, ["/"]: rootEntries };
+          })();
+        }
       }
       setShowCancelModal(false);
       setCancelId(null);
     },
-    [cancelId, transfers.value],
+    [cancelId],
   );
 
   // Close cancellation modal
