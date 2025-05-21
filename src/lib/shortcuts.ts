@@ -1,9 +1,9 @@
-export interface ShortcutHelpItem {
+interface ShortcutHelpItem {
   keys: string; // e.g. "S" or "Ctrl+⇧+D"
   description: string; // e.g. "Capture screenshot"
 }
 
-export interface Shortcut {
+interface Shortcut {
   key: string; // `c`, `f`, `?`, `+`, … (lower-case)
   description: string; // Human description (for help overlay)
   modifiers?: {
