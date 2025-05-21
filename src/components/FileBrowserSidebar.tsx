@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "preact/compat";
 import { useSignal, useSignalEffect } from "@preact/signals";
+import { useEffect } from "preact/hooks";
 import {
   fileBrowserOpen,
   midiOut,
@@ -36,15 +37,16 @@ export default function FileBrowserSidebar() {
   const isRefreshing = useSignal(false);
   // Track which directory was last uploaded to, so we can refresh its contents when transfers complete
   const lastUploadDir = useSignal<string | null>(null);
-  useSignalEffect(() => {
-    // When transfers finish, if we have a pending directory to refresh, do so
-    if (!anyTransferInProgress.value && lastUploadDir.value !== null) {
-      const dir = lastUploadDir.value;
-      listDirectory({ path: dir, force: true }).then((updatedEntries) => {
-        fileTree.value = { ...fileTree.value, [dir]: updatedEntries };
-        lastUploadDir.value = null;
-      });
+  // Warning toggle state persisted in localStorage
+  const showWarning = useSignal(true);
+  useEffect(() => {
+    const stored = localStorage.getItem("fbTreeShowWarning");
+    if (stored !== null) {
+      showWarning.value = stored === "true";
     }
+  }, []);
+  useSignalEffect(() => {
+    localStorage.setItem("fbTreeShowWarning", showWarning.value.toString());
   });
 
   // Auto-close sidebar when MIDI is disconnected
@@ -480,6 +482,18 @@ export default function FileBrowserSidebar() {
             `(${selectedPaths.value.size} selected)`}
         </h2>
         <div className="flex items-center space-x-1">
+          {!showWarning.value && (
+            <button
+              onClick={() => (showWarning.value = true)}
+              className="relative focus:outline-none cursor-pointer"
+              title="Show warning"
+            >
+              <span className="text-yellow-500 text-sm">⚠️</span>
+              <span className="text-xs absolute top-3 -right-1 inline-flex items-center justify-center w-3 h-3 bg-red-500 text-white font-bold rounded-full">
+                1
+              </span>
+            </button>
+          )}
           {/* Refresh button */}
           <button
             aria-label="Refresh directory"
@@ -604,7 +618,7 @@ export default function FileBrowserSidebar() {
             <div className="p-4 text-center">Loading file browser...</div>
           }
         >
-          <FileBrowserTree />
+          <FileBrowserTree showWarning={showWarning} />
         </Suspense>
       </div>
 

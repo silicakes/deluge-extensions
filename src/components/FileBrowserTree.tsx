@@ -1,5 +1,6 @@
 import { useEffect } from "preact/hooks";
-import { useSignal, useSignalEffect } from "@preact/signals";
+import { useSignal } from "@preact/signals";
+import type { Signal } from "@preact/signals";
 import {
   fileTree,
   expandedPaths,
@@ -1175,17 +1176,11 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
 /**
  * Root tree component for browsing files on the Deluge SD card
  */
-export default function FileBrowserTree() {
-  const showWarning = useSignal(true);
-  useEffect(() => {
-    const stored = localStorage.getItem("fbTreeShowWarning");
-    if (stored !== null) {
-      showWarning.value = stored === "true";
-    }
-  }, []);
-  useSignalEffect(() => {
-    localStorage.setItem("fbTreeShowWarning", showWarning.value.toString());
-  });
+export default function FileBrowserTree({
+  showWarning,
+}: {
+  showWarning: Signal<boolean>;
+}) {
   const rootPath = "/";
   const isLoading = useSignal(false);
   const error = useSignal<string | null>(null);
@@ -1244,8 +1239,8 @@ export default function FileBrowserTree() {
       onContextMenu={handleRootContextMenu}
       data-testid="file-browser-tree-root"
     >
-      {showWarning.value ? (
-        <div className="bg-yellow-100 border border-yellow-300 text-yellow-900 p-2 text-sm font-medium flex flex-col ">
+      {showWarning.value && (
+        <div className="bg-yellow-100 border border-yellow-300 text-yellow-900 p-2 text-sm font-medium flex flex-col">
           <span>
             <strong>Warning:</strong> The file system implementation may
             sometimes be unstable. Please back up your SD card before using this
@@ -1253,21 +1248,9 @@ export default function FileBrowserTree() {
           </span>
           <button
             onClick={() => (showWarning.value = false)}
-            className="cursor-pointer  text-yellow-900 focus:outline-none border-t border-yellow-300 pt-2"
+            className="cursor-pointer text-yellow-900 focus:outline-none border-t border-yellow-300 pt-2"
           >
             Hide
-          </button>
-        </div>
-      ) : (
-        <div className="p-2">
-          <button
-            onClick={() => (showWarning.value = true)}
-            className="relative overflow-visible focus:outline-none cursor-pointer"
-          >
-            <span className="text-yellow-500 text-xl">⚠️</span>
-            <span className="absolute -top-1 -right-1 inline-flex items-center justify-center w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full">
-              1
-            </span>
           </button>
         </div>
       )}
