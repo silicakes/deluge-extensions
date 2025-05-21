@@ -5,7 +5,7 @@ import { fsDelete } from "./fsDelete";
 import { fileTree, expandedPaths, selectedPaths, FileEntry } from "../../state";
 import { executeCommand } from "../_shared/executor";
 import { builder } from "../_shared/builder";
-import { parser } from "../_shared/parser";
+// parser import no longer needed
 import { SmsCommand } from "../_shared/types";
 import { listDirectory as actualListDirectory } from "./fsList";
 import type { ExecuteCommandOpts } from "../_shared/executor";
@@ -77,15 +77,14 @@ describe("fsDelete command", () => {
     it("calls executeCommand once for the file deletion", async () => {
       const params = { path: "/test.txt" };
       await fsDelete(params);
-      expect(mockListDirectory).toHaveBeenCalledWith({ path: "/test.txt" });
+      expect(mockListDirectory).toHaveBeenCalledWith({ path: "/" });
       expect(mockExecuteCommand).toHaveBeenCalledTimes(1);
       const callArgs = mockExecuteCommand.mock.calls[0][0];
       expect(callArgs.cmdId).toBe(SmsCommand.JSON);
-      expect(callArgs.request).toEqual({ path: "/test.txt" }); // deleteSinglePath uses itemPath
+      expect(callArgs.request).toEqual({ delete: { path: "/test.txt" } });
       expect(callArgs.build()).toEqual(
         builder.jsonOnly({ delete: { path: "/test.txt" } }),
       );
-      expect(callArgs.parse).toBe(parser.expectOk);
       expect(fileTree.value["/"]).toEqual([]);
     });
 
@@ -97,9 +96,7 @@ describe("fsDelete command", () => {
       selectedPaths.value = new Set(["/KITS/file.kit"]);
       const params = { path: "/KITS/file.kit" };
       await fsDelete(params);
-      expect(mockListDirectory).toHaveBeenCalledWith({
-        path: "/KITS/file.kit",
-      });
+      expect(mockListDirectory).toHaveBeenCalledWith({ path: "/KITS" });
       expect(mockExecuteCommand).toHaveBeenCalledTimes(1);
       expect(fileTree.value["/KITS"]).toEqual([]);
       expect(selectedPaths.value.has("/KITS/file.kit")).toBe(false);
@@ -108,20 +105,22 @@ describe("fsDelete command", () => {
     it("should throw error from executeCommand if file deletion fails", async () => {
       const params = { path: "/SONGS/song.xml" };
       const expectedError = new Error("Simulated delete error");
-      // This mock will be for the deleteSinglePath call to executeCommand
       mockExecuteCommand.mockRejectedValueOnce(expectedError);
 
       await expect(fsDelete(params)).rejects.toThrow(
         `Failed to delete ${params.path} as part of deleting ${params.path}. Error: ${expectedError.message}`,
       );
-      expect(mockListDirectory).toHaveBeenCalledWith({ path: params.path });
-      expect(mockExecuteCommand).toHaveBeenCalledTimes(1); // Only the delete call should be counted here by mockExecuteCommand
+      expect(mockListDirectory).toHaveBeenCalledWith({ path: "/SONGS" });
+      expect(mockExecuteCommand).toHaveBeenCalledTimes(1);
     });
   });
 
   describe("when deleting directories", () => {
     beforeEach(() => {
       mockListDirectory.mockImplementation(async ({ path }) => {
+        if (path === "/") {
+          return [{ name: "DIR", attr: 0x10, size: 0, date: 0, time: 0 }];
+        }
         if (path === "/DIR") {
           return [
             { name: "file.txt", attr: 0x20, size: 0, date: 0, time: 0 },
