@@ -8,9 +8,11 @@ import {
   expandedPaths,
   FileEntry,
 } from "../state";
-import * as midiModule from "../lib/midi";
 import FileBrowserTree from "../components/FileBrowserTree";
+import * as commands from "@/commands";
+import { signal } from "@preact/signals";
 
+const showWarning = signal(true);
 // Mock the lazy loading
 vi.mock("preact/compat", async () => {
   const actual = await vi.importActual("preact/compat");
@@ -28,14 +30,7 @@ vi.mock("preact/compat", async () => {
   };
 });
 
-// Mock the midi functions
-vi.mock("../lib/midi", () => ({
-  movePath: vi.fn().mockResolvedValue(undefined),
-  uploadFiles: vi.fn().mockResolvedValue(undefined),
-  readFile: vi.fn().mockResolvedValue(new ArrayBuffer(10)),
-  triggerBrowserDownload: vi.fn(),
-  listDirectory: vi.fn().mockResolvedValue([]),
-}));
+// No mocking of legacy midi module needed; commands module is used instead
 
 describe("FileBrowser Drag & Drop / Upload / Download", () => {
   beforeEach(() => {
@@ -76,8 +71,8 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
 
   it("should call readFile and triggerBrowserDownload when download button is clicked", async () => {
     // Setup mocks
-    const readFileMock = vi.spyOn(midiModule, "readFile");
-    const downloadMock = vi.spyOn(midiModule, "triggerBrowserDownload");
+    const readFileMock = vi.spyOn(commands, "readFile");
+    const downloadMock = vi.spyOn(commands, "triggerBrowserDownload");
 
     // Mock the readFile to return a resolved promise
     readFileMock.mockResolvedValue(new ArrayBuffer(10));
@@ -98,7 +93,7 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     // Verify correct functions were called
-    expect(readFileMock).toHaveBeenCalledWith("/file1.txt");
+    expect(readFileMock).toHaveBeenCalledWith({ path: "/file1.txt" });
     expect(downloadMock).toHaveBeenCalled();
   });
 
@@ -123,7 +118,7 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
 
   it("should call uploadFiles when files are dropped", () => {
     // Setup mock
-    const uploadMock = vi.spyOn(midiModule, "uploadFiles");
+    const uploadMock = vi.spyOn(commands, "uploadFiles");
 
     // Render
     render(<FileBrowserSidebar />);
@@ -141,7 +136,12 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
     fireEvent.drop(screen.getByRole("complementary"), { dataTransfer });
 
     // Verify uploadFiles was called with correct params
-    expect(uploadMock).toHaveBeenCalledWith([testFile], "/");
+    expect(uploadMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        files: [testFile],
+        destDir: "/",
+      }),
+    );
   });
 
   it("should allow dropping files onto a folder's children area", () => {
@@ -168,13 +168,13 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
     };
 
     // Mock the state and uploadFiles function
-    vi.spyOn(midiModule, "uploadFiles").mockResolvedValue();
+    vi.spyOn(commands, "uploadFiles").mockResolvedValue();
 
     // Set up fileTree and expandedPaths signals
     fileTree.value = fileTreeMock;
     expandedPaths.value = new Set(["/folder1"]);
 
-    render(<FileBrowserTree />);
+    render(<FileBrowserTree showWarning={showWarning} />);
 
     // Create a test file for the drop event
     const testFile = new File(["test content"], "test.txt", {
@@ -198,9 +198,11 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
       fireEvent.drop(childrenUl, { dataTransfer });
 
       // Verify uploadFiles was called with correct params
-      expect(midiModule.uploadFiles).toHaveBeenCalledWith(
-        [testFile],
-        "/folder1",
+      expect(commands.uploadFiles).toHaveBeenCalledWith(
+        expect.objectContaining({
+          files: [testFile],
+          destDir: "/folder1",
+        }),
       );
     }
   });
@@ -220,12 +222,12 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
     };
 
     // Mock the state and uploadFiles function
-    vi.spyOn(midiModule, "uploadFiles").mockResolvedValue();
+    vi.spyOn(commands, "uploadFiles").mockResolvedValue();
 
     // Set up fileTree signal
     fileTree.value = fileTreeMock;
 
-    render(<FileBrowserTree />);
+    render(<FileBrowserTree showWarning={showWarning} />);
 
     // Create a test file for the drop event
     const testFile = new File(["test content"], "test.txt", {
@@ -245,9 +247,11 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
       fireEvent.drop(folderLi, { dataTransfer });
 
       // Verify uploadFiles was called with correct params
-      expect(midiModule.uploadFiles).toHaveBeenCalledWith(
-        [testFile],
-        "/folder1",
+      expect(commands.uploadFiles).toHaveBeenCalledWith(
+        expect.objectContaining({
+          files: [testFile],
+          destDir: "/folder1",
+        }),
       );
     }
   });

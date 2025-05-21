@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "preact/hooks";
 import { useSignal } from "@preact/signals";
 import { previewFile } from "../state";
-import { readFile } from "../lib/midi";
+import { readFile } from "@/commands";
 import { getMimeType } from "../lib/fileType";
 
 /**
@@ -31,7 +31,7 @@ export default function AudioPreview() {
       return;
     }
 
-    const path = previewFile.value.path;
+    const fileData = previewFile.value;
 
     async function loadAudio() {
       try {
@@ -39,10 +39,10 @@ export default function AudioPreview() {
         error.value = null;
 
         // Read file from device
-        const buffer = await readFile(path);
+        const buffer = await readFile(fileData);
 
         // Create blob URL
-        const blob = new Blob([buffer], { type: getMimeType(path) });
+        const blob = new Blob([buffer], { type: getMimeType(fileData.path) });
         const url = URL.createObjectURL(blob);
 
         // Set audio source

@@ -5,7 +5,8 @@
  * with the Deluge firmware 4.x using the smSysex protocol.
  */
 import { midiOut } from "../state";
-import { unpack7 } from "./pack7";
+import { decode7Bit } from "@/commands/_shared/pack";
+import { pack_8bit_to_7bit } from "./sysexPacking";
 import type { FileEntry } from "../state";
 
 // Define smSysex commands
@@ -18,6 +19,9 @@ export enum SmsCommand {
   JSON_REPLY = 0x05,
   PONG = 0x7f,
 }
+
+const ENABLE_SYSEX_LOG = false;
+const log = ENABLE_SYSEX_LOG ? console.log : () => {};
 
 // Standard Synthstrom manufacturer ID
 const STD_MANUFACTURER_ID = [0x00, 0x21, 0x7b, 0x01];
@@ -72,7 +76,7 @@ export async function openSession(tag = "DEx"): Promise<SmsSession> {
     return currentSession;
   }
 
-  console.log("Opening smSysex session with tag:", tag);
+  log("Opening smSysex session with tag:", tag);
   const sessionCmd = { session: { tag } };
   const jsonData = JSON.stringify(sessionCmd);
 
@@ -112,7 +116,7 @@ export async function openSession(tag = "DEx"): Promise<SmsSession> {
       cleanup(); // Remove listener once we get a response
 
       try {
-        console.log(
+        log(
           "Received session response:",
           Array.from(data).map((b) => b.toString(16)),
         );
@@ -130,7 +134,7 @@ export async function openSession(tag = "DEx"): Promise<SmsSession> {
             string,
             unknown
           >;
-          console.log("Session info:", sessionInfo);
+          log("Session info:", sessionInfo);
 
           // Verify required properties exist
           if (
@@ -151,7 +155,7 @@ export async function openSession(tag = "DEx"): Promise<SmsSession> {
             counter: 1, // Start counter at 1
           };
 
-          console.log("Session established:", currentSession);
+          log("Session established:", currentSession);
           resolve(currentSession);
         } else {
           console.error("Invalid session response format:", parsedResponse);
@@ -164,7 +168,7 @@ export async function openSession(tag = "DEx"): Promise<SmsSession> {
     });
 
     // Send the session request
-    console.log("Sending session request");
+    log("Sending session request");
     const output = midiOut.value;
     if (output) {
       output.send(message);
@@ -188,34 +192,36 @@ export async function ensureSession(): Promise<SmsSession> {
 /**
  * Send a JSON command to the Deluge and wait for the response
  * @param cmd The JSON command object
+ * @param binaryPayload Optional binary payload for write commands
  * @param s The session to use
  * @returns Promise resolving to the JSON response
  */
 export async function sendJson(
   cmd: object,
+  binaryPayload?: Uint8Array,
   s?: SmsSession,
 ): Promise<Record<string, unknown>> {
   if (!midiOut.value) {
     throw new Error("MIDI output not selected");
   }
 
-  console.log("sendJson called with command:", cmd);
+  log("sendJson called with command:", cmd);
 
   // Get or create a session if not provided
   if (!s) {
-    console.log("No session provided, ensuring session exists");
+    log("No session provided, ensuring session exists");
     s = await ensureSession();
-    console.log("Session ensured:", s);
+    log("Session ensured:", s);
   }
 
   // Build message ID and increment counter
   const msgId = buildMsgId(s);
   incrementCounter(s);
-  console.log(`Using msgId: ${msgId.toString(16)}, counter now: ${s.counter}`);
+  log(`Using msgId: ${msgId.toString(16)}, counter now: ${s.counter}`);
 
   // Convert JSON to bytes
   const jsonData = JSON.stringify(cmd);
-  console.log("JSON payload:", jsonData);
+  log("JSON payload:", jsonData);
   const jsonBytes = new Uint8Array(jsonData.length);
   for (let i = 0; i < jsonData.length; i++) {
     jsonBytes[i] = jsonData.charCodeAt(i);
@@ -226,13 +232,32 @@ export async function sendJson(
   const sysexHeader = [0xf0, ...manufacturerId, SmsCommand.JSON, msgId];
   const sysexFooter = [0xf7];
 
-  const message = new Uint8Array([
-    ...sysexHeader,
-    ...Array.from(jsonBytes),
-    ...sysexFooter,
-  ]);
+  let message: Uint8Array;
 
-  console.log(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((cmd as any).write && binaryPayload) {
+    log(
+      "[smsysex] Detected 'write' command with binary data. Packing and appending.",
+    );
+    const packedBinary = pack_8bit_to_7bit(binaryPayload);
+    const separator = new Uint8Array([0x00]);
+    message = new Uint8Array([
+      ...sysexHeader,
+      ...Array.from(jsonBytes),
+      ...separator,
+      ...packedBinary,
+      ...sysexFooter,
+    ]);
+    log(`[smsysex] Combined message length for write: ${message.length}`);
+  } else {
+    message = new Uint8Array([
+      ...sysexHeader,
+      ...Array.from(jsonBytes),
+      ...sysexFooter,
+    ]);
+  }
+
+  log(
     "SysEx message:",
     Array.from(message)
       .map((b) => "0x" + b.toString(16).padStart(2, "0"))
@@ -254,7 +279,7 @@ export async function sendJson(
 
     // Set up response listener
     const cleanup = subscribeSysexListener((data) => {
-      console.log(
+      log(
         `Received SysEx response, checking if matches msgId ${msgId.toString(16)}`,
       );
 
@@ -263,12 +288,12 @@ export async function sendJson(
       const isDevId = data[1] === 0x7d;
       const msgIdPos = isDevId ? 3 : 6;
       const responseMsgId = data[msgIdPos];
-      console.log(
+      log(
         `Response msgId: ${responseMsgId.toString(16)}, expected: ${msgId.toString(16)}, position: ${msgIdPos}`,
       );
 
       if (data.length > msgIdPos && responseMsgId === msgId) {
-        console.log("Message ID matched, processing response");
+        log("Message ID matched, processing response");
         clearTimeout(timeoutId);
         cleanup(); // Remove listener
 
@@ -286,15 +311,15 @@ export async function sendJson(
           reject(err);
         }
       } else {
-        console.log("Message ID did not match, ignoring");
+        log("Message ID did not match, ignoring");
       }
     });
 
     // Send the command
-    console.log("Sending SysEx command...");
+    log("Sending SysEx command...");
     if (midiOut.value) {
       midiOut.value.send(message);
-      console.log("SysEx command sent");
+      log("SysEx command sent");
     } else {
       console.error("MIDI output disappeared");
       cleanup();
@@ -320,7 +345,7 @@ export async function ping(s?: SmsSession): Promise<void> {
   // Ping command: empty JSON object
   const cmd = { ping: {} };
 
-  return sendJson(cmd, s).then(() => {
+  return sendJson(cmd, undefined, s).then(() => {
     // If sendJson resolves, ping succeeded
     return;
   });
@@ -366,22 +391,22 @@ function parseSysexResponse(data: Uint8Array): {
       // Simple check if unpacking is needed - might need refinement
       // Assuming 7-bit packing if it contains bytes >= 0x80
       try {
-        binaryData = unpack7(packedBinary);
+        binaryData = decode7Bit(Array.from(packedBinary));
       } catch (e) {
-        console.warn("Failed to unpack binary data, assuming raw:", e);
-        binaryData = packedBinary; // Fallback to raw if unpack fails
+        console.warn("Failed to decode binary data, assuming raw:", e);
+        binaryData = packedBinary; // Fallback to raw if decode fails
       }
     }
 
     const jsonText = String.fromCharCode.apply(null, Array.from(jsonBytes));
-    console.log("Raw JSON part:", jsonText);
+    log("Raw JSON part:", jsonText);
 
     try {
       const json = JSON.parse(jsonText);
       // Check if this is actually a read response based on the presence of binary data
       // or the key "^read"
       if (binaryData || (json && json["^read"])) {
-        console.log("Read response detected, returning JSON and binary data.");
+        log("Read response detected, returning JSON and binary data.");
         return { json, binaryData };
       }
       // For non-read responses, just return JSON
@@ -398,13 +423,13 @@ function parseSysexResponse(data: Uint8Array): {
         jsonText.includes('"list"') &&
         jsonText.includes('"name"')
       ) {
-        console.log("Detected directory listing - using manual extraction");
+        log("Detected directory listing - using manual extraction");
         return { json: extractDirectoryEntries(jsonText) };
       }
 
       // Fallback for session response
       if (jsonText.includes('"^session"') || jsonText.includes('"session"')) {
-        console.log("Constructing fallback session object");
+        log("Constructing fallback session object");
         return {
           json: {
             "^session": {
@@ -495,7 +520,7 @@ function extractDirectoryEntries(jsonText: string): Record<string, unknown> {
     }
   }
 
-  console.log(`Extracted ${entries.length} entries using regex fallback`);
+  log(`Extracted ${entries.length} entries using regex fallback`);
 
   // Return a properly formatted directory response
   return {
@@ -537,7 +562,7 @@ function processBinaryResponse(data: Uint8Array, msgId: number): void {
     const packedData = data.slice(separatorIdx + 1, data.length - 1);
 
     // Unpack to 8-bit data
-    const unpacked = unpack7(packedData);
+    const unpacked = decode7Bit(Array.from(packedData));
 
     // Call the handler
     handler(unpacked);

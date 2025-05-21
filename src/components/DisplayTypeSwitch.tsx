@@ -1,4 +1,4 @@
-import { flipScreen } from "../lib/midi";
+import { flipScreen } from "@/commands/display";
 import { displayType, midiOut } from "../state";
 
 export function DisplayTypeSwitch() {
@@ -21,6 +21,7 @@ export function DisplayTypeSwitch() {
       htmlFor="display-type-switch"
       className={`flex items-center cursor-pointer ${disabled ? "opacity-50 pointer-events-none" : ""}`}
       title="Toggle between OLED & 7-segment screens"
+      data-testid="display-type-switch"
     >
       <span
         className={`mr-2 text-sm font-medium ${is7Seg ? "text-red-600 font-bold" : ""}`}
@@ -36,14 +37,13 @@ export function DisplayTypeSwitch() {
           onChange={handleToggle}
           className="sr-only peer"
           aria-label="Toggle display type"
+          data-testid="hidden-screen-toggle-checkbox"
           disabled={disabled}
         />
         {/* Switch track - blue for OLED, red for 7SEG */}
         <div
           className={`w-10 h-5 rounded-full peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 transition-colors ${
-            is7Seg
-              ? "bg-red-600"
-              : "bg-blue-600 peer-checked:bg-blue-600 bg-gray-300"
+            is7Seg ? "bg-red-600" : "bg-blue-600 peer-checked:bg-blue-600"
           }`}
         ></div>
         {/* Switch knob */}

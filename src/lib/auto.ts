@@ -1,8 +1,9 @@
 import { effect } from "@preact/signals";
 import { autoEnabled, midiOut } from "../state";
-import { autoConnectDefaultPorts } from "./midi";
-import { getDisplay } from "./midi";
+// import { autoConnectDefaultPorts } from "./midi";
+// import { getDisplay } from "./midi";
 import { startPolling, stopPolling } from "./display";
+import { autoConnectDefaultPorts, getDisplay } from "./webMidi";
 
 // Save preference
 effect(() => {

@@ -1,5 +1,5 @@
-import { useSignal, useComputed } from "@preact/signals";
-import { displaySettings, DisplaySettings } from "../state";
+import { useComputed } from "@preact/signals";
+import { displaySettings } from "../state";
 import { usePersistDisplaySettings } from "../hooks/useDisplaySettingsPersistence";
 import { useEffect, useRef } from "preact/hooks";
 import { themePreference, ThemeType, setTheme } from "../lib/theme";
@@ -15,7 +15,7 @@ export function DisplayColorDrawer({
   onClose,
   includeThemeControls = true,
 }: DisplayColorDrawerProps) {
-  const settings = useSignal<DisplaySettings>(displaySettings.value);
+  // const settings = useSignal<DisplaySettings>(displaySettings.value);
   const drawerRef = useRef<HTMLDivElement>(null);
   const currentTheme = useComputed(() => themePreference.value);
 
@@ -52,6 +52,7 @@ export function DisplayColorDrawer({
     key: "foregroundColor" | "backgroundColor",
     value: string,
   ) => {
+    console.log("changing color", { key, value });
     displaySettings.value = {
       ...displaySettings.value,
       [key]: value,
@@ -78,6 +79,7 @@ export function DisplayColorDrawer({
       aria-modal="true"
       role="dialog"
       aria-label="Appearance Settings"
+      data-testid="appearance-settings"
     >
       <div
         ref={drawerRef}
@@ -116,7 +118,7 @@ export function DisplayColorDrawer({
         <div className="p-4 space-y-6">
           {/* Theme controls section */}
           {includeThemeControls && (
-            <section>
+            <section data-testid="theme-picker-section">
               <h3 className="text-sm font-medium mb-3">Theme</h3>
               <div className="flex flex-wrap gap-4">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -126,6 +128,7 @@ export function DisplayColorDrawer({
                     checked={currentTheme.value === "light"}
                     onChange={() => handleThemeChange("light")}
                     className="border-[var(--color-border)]"
+                    data-testid="light-theme-toggle"
                   />
                   <span>Light</span>
                 </label>
@@ -136,6 +139,7 @@ export function DisplayColorDrawer({
                     checked={currentTheme.value === "dark"}
                     onChange={() => handleThemeChange("dark")}
                     className="border-[var(--color-border)]"
+                    data-testid="dark-theme-toggle"
                   />
                   <span>Dark</span>
                 </label>
@@ -162,27 +166,29 @@ export function DisplayColorDrawer({
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
-                    value={settings.value.foregroundColor}
-                    onChange={(e) =>
-                      handleColorChange(
-                        "foregroundColor",
-                        (e.target as HTMLInputElement).value,
-                      )
-                    }
+                    value={displaySettings.value.foregroundColor}
+                    onChange={(e) => {
+                      displaySettings.value = {
+                        ...displaySettings.value,
+                        foregroundColor: (e.target as HTMLInputElement).value,
+                      };
+                    }}
                     aria-label="Foreground color"
                     className="w-8 h-8 border-0 rounded cursor-pointer"
+                    data-testid="foreground-color-picker"
                   />
                   <input
                     type="text"
-                    value={settings.value.foregroundColor}
-                    onChange={(e) =>
-                      handleColorChange(
-                        "foregroundColor",
-                        (e.target as HTMLInputElement).value,
-                      )
-                    }
+                    value={displaySettings.value.foregroundColor}
+                    onChange={(e) => {
+                      displaySettings.value = {
+                        ...displaySettings.value,
+                        foregroundColor: (e.target as HTMLInputElement).value,
+                      };
+                    }}
                     className="flex-1 px-2 py-1 border border-[var(--color-border)] rounded font-mono text-sm"
                     maxLength={7}
+                    data-testid="foreground-color-picker-text"
                   />
                 </div>
               </div>
@@ -192,7 +198,7 @@ export function DisplayColorDrawer({
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
-                    value={settings.value.backgroundColor}
+                    value={displaySettings.value.backgroundColor}
                     onChange={(e) =>
                       handleColorChange(
                         "backgroundColor",
@@ -201,10 +207,11 @@ export function DisplayColorDrawer({
                     }
                     aria-label="Background color"
                     className="w-8 h-8 border-0 rounded cursor-pointer"
+                    data-testid="background-color-picker"
                   />
                   <input
                     type="text"
-                    value={settings.value.backgroundColor}
+                    value={displaySettings.value.backgroundColor}
                     onChange={(e) =>
                       handleColorChange(
                         "backgroundColor",
@@ -213,6 +220,7 @@ export function DisplayColorDrawer({
                     }
                     className="flex-1 px-2 py-1 border border-[var(--color-border)] rounded font-mono text-sm"
                     maxLength={7}
+                    data-testid="background-color-picker-text"
                   />
                 </div>
               </div>
@@ -221,13 +229,14 @@ export function DisplayColorDrawer({
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={settings.value.use7SegCustomColors}
+                    checked={displaySettings.value.use7SegCustomColors}
                     onChange={(e) =>
                       handleCustomColorsToggle(
                         (e.target as HTMLInputElement).checked,
                       )
                     }
                     className="border-[var(--color-border)]"
+                    data-testid="use-custom-color-for-7seg-toggle"
                   />
                   <span>Use custom for 7-segment</span>
                 </label>
@@ -246,6 +255,7 @@ export function DisplayColorDrawer({
                     }}
                     className="border-[var(--color-border)]"
                     title="Toggle pixel grid (G)"
+                    data-testid="pixel-grid-toggle"
                   />
                   <span>Pixel grid</span>
                 </label>

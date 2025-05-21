@@ -74,6 +74,7 @@ export function FileOverrideConfirmation() {
       aria-modal="true"
       aria-labelledby="override-heading"
       ref={overlayRef}
+      data-testid="conflict-dialog"
     >
       <div
         className="bg-white dark:bg-neutral-800 rounded-lg p-6 max-w-md w-full shadow-xl"
@@ -116,6 +117,7 @@ export function FileOverrideConfirmation() {
           <button
             className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded"
             onClick={handleConfirm}
+            data-testid="conflict-dialog-overwrite-button"
           >
             Overwrite
           </button>

@@ -27,7 +27,7 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
-    "baseUrl": ".",
+    "baseUrl": "."
   },
-  "include": ["src"]
+  "include": ["src", "cypress/**/*.ts"]
 }

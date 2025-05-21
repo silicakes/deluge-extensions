@@ -18,10 +18,8 @@ vi.mock("../lib/display", () => ({
   exitFullscreenScale: vi.fn(),
   copyCanvasToBase64: vi.fn(),
   oledFrame: new Uint8Array(128 * 6),
-}));
-
-vi.mock("../lib/midi", () => ({
-  subscribeMidiListener: vi.fn().mockReturnValue(() => {}),
+  startPolling: vi.fn(),
+  stopPolling: vi.fn(),
 }));
 
 // Mock the DisplayTypeSwitch component

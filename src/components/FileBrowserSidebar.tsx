@@ -1,23 +1,28 @@
 import { lazy, Suspense } from "preact/compat";
 import { useSignal, useSignalEffect } from "@preact/signals";
+import { useEffect } from "preact/hooks";
 import {
   fileBrowserOpen,
   midiOut,
   selectedPaths,
-  fileTransferInProgress,
   fileTree,
-  expandedPaths,
   anyTransferInProgress,
 } from "../state";
 import {
-  readFile,
   triggerBrowserDownload,
-  uploadFiles,
+  makeDirectory,
+  writeFile,
+  readFile,
   listDirectory,
-  createDirectory,
-  createFile,
-} from "../lib/midi";
+  fsDelete,
+} from "@/commands";
+import {
+  fileOverrideConfirmationOpen,
+  filesToOverride,
+  confirmCallback,
+} from "./FileOverrideConfirmation";
 import FileTransferQueue from "./FileTransferQueue";
+import { transferManager } from "@/services/transferManager";
 
 // Lazily load the FileBrowserTree component
 const FileBrowserTree = lazy(() => import("./FileBrowserTree"));
@@ -30,6 +35,19 @@ export default function FileBrowserSidebar() {
   const showNewFileModal = useSignal(false);
   const newName = useSignal("");
   const isRefreshing = useSignal(false);
+  // Track which directory was last uploaded to, so we can refresh its contents when transfers complete
+  const lastUploadDir = useSignal<string | null>(null);
+  // Warning toggle state persisted in localStorage
+  const showWarning = useSignal(true);
+  useEffect(() => {
+    const stored = localStorage.getItem("fbTreeShowWarning");
+    if (stored !== null) {
+      showWarning.value = stored === "true";
+    }
+  }, []);
+  useSignalEffect(() => {
+    localStorage.setItem("fbTreeShowWarning", showWarning.value.toString());
+  });
 
   // Auto-close sidebar when MIDI is disconnected
   useSignalEffect(() => {
@@ -93,16 +111,12 @@ export default function FileBrowserSidebar() {
     }
   };
 
-  const handleDrop = (e: DragEvent) => {
+  const handleDrop = async (e: DragEvent) => {
     e.preventDefault();
 
-    // Don't handle the drop if it was caught by a specific folder in the tree
-    // This checks if any parent of the target element has a data-path attribute,
-    // which indicates it's a directory item in the tree (now on the <li> element)
     let element = e.target as HTMLElement;
     while (element && element !== e.currentTarget) {
       if (element.hasAttribute("data-path")) {
-        // The event was caught by a directory item, don't duplicate handling
         console.log("Drop handled by directory item, skipping sidebar handler");
         isDraggingOver.value = false;
         return;
@@ -113,53 +127,78 @@ export default function FileBrowserSidebar() {
     isDraggingOver.value = false;
     console.log("File dropped on sidebar (root level)");
 
-    // Handle file upload to root or current selected directory
-    if (e.dataTransfer?.files.length) {
-      const files = e.dataTransfer.files;
-      console.log(`Detected ${files.length} files for upload`);
-
-      let targetDir = "/";
-
-      // If a directory is selected, use that as the target
-      if (selectedPaths.value.size > 0) {
-        const selectedPathsList = Array.from(selectedPaths.value);
-        const firstPath = selectedPathsList[0];
-        console.log("Selected path for upload target:", firstPath);
-
-        // Check if the path exists as a key in fileTree (is a directory)
-        if (fileTree.value[firstPath]) {
-          console.log(`${firstPath} is a directory, using as upload target`);
-          targetDir = firstPath;
-        } else {
-          // If it's a file, use its parent directory
-          const parent =
-            firstPath.substring(0, firstPath.lastIndexOf("/") || 0) || "/";
-          console.log(
-            `${firstPath} is a file, using parent dir ${parent} as upload target`,
-          );
-          targetDir = parent;
-        }
+    let targetDir = "/";
+    if (selectedPaths.value.size > 0) {
+      const selectedPath = Array.from(selectedPaths.value)[0];
+      if (
+        fileTree.value[selectedPath] &&
+        Array.isArray(fileTree.value[selectedPath])
+      ) {
+        targetDir = selectedPath;
       } else {
-        // No selection, upload to root
-        console.log("No selection, uploading to root directory");
+        const parent =
+          selectedPath.substring(0, selectedPath.lastIndexOf("/") || 0) || "/";
+        targetDir = parent;
+      }
+    } else {
+      console.log("No selection, uploading to root directory for drop event");
+    }
+
+    if (e.dataTransfer?.files.length) {
+      // Remember to refresh this directory once the transfer queue drains
+      lastUploadDir.value = targetDir;
+      const allDroppedFiles = Array.from(e.dataTransfer.files);
+
+      console.log(
+        `Files dropped on sidebar, queueing ${allDroppedFiles.length} files for upload to: ${targetDir}`,
+      );
+
+      const existingEntries = fileTree.value[targetDir] || [];
+      const conflictingFiles: File[] = [];
+      const nonConflictingFiles: File[] = [];
+
+      const isDirectoryEntry = (entry: { name: string; attr: number }) =>
+        (entry.attr & 0x10) !== 0;
+
+      for (const file of allDroppedFiles) {
+        const isConflict = existingEntries.some(
+          (entry) => entry.name === file.name && !isDirectoryEntry(entry),
+        );
+        if (isConflict) {
+          conflictingFiles.push(file);
+        } else {
+          nonConflictingFiles.push(file);
+        }
       }
 
-      console.log(`Starting upload of ${files.length} files to ${targetDir}`);
-      uploadFiles(Array.from(files), targetDir)
-        .then(() => {
-          console.log("Upload completed successfully");
-          // Refresh the directory contents to show the new files
-          return listDirectory(targetDir);
-        })
-        .then(() => {
-          console.log(`Directory ${targetDir} refreshed successfully`);
-          // Force a UI update to ensure the changes are reflected
-          fileTree.value = { ...fileTree.value };
-        })
-        .catch((err) => {
-          console.error("Failed to upload files:", err);
-          alert(`Upload failed: ${err.message || "Unknown error"}`);
-        });
+      if (conflictingFiles.length > 0) {
+        filesToOverride.value = conflictingFiles.map((f) => f.name);
+        confirmCallback.value = async (confirmed) => {
+          fileOverrideConfirmationOpen.value = false;
+          confirmCallback.value = null;
+          if (confirmed) {
+            console.log("[Sidebar Drop] User confirmed overwrite.");
+            transferManager.enqueueUploads(conflictingFiles, targetDir, true);
+            transferManager.enqueueUploads(
+              nonConflictingFiles,
+              targetDir,
+              false,
+            );
+          } else {
+            console.log("[Sidebar Drop] User cancelled overwrite.");
+            transferManager.enqueueUploads(
+              nonConflictingFiles,
+              targetDir,
+              false,
+            );
+          }
+        };
+        fileOverrideConfirmationOpen.value = true;
+      } else {
+        console.log("[Sidebar Drop] No conflicts, queueing uploads.");
+        transferManager.enqueueUploads(allDroppedFiles, targetDir, false);
+      }
+      return; // Completed drop handling
     }
   };
 
@@ -176,11 +215,76 @@ export default function FileBrowserSidebar() {
 
     try {
       console.log("Attempting to download:", filePath);
-      const data = await readFile(filePath);
+      const data = await readFile({ path: filePath });
       const fileName = filePath.substring(filePath.lastIndexOf("/") + 1);
       triggerBrowserDownload(data, fileName);
     } catch (err) {
       console.error("Failed to download file:", err);
+    }
+  };
+
+  const handleFileInputChange = async (e: Event) => {
+    // Unified upload via transferManager
+    const input = e.target as HTMLInputElement;
+    if (!input.files?.length) return;
+    const files = Array.from(input.files);
+
+    // Determine target directory
+    let targetDir = "/";
+    if (selectedPaths.value.size > 0) {
+      const selectedPath = Array.from(selectedPaths.value)[0];
+      if (
+        fileTree.value[selectedPath] &&
+        Array.isArray(fileTree.value[selectedPath])
+      ) {
+        targetDir = selectedPath;
+      } else {
+        targetDir =
+          selectedPath.substring(0, selectedPath.lastIndexOf("/") || 0) || "/";
+      }
+    }
+    // Mark this dir for refresh once all uploads finish
+    lastUploadDir.value = targetDir;
+
+    // Split conflicts
+    const existing = fileTree.value[targetDir] || [];
+    const isDir = (e: { name: string; attr: number }) => (e.attr & 0x10) !== 0;
+    const conflicts: File[] = [];
+    const nonConflicts: File[] = [];
+    for (const f of files) {
+      if (existing.some((e) => e.name === f.name && !isDir(e))) {
+        conflicts.push(f);
+      } else {
+        nonConflicts.push(f);
+      }
+    }
+
+    // Helper to refresh the directory and clear the file input
+    const finish = async () => {
+      const updatedEntries = await listDirectory({
+        path: targetDir,
+        force: true,
+      });
+      fileTree.value = { ...fileTree.value, [targetDir]: updatedEntries };
+      input.value = "";
+    };
+
+    if (conflicts.length > 0) {
+      filesToOverride.value = conflicts.map((f) => f.name);
+      confirmCallback.value = async (ok) => {
+        fileOverrideConfirmationOpen.value = false;
+        confirmCallback.value = null;
+
+        if (ok) {
+          transferManager.enqueueUploads(conflicts, targetDir, true);
+        }
+        transferManager.enqueueUploads(nonConflicts, targetDir, false);
+        await finish();
+      };
+      fileOverrideConfirmationOpen.value = true;
+    } else {
+      transferManager.enqueueUploads(files, targetDir, false);
+      await finish();
     }
   };
 
@@ -210,17 +314,48 @@ export default function FileBrowserSidebar() {
           selectedPath.substring(0, selectedPath.lastIndexOf("/") || 0) || "/";
       }
     }
+    // Conflict: duplicate name in directory
+    if (
+      (fileTree.value[targetDir] || []).some((e) => e.name === newName.value)
+    ) {
+      filesToOverride.value = [newName.value];
+      confirmCallback.value = async (confirmed) => {
+        fileOverrideConfirmationOpen.value = false;
+        confirmCallback.value = null;
+        if (confirmed) {
+          const pathToDelete =
+            targetDir === "/"
+              ? `/${newName.value}`
+              : `${targetDir}/${newName.value}`;
+          await fsDelete({ path: pathToDelete });
+          await makeDirectory({ path: pathToDelete });
+        }
+        showNewFolderModal.value = false;
+        newName.value = "";
+        const updatedEntries = await listDirectory({
+          path: targetDir,
+          force: true,
+        });
+        fileTree.value = { ...fileTree.value, [targetDir]: updatedEntries };
+      };
+      fileOverrideConfirmationOpen.value = true;
+      return;
+    }
 
     const newDirPath =
       targetDir === "/" ? `/${newName.value}` : `${targetDir}/${newName.value}`;
 
     try {
-      await createDirectory(newDirPath);
+      await makeDirectory({ path: newDirPath });
       showNewFolderModal.value = false;
       newName.value = "";
 
       // Refresh directory after creation
-      await listDirectory(targetDir);
+      const updatedEntries = await listDirectory({ path: targetDir });
+      fileTree.value = {
+        ...fileTree.value,
+        [targetDir]: updatedEntries,
+      };
     } catch (error) {
       console.error("Failed to create directory:", error);
       alert(
@@ -255,17 +390,48 @@ export default function FileBrowserSidebar() {
           selectedPath.substring(0, selectedPath.lastIndexOf("/") || 0) || "/";
       }
     }
+    // Conflict: duplicate name in directory
+    if (
+      (fileTree.value[targetDir] || []).some((e) => e.name === newName.value)
+    ) {
+      filesToOverride.value = [newName.value];
+      confirmCallback.value = async (confirmed) => {
+        fileOverrideConfirmationOpen.value = false;
+        confirmCallback.value = null;
+        if (confirmed) {
+          const pathToDelete =
+            targetDir === "/"
+              ? `/${newName.value}`
+              : `${targetDir}/${newName.value}`;
+          await fsDelete({ path: pathToDelete });
+          await writeFile({ path: pathToDelete, data: new Uint8Array(0) });
+        }
+        showNewFileModal.value = false;
+        newName.value = "";
+        const updatedEntries = await listDirectory({
+          path: targetDir,
+          force: true,
+        });
+        fileTree.value = { ...fileTree.value, [targetDir]: updatedEntries };
+      };
+      fileOverrideConfirmationOpen.value = true;
+      return;
+    }
 
     const newFilePath =
       targetDir === "/" ? `/${newName.value}` : `${targetDir}/${newName.value}`;
 
     try {
-      await createFile(newFilePath, "");
+      await writeFile({ path: newFilePath, data: new Uint8Array(0) });
       showNewFileModal.value = false;
       newName.value = "";
 
       // Refresh directory after creation
-      await listDirectory(targetDir);
+      const updatedEntries = await listDirectory({ path: targetDir });
+      fileTree.value = {
+        ...fileTree.value,
+        [targetDir]: updatedEntries,
+      };
     } catch (error) {
       console.error("Failed to create file:", error);
       alert(
@@ -274,38 +440,28 @@ export default function FileBrowserSidebar() {
     }
   };
 
-  // Determine current directory for refresh functionality
-  const getCurrentDirectory = () => {
-    // If a directory is selected, use that
-    if (selectedPaths.value.size > 0) {
-      const path = Array.from(selectedPaths.value)[0];
-      if (fileTree.value[path]) {
-        return path; // Selected path is a directory
-      } else {
-        // It's a file, use parent directory
-        return path.substring(0, path.lastIndexOf("/") || 0) || "/";
-      }
-    }
-
-    // If no selection, use first expanded path or default to root
-    return expandedPaths.value.size > 0
-      ? Array.from(expandedPaths.value)[0]
-      : "/";
-  };
-
   // Refresh current directory function
-  const refreshCurrentDir = async () => {
+  const refreshRootDirectory = async () => {
     if (isRefreshing.value) return;
     isRefreshing.value = true;
 
-    const currentDir = getCurrentDirectory();
+    const rootDir = "/"; // Always refresh root
 
     try {
-      console.log(`Refreshing directory: ${currentDir}`);
-      await listDirectory(currentDir, { force: true });
-      console.log(`Directory ${currentDir} refreshed successfully`);
+      console.log(`Refreshing root directory: ${rootDir}`);
+      const updatedEntries = await listDirectory({
+        path: rootDir,
+        force: true,
+      });
+      fileTree.value = {
+        ...fileTree.value,
+        [rootDir]: updatedEntries,
+      };
+      console.log(
+        `Root directory ${rootDir} refreshed successfully, UI update triggered`,
+      );
     } catch (err) {
-      console.error(`Failed to refresh directory ${currentDir}:`, err);
+      console.error(`Failed to refresh root directory ${rootDir}:`, err);
     } finally {
       isRefreshing.value = false;
     }
@@ -313,6 +469,7 @@ export default function FileBrowserSidebar() {
 
   return (
     <aside
+      data-testid="file-browser-panel"
       className="fixed top-0 left-0 h-full w-72 sm:w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-hidden z-20 shadow-md flex flex-col"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -325,12 +482,24 @@ export default function FileBrowserSidebar() {
             `(${selectedPaths.value.size} selected)`}
         </h2>
         <div className="flex items-center space-x-1">
+          {!showWarning.value && (
+            <button
+              onClick={() => (showWarning.value = true)}
+              className="relative focus:outline-none cursor-pointer"
+              title="Show warning"
+            >
+              <span className="text-yellow-500 text-sm">⚠️</span>
+              <span className="text-xs absolute top-3 -right-1 inline-flex items-center justify-center w-3 h-3 bg-red-500 text-white font-bold rounded-full">
+                1
+              </span>
+            </button>
+          )}
           {/* Refresh button */}
           <button
             aria-label="Refresh directory"
             className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
-            onClick={refreshCurrentDir}
-            disabled={isRefreshing.value || fileTransferInProgress.value}
+            onClick={refreshRootDirectory}
+            disabled={isRefreshing.value || anyTransferInProgress.value}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -349,12 +518,13 @@ export default function FileBrowserSidebar() {
           {/* New Folder button - always visible */}
           <button
             aria-label="New Folder"
+            data-testid="new-folder-button"
             className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-green-600 dark:text-green-400"
             onClick={() => {
               newName.value = "";
               showNewFolderModal.value = true;
             }}
-            disabled={fileTransferInProgress.value}
+            disabled={anyTransferInProgress.value}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -370,12 +540,13 @@ export default function FileBrowserSidebar() {
           {/* New File button - always visible */}
           <button
             aria-label="New File"
+            data-testid="new-file-button"
             className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400"
             onClick={() => {
               newName.value = "";
               showNewFileModal.value = true;
             }}
-            disabled={fileTransferInProgress.value}
+            disabled={anyTransferInProgress.value}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -394,7 +565,7 @@ export default function FileBrowserSidebar() {
               aria-label="Download selected file"
               className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-blue-600 dark:text-blue-400"
               onClick={handleDownload}
-              disabled={fileTransferInProgress.value}
+              disabled={anyTransferInProgress.value}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -428,21 +599,31 @@ export default function FileBrowserSidebar() {
         </div>
       </header>
 
+      {/* Hidden file input for uploads */}
+      <input
+        type="file"
+        className="hidden"
+        data-testid="upload-file-input"
+        multiple
+        onChange={handleFileInputChange}
+      />
+
       {/* Main scrollable content area with bottom padding when transfer is in progress */}
       <div
-        className={`flex-grow overflow-y-auto ${fileTransferInProgress.value ? "pb-20" : ""}`}
+        className={`flex-grow overflow-y-auto ${anyTransferInProgress.value ? "pb-20" : ""}`}
+        data-testid="file-tree"
       >
         <Suspense
           fallback={
             <div className="p-4 text-center">Loading file browser...</div>
           }
         >
-          <FileBrowserTree />
+          <FileBrowserTree showWarning={showWarning} />
         </Suspense>
       </div>
 
-      {/* File Transfer Progress */}
-      {(fileTransferInProgress.value || anyTransferInProgress.value) && (
+      {/* File Transfer UI: progress for single transfers or queue for multiple */}
+      {anyTransferInProgress.value && (
         <div className="absolute bottom-0 left-0 right-0 pb-2 px-3 z-10">
           <FileTransferQueue />
         </div>
@@ -485,7 +666,7 @@ export default function FileBrowserSidebar() {
               <button
                 className="px-4 py-2 bg-green-500 text-white rounded"
                 onClick={handleNewFolder}
-                disabled={fileTransferInProgress.value}
+                disabled={anyTransferInProgress.value}
               >
                 Create
               </button>
@@ -522,7 +703,7 @@ export default function FileBrowserSidebar() {
               <button
                 className="px-4 py-2 bg-blue-500 text-white rounded"
                 onClick={handleNewFile}
-                disabled={fileTransferInProgress.value}
+                disabled={anyTransferInProgress.value}
               >
                 Create
               </button>

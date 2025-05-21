@@ -2,10 +2,10 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/preact";
 import { DisplayTypeSwitch } from "../components/DisplayTypeSwitch";
 import { midiOut, displayType } from "../state";
-import * as midi from "../lib/midi";
+import * as midi from "@/commands/display";
 
-// Mock the midi functions
-vi.mock("../lib/midi", () => ({
+// Mock the display commands
+vi.mock("@/commands/display", () => ({
   flipScreen: vi.fn(),
 }));
 

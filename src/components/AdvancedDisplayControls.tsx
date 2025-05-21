@@ -1,16 +1,11 @@
 import { useState, useRef, useEffect } from "preact/hooks";
 import { useSignal } from "@preact/signals";
-import {
-  ping,
-  getOled,
-  get7Seg,
-  flipScreen,
-  startMonitor,
-  stopMonitor,
-} from "../lib/midi";
+import { getOLED, startMonitor, stopMonitor } from "@/commands";
 import { midiOut, monitorMode, autoEnabled } from "../state";
 import { Button } from "./Button";
 import { startPolling, stopPolling } from "../lib/display";
+import { ping } from "@/commands/session";
+import { flipScreen, get7Seg } from "@/commands/display";
 
 export function AdvancedDisplayControls() {
   // State
@@ -25,7 +20,7 @@ export function AdvancedDisplayControls() {
 
   // Handlers for display controls
   const handlePing = () => ping();
-  const handleOled = () => getOled();
+  const handleOled = () => getOLED();
   const handle7Seg = () => get7Seg();
 
   const toggleRefresh = () => {
@@ -134,7 +129,7 @@ export function AdvancedDisplayControls() {
         aria-hidden={!isOpen}
         role="dialog"
         aria-label="Advanced Display Controls"
-        data-testid="advanced-controls-drawer"
+        data-testid="advanced-controls-panel"
       >
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b border-[var(--color-border)]">
@@ -150,7 +145,11 @@ export function AdvancedDisplayControls() {
 
         {/* Controls */}
         <div className="p-3 flex flex-wrap gap-2">
-          <Button onClick={handlePing} disabled={disabled}>
+          <Button
+            onClick={handlePing}
+            disabled={disabled}
+            data-testid="ping-test-button"
+          >
             Ping
           </Button>
           <Button onClick={handleOled} disabled={disabled}>
@@ -159,10 +158,18 @@ export function AdvancedDisplayControls() {
           <Button onClick={handle7Seg} disabled={disabled}>
             Get 7-Seg
           </Button>
-          <Button onClick={flipScreen} disabled={disabled}>
+          <Button
+            onClick={flipScreen}
+            disabled={disabled}
+            data-testid="flip-screen-button"
+          >
             Flip Screen
           </Button>
-          <Button onClick={toggleRefresh} disabled={disabled}>
+          <Button
+            onClick={toggleRefresh}
+            disabled={disabled}
+            data-testid="manual-refresh-button"
+          >
             {refreshSignal.value ? "Pause" : "Refresh"}
           </Button>
           <Button

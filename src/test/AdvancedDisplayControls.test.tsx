@@ -2,14 +2,11 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/preact";
 import { AdvancedDisplayControls } from "../components/AdvancedDisplayControls";
 import { midiOut, monitorMode } from "../state";
-import * as midiModule from "../lib/midi";
+import * as midiModule from "@/commands";
 
-// Mock midi functions
-vi.mock("../lib/midi", () => ({
-  ping: vi.fn(),
-  getOled: vi.fn(),
-  get7Seg: vi.fn(),
-  flipScreen: vi.fn(),
+// Mock command APIs
+vi.mock("@/commands", () => ({
+  getOLED: vi.fn(),
   startMonitor: vi.fn(),
   stopMonitor: vi.fn(),
 }));
@@ -42,7 +39,7 @@ describe("AdvancedDisplayControls", () => {
     render(<AdvancedDisplayControls />);
 
     // Initially drawer should be closed
-    const drawer = screen.getByTestId("advanced-controls-drawer");
+    const drawer = screen.getByTestId("advanced-controls-panel");
     expect(drawer).toHaveAttribute("aria-hidden", "true");
 
     // Click toggle button
@@ -77,7 +74,7 @@ describe("AdvancedDisplayControls", () => {
     fireEvent.click(toggleButton);
 
     // Drawer should be open
-    const drawer = screen.getByTestId("advanced-controls-drawer");
+    const drawer = screen.getByTestId("advanced-controls-panel");
     expect(drawer).toHaveAttribute("aria-hidden", "false");
 
     // Click outside the drawer
@@ -95,7 +92,7 @@ describe("AdvancedDisplayControls", () => {
     fireEvent.click(toggleButton);
 
     // Drawer should be open
-    const drawer = screen.getByTestId("advanced-controls-drawer");
+    const drawer = screen.getByTestId("advanced-controls-panel");
     expect(drawer).toHaveAttribute("aria-hidden", "false");
 
     // Press Escape key

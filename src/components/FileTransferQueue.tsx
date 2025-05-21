@@ -1,9 +1,20 @@
-import { useRef, useState, useEffect, useMemo } from "preact/hooks";
+import {
+  useRef,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "preact/hooks";
 import { useComputed } from "@preact/signals";
 import { memo } from "preact/compat";
-import { fileTransferQueue, TransferItem } from "../state";
+import {
+  fileTransferQueue,
+  TransferItem,
+  fileTransferProgress,
+  fileTransferInProgress,
+} from "../state";
 import { formatBytes } from "../lib/format";
-import { cancelFileTransfer } from "../lib/midi";
+import { transferManager } from "@/services/transferManager";
 
 // Memoized transfer item component to prevent unnecessary renders
 const TransferQueueItem = memo(
@@ -86,6 +97,7 @@ const TransferQueueItem = memo(
               onClick={() => onCancelClick(transfer.id)}
               aria-label="Cancel transfer"
               className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
+              data-testid={`cancel-upload-button-${transfer.src}`}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -122,6 +134,7 @@ const TransferQueueItem = memo(
           <div
             className={`h-1.5 rounded-full transition-[width] ${statusColorClass}`}
             style={{ width: `${progress}%`, transitionDuration: "250ms" }}
+            data-testid="transfer-progress-bar"
           />
         </div>
       </div>
@@ -133,6 +146,7 @@ const TransferQueueItem = memo(
  * Component to display a stacked list of file transfers with progress and cancel buttons
  */
 const FileTransferQueue = () => {
+  // State for cancellation confirmation (single or all)
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelId, setCancelId] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -140,35 +154,34 @@ const FileTransferQueue = () => {
   // Use computed value to make the component reactive to changes
   const transfers = useComputed(() => fileTransferQueue.value);
 
-  // Memoize handlers to prevent recreating on each render
-  const handleCancelClick = useMemo(
-    () => (id: string) => {
-      setCancelId(id);
-      setShowCancelModal(true);
-    },
-    [],
-  );
+  // Open confirm modal for single or all cancel
+  const handleCancelClick = useCallback((id: string) => {
+    setCancelId(id);
+    setShowCancelModal(true);
+  }, []);
 
-  // Confirm cancellation
-  const confirmCancel = useMemo(
-    () => () => {
-      if (cancelId) {
-        cancelFileTransfer(cancelId);
-      }
-      setShowCancelModal(false);
-      setCancelId(null);
-    },
-    [cancelId],
-  );
+  // Confirm cancellation (single or all)
+  const confirmCancel = useCallback(() => {
+    if (cancelId === "all") {
+      // Abort all and clear queue
+      transferManager.cancel();
+      transferManager.clearAll();
+      // Clear progress UI
+      fileTransferProgress.value = null;
+      fileTransferInProgress.value = false;
+    } else if (cancelId) {
+      // Abort single transfer
+      transferManager.cancel(cancelId);
+    }
+    setShowCancelModal(false);
+    setCancelId(null);
+  }, [cancelId]);
 
   // Close cancellation modal
-  const closeModal = useMemo(
-    () => () => {
-      setShowCancelModal(false);
-      setCancelId(null);
-    },
-    [],
-  );
+  const closeModal = useCallback(() => {
+    setShowCancelModal(false);
+    setCancelId(null);
+  }, []);
 
   // Close modal when clicking outside
   useEffect(() => {
@@ -193,9 +206,36 @@ const FileTransferQueue = () => {
   }
 
   return (
-    <div className="flex flex-col gap-2 bg-white dark:bg-gray-800 rounded-md p-3 shadow-md transition-all duration-200 max-h-[50vh] overflow-y-auto">
-      <div className="text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-        File Transfers
+    <div
+      data-testid="transfer-queue"
+      className="flex flex-col gap-2 bg-white dark:bg-gray-800 rounded-md p-3 shadow-md transition-all duration-200 max-h-[50vh] overflow-y-auto"
+    >
+      <div className="flex justify-between items-center mb-2">
+        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          File Transfers
+        </h3>
+        {transfers.value.some(
+          (t) => t.status === "active" || t.status === "pending",
+        ) ? (
+          <button
+            className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+            onClick={() => {
+              setCancelId("all");
+              setShowCancelModal(true);
+            }}
+          >
+            Cancel All
+          </button>
+        ) : (
+          <button
+            className="text-xs px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+            onClick={() => {
+              fileTransferQueue.value = [];
+            }}
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {/* Transfer list */}
@@ -215,11 +255,15 @@ const FileTransferQueue = () => {
           <div
             ref={modalRef}
             className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg max-w-xs w-full"
+            data-testid="cancel-transfer-dialog"
           >
-            <h3 className="text-lg font-medium mb-2">Cancel Transfer</h3>
+            <h3 className="text-lg font-medium mb-2">
+              {cancelId === "all" ? "Cancel All Transfers" : "Cancel Transfer"}
+            </h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Are you sure you want to cancel this file transfer? This operation
-              cannot be undone.
+              Are you sure you want to cancel{" "}
+              {cancelId === "all" ? "all file transfers" : "this file transfer"}
+              ? This operation cannot be undone.
             </p>
             <div className="flex justify-end gap-2">
               <button
@@ -231,6 +275,7 @@ const FileTransferQueue = () => {
               <button
                 className="px-3 py-1.5 text-sm bg-red-500 text-white rounded"
                 onClick={confirmCancel}
+                data-testid="confirm-cancel-transfer-button"
               >
                 Yes, Cancel
               </button>

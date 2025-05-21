@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/preact";
 import FileBrowserSidebar from "../components/FileBrowserSidebar";
-import { fileBrowserOpen, midiOut } from "../state";
+import { fileBrowserOpen, midiOut, selectedPaths } from "../state";
+import * as commands from "@/commands";
 
 // Mock the lazy-loaded FileBrowserTree component
 vi.mock("preact/compat", async () => {
@@ -19,6 +20,7 @@ describe("FileBrowserSidebar", () => {
     // Reset signal values
     fileBrowserOpen.value = true;
     midiOut.value = {} as MIDIOutput;
+    selectedPaths.value = new Set();
   });
 
   it("renders the sidebar with a header and tree", () => {
@@ -53,5 +55,30 @@ describe("FileBrowserSidebar", () => {
       },
       { timeout: 1000 },
     );
+  });
+
+  it("refresh button always calls listDirectory for the root path", async () => {
+    // Mock the listDirectory command
+    const listDirectoryMock = vi
+      .spyOn(commands, "listDirectory")
+      .mockResolvedValue([]);
+
+    // Simulate a selected path that is not root
+    selectedPaths.value = new Set(["/SONGS"]);
+
+    render(<FileBrowserSidebar />);
+
+    const refreshButton = screen.getByLabelText("Refresh directory");
+    fireEvent.click(refreshButton);
+
+    await waitFor(() => {
+      expect(listDirectoryMock).toHaveBeenCalledWith({
+        path: "/",
+        force: true,
+      });
+    });
+
+    // Reset selectedPaths for other tests if necessary, though beforeEach should handle it.
+    selectedPaths.value = new Set();
   });
 });

@@ -1,21 +1,78 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { useSignal } from "@preact/signals";
+import { useSignal, signal } from "@preact/signals";
 import {
   FileEntry,
   editingPath,
   previewFile,
   editingFileState,
+  fileTree,
 } from "../state";
-import { createDirectory, createFile, deletePath } from "../lib/midi";
+import { makeDirectory, writeFile, fsDelete, listDirectory } from "@/commands";
 import { isAudio, isText } from "../lib/fileType";
+
+interface FileContextMenuPosition {
+  x: number;
+  y: number;
+  directAction?: "delete";
+}
 
 interface FileContextMenuProps {
   path: string;
   entry?: FileEntry;
-  position: { x: number; y: number };
+  position: FileContextMenuPosition | null;
   isDirectory: boolean;
   onClose: () => void;
   selectedEntries?: { path: string; entry: FileEntry }[];
+}
+
+// Helper to determine directory flag (same logic as FileBrowserTree)
+function getEntryIsDirectory(entry: FileEntry): boolean {
+  return (entry.attr & 0x10) !== 0;
+}
+
+// Signals that hold the expanded list of paths to be deleted and its loading state (module-scoped, non-hook)
+const pathsToDeleteList = signal<string[]>([]);
+const isBuildingList = signal(false);
+
+// Build the list of all items that will be removed (expands directories recursively)
+async function buildPathsToDelete(
+  entriesToProcess: { path: string; entry: FileEntry }[] | null,
+) {
+  isBuildingList.value = true;
+  const collected: string[] = [];
+
+  async function addRecursive(parentPath: string, currentEntry: FileEntry) {
+    const fullPath =
+      parentPath === "/"
+        ? `/${currentEntry.name}`
+        : `${parentPath}/${currentEntry.name}`;
+    collected.push(fullPath);
+
+    if (getEntryIsDirectory(currentEntry)) {
+      let children: FileEntry[] | undefined = fileTree.peek()[fullPath];
+      if (!children) {
+        try {
+          children = await listDirectory({ path: fullPath });
+        } catch {
+          children = undefined;
+        }
+      }
+      if (children) {
+        for (const child of children) {
+          await addRecursive(fullPath, child);
+        }
+      }
+    }
+  }
+
+  if (entriesToProcess && entriesToProcess.length) {
+    for (const item of entriesToProcess) {
+      await addRecursive(item.path, item.entry);
+    }
+  }
+
+  pathsToDeleteList.value = collected;
+  isBuildingList.value = false;
 }
 
 export default function FileContextMenu({
@@ -35,33 +92,32 @@ export default function FileContextMenu({
   const showNewFolderModal = useSignal(false);
   const showNewFileModal = useSignal(false);
   const newName = useSignal("");
-  const [menuPosition, setMenuPosition] = useState(position);
+  const [menuPosition, setMenuPosition] = useState(
+    position ? { x: position.x, y: position.y } : { x: 0, y: 0 },
+  );
 
-  // Calculate safe position to ensure menu appears within viewport
   useEffect(() => {
-    if (!menuRef.current) return;
-
-    const menuRect = menuRef.current.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-
-    // Don't adjust the X position for normal right-clicks
-    // Only adjust if it would go off-screen
-    let safeX = position.x;
-    let safeY = position.y;
-
-    // Handle horizontal positioning - only if it would go off-screen
-    if (position.x + menuRect.width > viewportWidth) {
-      safeX = Math.max(0, viewportWidth - menuRect.width);
+    if (position) {
+      setMenuPosition({ x: position.x, y: position.y });
     }
-
-    // Handle vertical positioning - only if it would go off-screen
-    if (position.y + menuRect.height > viewportHeight) {
-      safeY = Math.max(0, viewportHeight - menuRect.height);
-    }
-
-    setMenuPosition({ x: safeX, y: safeY });
   }, [position]);
+
+  // Effect to handle direct delete action
+  useEffect(() => {
+    if (position?.directAction === "delete") {
+      if (selectedEntries.length > 0) {
+        buildPathsToDelete(selectedEntries).finally(() => {
+          showDeleteModal.value = true;
+        });
+      } else if (entry) {
+        buildPathsToDelete([{ path, entry }]).finally(() => {
+          showDeleteModal.value = true;
+        });
+      } else {
+        onClose();
+      }
+    }
+  }, [position, selectedEntries, entry, path, onClose]);
 
   // Event handlers
   useEffect(() => {
@@ -105,60 +161,31 @@ export default function FileContextMenu({
 
   // Action handlers
   const handleDelete = async () => {
-    // Handle multiple selection case
-    if (selectedEntries.length > 0) {
-      console.log(`Deleting ${selectedEntries.length} items:`, selectedEntries);
-
-      // Extract all the file paths that need to be deleted
-      const pathsToDelete = selectedEntries.map(
-        ({ path: entryPath, entry: entryItem }) => {
-          return entryPath === "/"
-            ? `/${entryItem.name}`
-            : `${entryPath}/${entryItem.name}`;
-        },
-      );
-
-      console.log(`Preparing to delete paths:`, pathsToDelete);
-
-      // Create a queue of deletion operations to process sequentially
-      // This helps ensure reliable deletion even with multiple files
-      try {
-        console.log(`Starting deletion of ${pathsToDelete.length} files...`);
-
-        // Process deletions one by one to avoid race conditions
-        for (const pathToDelete of pathsToDelete) {
-          console.log(`Deleting: ${pathToDelete}`);
-          await deletePath(pathToDelete);
-          console.log(`Successfully deleted: ${pathToDelete}`);
-        }
-
-        console.log("All files deleted successfully");
-        onClose();
-      } catch (error) {
-        console.error("Failed to delete multiple items:", error);
-        alert(
-          `Delete failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-      return;
-    }
-
-    // Handle single selection case
-    if (!entry) return;
-
-    const fullPath = path === "/" ? `/${entry.name}` : `${path}/${entry.name}`;
-    console.log(`Deleting single file: ${fullPath}`);
+    const pathsToDelete =
+      selectedEntries.length > 0
+        ? selectedEntries.map((s) =>
+            s.path === "/" ? `/${s.entry.name}` : `${s.path}/${s.entry.name}`,
+          )
+        : entry
+          ? [path === "/" ? `/${entry.name}` : `${path}/${entry.name}`]
+          : [];
+    if (pathsToDelete.length === 0) return;
 
     try {
-      await deletePath(fullPath);
-      console.log("Single file deleted successfully");
-      onClose();
+      for (const p of pathsToDelete) {
+        await fsDelete({ path: p });
+      }
+      fileTree.value = { ...fileTree.value };
+      // No specific refresh here, fsDelete itself updates fileTree
+      // Consider if a broad refresh is needed for parent dir if multiple items are deleted from different places.
     } catch (error) {
-      console.error("Failed to delete:", error);
+      console.error("Delete failed:", error);
       alert(
         `Delete failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+
+    onClose();
   };
 
   const handleCreateFolder = async () => {
@@ -174,20 +201,37 @@ export default function FileContextMenu({
       return;
     }
 
-    const parentPath =
-      isDirectory && entry
-        ? path === "/"
-          ? `/${entry.name}`
-          : `${path}/${entry.name}`
-        : path;
+    // Explicit parentPath determination
+    let determinedParentPath: string;
+    if (entry && isDirectory) {
+      // Clicked on a directory entry, new item goes inside it.
+      // `path` prop is parent of `entry`. Full path of `entry` is `path/entry.name` or `/entry.name`.
+      determinedParentPath =
+        path === "/" ? `/${entry.name}` : `${path}/${entry.name}`;
+    } else if (entry && !isDirectory) {
+      // Clicked on a file entry, new item goes beside it (in its parent).
+      // `path` prop is already the parent directory of the file.
+      determinedParentPath = path;
+    } else {
+      // No specific entry (e.g., root context menu), or isDirectory is true but no entry (should be root context).
+      // `path` prop is the target directory (e.g., "/").
+      determinedParentPath = path;
+    }
 
     const newDirPath =
-      parentPath === "/"
+      determinedParentPath === "/"
         ? `/${newName.value}`
-        : `${parentPath}/${newName.value}`;
+        : `${determinedParentPath}/${newName.value}`;
 
     try {
-      await createDirectory(newDirPath);
+      await makeDirectory({ path: newDirPath });
+      const updatedEntries = await listDirectory({
+        path: determinedParentPath,
+      });
+      fileTree.value = {
+        ...fileTree.value,
+        [determinedParentPath]: updatedEntries,
+      };
       onClose();
     } catch (error) {
       console.error("Failed to create directory:", error);
@@ -210,20 +254,31 @@ export default function FileContextMenu({
       return;
     }
 
-    const parentPath =
-      isDirectory && entry
-        ? path === "/"
-          ? `/${entry.name}`
-          : `${path}/${entry.name}`
-        : path;
+    // Explicit parentPath determination (same logic as for folder)
+    let determinedParentPath: string;
+    if (entry && isDirectory) {
+      determinedParentPath =
+        path === "/" ? `/${entry.name}` : `${path}/${entry.name}`;
+    } else if (entry && !isDirectory) {
+      determinedParentPath = path;
+    } else {
+      determinedParentPath = path;
+    }
 
     const newFilePath =
-      parentPath === "/"
+      determinedParentPath === "/"
         ? `/${newName.value}`
-        : `${parentPath}/${newName.value}`;
+        : `${determinedParentPath}/${newName.value}`;
 
     try {
-      await createFile(newFilePath, "");
+      await writeFile({ path: newFilePath, data: new Uint8Array(0) });
+      const updatedEntries = await listDirectory({
+        path: determinedParentPath,
+      });
+      fileTree.value = {
+        ...fileTree.value,
+        [determinedParentPath]: updatedEntries,
+      };
       onClose();
     } catch (error) {
       console.error("Failed to create file:", error);
@@ -279,132 +334,144 @@ export default function FileContextMenu({
 
   return (
     <>
-      <div
-        ref={menuRef}
-        className="fixed bg-white dark:bg-neutral-800 shadow-md rounded-md z-50 border border-neutral-200 dark:border-neutral-700"
-        style={{
-          left: `${menuPosition.x}px`,
-          top: `${menuPosition.y}px`,
-          minWidth: "180px", // Fixed minimum width to prevent narrowing
-        }}
-      >
-        <ul className="py-1 text-sm w-full">
-          {isDirectory && (
-            <>
+      {!(position?.directAction === "delete") && (
+        <div
+          ref={menuRef}
+          className="fixed bg-white dark:bg-neutral-800 shadow-md rounded-md z-50 border border-neutral-200 dark:border-neutral-700"
+          style={{
+            left: `${menuPosition.x}px`,
+            top: `${menuPosition.y}px`,
+            minWidth: "180px",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ul className="py-1 text-sm w-full">
+            {isDirectory && (
+              <>
+                <li>
+                  <button
+                    className="px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 w-full text-left"
+                    onClick={() => {
+                      newName.value = "";
+                      showNewFolderModal.value = true;
+                    }}
+                  >
+                    <span className="inline-block w-5 text-center mr-2">
+                      📁
+                    </span>
+                    New Folder
+                  </button>
+                </li>
+                <li>
+                  <button
+                    className="px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 w-full text-left"
+                    onClick={() => {
+                      newName.value = "";
+                      showNewFileModal.value = true;
+                    }}
+                  >
+                    <span className="inline-block w-5 text-center mr-2">
+                      📄
+                    </span>
+                    New File
+                  </button>
+                </li>
+                <li>
+                  <hr className="my-1 border-neutral-200 dark:border-neutral-700" />
+                </li>
+              </>
+            )}
+
+            {canPreview && (
               <li>
                 <button
                   className="px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 w-full text-left"
-                  onClick={() => {
-                    newName.value = "";
-                    showNewFolderModal.value = true;
-                  }}
+                  onClick={handlePreview}
                 >
-                  <span className="inline-block w-5 text-center mr-2">📁</span>
-                  New Folder
+                  <span className="inline-block w-5 text-center mr-2">👁️</span>
+                  Preview Audio
                 </button>
               </li>
+            )}
+
+            {canEdit && (
               <li>
                 <button
                   className="px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 w-full text-left"
-                  onClick={() => {
-                    newName.value = "";
-                    showNewFileModal.value = true;
-                  }}
+                  onClick={handleEditTextFile}
                 >
-                  <span className="inline-block w-5 text-center mr-2">📄</span>
-                  New File
+                  <span className="inline-block w-5 text-center mr-2">📝</span>
+                  Edit Text
                 </button>
               </li>
+            )}
+
+            {(entry || selectedEntries.length === 1) && (
               <li>
-                <hr className="my-1 border-neutral-200 dark:border-neutral-700" />
+                <button
+                  data-testid="rename-button"
+                  className="px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 w-full text-left"
+                  onClick={() => {
+                    if (entry) {
+                      const fullPath =
+                        path === "/"
+                          ? `/${entry.name}`
+                          : `${path}/${entry.name}`;
+                      onClose();
+                      setTimeout(() => {
+                        editingPath.value = fullPath;
+                      }, 10);
+                    } else if (selectedEntries.length === 1) {
+                      const { path: entryPath, entry: entryItem } =
+                        selectedEntries[0];
+                      const fullPath =
+                        entryPath === "/"
+                          ? `/${entryItem.name}`
+                          : `${entryPath}/${entryItem.name}`;
+                      onClose();
+                      setTimeout(() => {
+                        editingPath.value = fullPath;
+                      }, 10);
+                    }
+                  }}
+                >
+                  <span className="inline-block w-5 text-center mr-2">✏️</span>
+                  Rename
+                </button>
               </li>
-            </>
-          )}
+            )}
+            {(entry || selectedEntries.length > 0) && (
+              <li>
+                <button
+                  data-testid="delete-button"
+                  className="px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 w-full text-left text-red-600 dark:text-red-400"
+                  onClick={() => {
+                    let itemsForDeletion:
+                      | { path: string; entry: FileEntry }[]
+                      | null = null;
+                    if (selectedEntries.length > 0) {
+                      itemsForDeletion = selectedEntries;
+                    } else if (entry) {
+                      itemsForDeletion = [{ path, entry }];
+                    }
+                    buildPathsToDelete(itemsForDeletion).finally(() => {
+                      showDeleteModal.value = true;
+                    });
+                  }}
+                >
+                  <span className="inline-block w-5 text-center mr-2">🗑️</span>
+                  <span className="ml-1">
+                    {selectedEntries.length > 1
+                      ? `Delete (${selectedEntries.length} items)`
+                      : "Delete"}
+                  </span>
+                </button>
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
 
-          {/* Preview option for audio files only */}
-          {canPreview && (
-            <li>
-              <button
-                className="px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 w-full text-left"
-                onClick={handlePreview}
-              >
-                <span className="inline-block w-5 text-center mr-2">👁️</span>
-                Preview Audio
-              </button>
-            </li>
-          )}
-
-          {/* Edit option for text files */}
-          {canEdit && (
-            <li>
-              <button
-                className="px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 w-full text-left"
-                onClick={handleEditTextFile}
-              >
-                <span className="inline-block w-5 text-center mr-2">📝</span>
-                Edit Text
-              </button>
-            </li>
-          )}
-
-          {/* Show rename only for single selection */}
-          {(entry || selectedEntries.length === 1) && (
-            <li>
-              <button
-                className="px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 w-full text-left"
-                onClick={() => {
-                  // Use inline editing by directly setting editingPath signal
-                  if (entry) {
-                    // For direct entry case
-                    const fullPath =
-                      path === "/" ? `/${entry.name}` : `${path}/${entry.name}`;
-                    // Close the context menu first
-                    onClose();
-                    // Set the editing path directly
-                    setTimeout(() => {
-                      editingPath.value = fullPath;
-                    }, 10);
-                  } else if (selectedEntries.length === 1) {
-                    // Similar approach for selected entries
-                    const { path: entryPath, entry: entryItem } =
-                      selectedEntries[0];
-                    const fullPath =
-                      entryPath === "/"
-                        ? `/${entryItem.name}`
-                        : `${entryPath}/${entryItem.name}`;
-                    onClose();
-                    setTimeout(() => {
-                      editingPath.value = fullPath;
-                    }, 10);
-                  }
-                }}
-              >
-                <span className="inline-block w-5 text-center mr-2">✏️</span>
-                Rename
-              </button>
-            </li>
-          )}
-          {/* Show delete for both single and multiple selections */}
-          {(entry || selectedEntries.length > 0) && (
-            <li>
-              <button
-                className="px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 w-full text-left text-red-600 dark:text-red-400"
-                onClick={() => {
-                  showDeleteModal.value = true;
-                }}
-              >
-                <span className="inline-block w-5 text-center mr-2">🗑️</span>
-                Delete{" "}
-                {selectedEntries.length > 1
-                  ? `(${selectedEntries.length} items)`
-                  : ""}
-              </button>
-            </li>
-          )}
-        </ul>
-      </div>
-
-      {/* Delete Confirmation Modal - Modified for multiple selections */}
       {showDeleteModal.value && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
@@ -413,19 +480,36 @@ export default function FileContextMenu({
           <div
             ref={deleteModalRef}
             className="bg-white dark:bg-neutral-800 p-4 rounded-lg shadow-lg max-w-md w-full"
+            data-testid="delete-confirmation-dialog"
           >
             <h3 className="text-lg font-medium mb-3">Confirm Delete</h3>
-            {selectedEntries.length > 0 ? (
+            {isBuildingList.value ? (
+              <div className="mb-4 text-sm text-neutral-600 dark:text-neutral-400">
+                Building list of items…
+              </div>
+            ) : pathsToDeleteList.value.length > 0 ? (
               <div className="mb-4">
                 <p className="mb-2">
-                  Delete {selectedEntries.length} items? This cannot be undone.
+                  Delete {pathsToDeleteList.value.length} items? This cannot be
+                  undone.
                 </p>
-                <div className="max-h-32 overflow-y-auto text-sm text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 rounded p-2">
-                  {selectedEntries.map(({ entry }, index) => (
-                    <div key={index} className="truncate">
-                      • {entry.name}
-                    </div>
-                  ))}
+                <div
+                  className="max-h-32 overflow-y-auto text-sm text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 rounded p-2"
+                  data-testid="delete-confirmation-dialog-message"
+                >
+                  {pathsToDeleteList.value.map((fullPath, index) => {
+                    const relative = fullPath.slice(1);
+                    const depth = relative.split("/").length - 1;
+                    return (
+                      <div
+                        key={index}
+                        className="truncate"
+                        style={{ paddingLeft: `${depth * 12}px` }}
+                      >
+                        • {relative}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ) : entry ? (
@@ -445,6 +529,7 @@ export default function FileContextMenu({
                 Cancel
               </button>
               <button
+                data-testid="confirm-delete-button"
                 className="px-4 py-2 bg-red-500 text-white rounded"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -458,7 +543,6 @@ export default function FileContextMenu({
         </div>
       )}
 
-      {/* New Folder Modal */}
       {showNewFolderModal.value && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
@@ -504,7 +588,6 @@ export default function FileContextMenu({
         </div>
       )}
 
-      {/* New File Modal */}
       {showNewFileModal.value && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"

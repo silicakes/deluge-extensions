@@ -31,6 +31,7 @@ export function MidiDeviceNavbarDesktop({
         value={inputSignal.value?.id || ""}
         onChange={onInputChange}
         aria-label="MIDI Input Device"
+        data-testid="midi-input-select"
       >
         <option value="">None</option>
         {inputs.value.map((d) => (
@@ -45,6 +46,7 @@ export function MidiDeviceNavbarDesktop({
         value={outputSignal.value?.id || ""}
         onChange={onOutputChange}
         aria-label="MIDI Output Device"
+        data-testid="midi-output-select"
       >
         <option value="">None</option>
         {outputs.value.map((d) => (
@@ -67,6 +69,7 @@ export function MidiDeviceNavbarDesktop({
             onChange={onAutoToggle}
             className="sr-only peer"
             aria-label="Auto-connect toggle"
+            data-testid="auto-connect-toggle"
           />
           {/* Switch track */}
           <div className="w-9 h-5 bg-gray-300 rounded-full peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 peer-checked:bg-blue-600 transition-colors"></div>
@@ -85,6 +88,7 @@ export function MidiDeviceNavbarDesktop({
         <span
           className={`h-2 w-2 rounded-full ${ready.value ? "bg-green-500" : "bg-red-500"}`}
           title={ready.value ? "MIDI ready" : "No MIDI output selected"}
+          data-testid="midi-status-indicator"
         ></span>
         {/* Network status indicator - only visible when offline */}
         {!online.value && (

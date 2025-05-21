@@ -1,7 +1,7 @@
 import { FileEntry } from "../state";
 
-export const audioExts = ["wav", "mp3", "ogg", "flac"];
-export const textExts = ["txt", "xml", "json", "csv", "md", "yml", "yaml"];
+const audioExts = ["wav", "mp3", "ogg", "flac"];
+const textExts = ["txt", "xml", "json", "csv", "md", "yml", "yaml"];
 
 /**
  * Determines if a file entry is an audio file based on extension

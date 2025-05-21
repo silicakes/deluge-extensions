@@ -57,7 +57,7 @@ describe("PixelSizeControls", () => {
     const { getByLabelText } = render(<PixelSizeControls />);
 
     // Click the increase button
-    fireEvent.click(getByLabelText("Increase pixel size"));
+    fireEvent.click(getByLabelText("Increase screen size"));
 
     // Check if the function was called
     expect(displayLib.increaseCanvasSize).toHaveBeenCalledTimes(1);
@@ -121,6 +121,6 @@ describe("PixelSizeControls", () => {
     const { getByLabelText } = render(<PixelSizeControls />);
 
     // Check if the increase button is disabled
-    expect(getByLabelText("Increase pixel size")).toHaveAttribute("disabled");
+    expect(getByLabelText("Increase screen size")).toHaveAttribute("disabled");
   });
 });

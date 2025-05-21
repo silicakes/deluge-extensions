@@ -2,22 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/preact";
 import { SysExConsole } from "../components/SysExConsole";
 import { midiOut } from "../state";
-import * as midi from "../lib/midi";
-
-// Mock the getDebug function
-vi.mock("../lib/midi", async () => {
-  const actual = await vi.importActual("../lib/midi");
-  return {
-    ...(actual as object),
-    getDebug: vi.fn(),
-  };
-});
-
-// Mock the MIDI module
-vi.mock("../lib/midi", () => ({
-  getDebug: vi.fn(),
-  sendCustomSysEx: vi.fn(),
-}));
+import * as midi from "@/commands";
 
 describe("SysExConsole", () => {
   beforeEach(() => {
@@ -60,7 +45,7 @@ describe("SysExConsole", () => {
   });
 
   it("calls getDebug when 'Fetch once' button is clicked", () => {
-    const spy = vi.spyOn(midi, "getDebug").mockImplementation(() => true);
+    const spy = vi.spyOn(midi, "getDebug").mockResolvedValue(true);
 
     render(<SysExConsole />);
 

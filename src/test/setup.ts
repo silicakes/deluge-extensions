@@ -23,7 +23,6 @@ Object.defineProperty(navigator, "onLine", {
 // Store original method references
 const originalAddEventListener = window.addEventListener;
 const originalRemoveEventListener = window.removeEventListener;
-const originalAlert = window.alert;
 
 // Properly mock window methods
 window.addEventListener = vi.fn().mockImplementation((event, cb) => {
@@ -80,5 +79,5 @@ if (!crypto.randomUUID) {
         (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (+c / 4)))
       ).toString(16),
     ),
-  );
+  ) as () => `${string}-${string}-${string}-${string}-${string}`;
 }

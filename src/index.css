@@ -1,3 +1,8 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 /* global.css */
+
+/* Remove canvas border in fullscreen to fix slightly larger width */
+body.fullscreen-mode #display-wrapper canvas {
+  border: none;
+}

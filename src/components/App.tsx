@@ -1,4 +1,3 @@
-// import { MidiDeviceSelector } from "./MidiDeviceSelector";
 import { useEffect, useState } from "preact/hooks";
 import { Suspense, lazy } from "preact/compat";
 import {
@@ -18,12 +17,14 @@ import {
   displaySettings,
   midiOut,
   fileTransferInProgress,
+  fullscreenActive,
 } from "../state";
 import { PwaUpdatePrompt } from "./PwaUpdatePrompt";
 import { PixelSizeControls } from "./PixelSizeControls";
 import { DisplayColorDrawer } from "./DisplayColorDrawer";
 import { loadDisplaySettings } from "../hooks/useDisplaySettingsPersistence";
-import { initMidi, selectDelugeDevice } from "../lib/midi";
+import { initMidi } from "@/commands";
+import { selectDelugeDevice } from "@/lib/webMidi";
 import { FileOverrideConfirmation } from "./FileOverrideConfirmation";
 import { AdvancedDisplayControls } from "./AdvancedDisplayControls";
 import { shortcuts, registerGlobalShortcuts } from "../lib/shortcuts";
@@ -146,10 +147,12 @@ export function App() {
       <div
         className={`transition-all duration-300 ${fileBrowserOpen.value ? "ml-72 sm:ml-80" : ""}`}
       >
-        {/* Pixel Size Controls - Always visible above canvas */}
-        <div className="w-full max-w-screen-lg mx-auto px-4 mt-3">
-          <PixelSizeControls />
-        </div>
+        {/* Pixel Size Controls - hidden in fullscreen */}
+        {!fullscreenActive.value && (
+          <div className="w-full max-w-screen-lg mx-auto px-4 mt-3">
+            <PixelSizeControls />
+          </div>
+        )}
 
         {/* Canvas placed outside the main container for unlimited growth in both directions */}
         <div className="w-full flex justify-center my-6">
@@ -157,15 +160,15 @@ export function App() {
         </div>
 
         <main className="p-4 max-w-screen-lg mx-auto space-y-6">
-          {/* Advanced display controls */}
-          <AdvancedDisplayControls />
+          {/* Advanced display controls - hidden in fullscreen */}
+          {!fullscreenActive.value && <AdvancedDisplayControls />}
 
           <SysExConsole />
         </main>
       </div>
 
-      {/* Conditionally render the file browser sidebar */}
-      {fileBrowserOpen.value && (
+      {/* Conditionally render the file browser sidebar - hidden in fullscreen */}
+      {fileBrowserOpen.value && !fullscreenActive.value && (
         <Suspense fallback={null}>
           <FileBrowserSidebar />
         </Suspense>

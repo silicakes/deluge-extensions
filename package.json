@@ -22,7 +22,8 @@
     "@preact/signals": "^2.0.4",
     "@tailwindcss/vite": "^4.1.4",
     "preact": "^10.26.4",
-    "tailwindcss": "^4.1.4"
+    "tailwindcss": "^4.1.4",
+    "zod": "^3.24.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.1",
@@ -31,6 +32,8 @@
     "@testing-library/preact": "^3.2.4",
     "@testing-library/user-event": "^14",
     "@types/node": "^22.15.2",
+    "cypress": "^14.3.3",
+    "cypress-plugin-snapshots": "^1.4.4",
     "eslint": "^9.25.1",
     "eslint-config-preact": "^1.5.0",
     "globals": "^16.0.0",

@@ -1,5 +1,6 @@
 import { useEffect } from "preact/hooks";
 import { useSignal } from "@preact/signals";
+import type { Signal } from "@preact/signals";
 import {
   fileTree,
   expandedPaths,
@@ -7,22 +8,29 @@ import {
   FileEntry,
   selectedPaths,
   fileTransferInProgress,
+  fileTransferProgress,
   editingPath,
   previewFile,
   editingFileState,
+  // fileUploadConflictState, // Conceptually, import a global state for the conflict dialog
 } from "../state";
+import { testSysExConnectivity, checkFirmwareSupport } from "@/commands";
 import {
   listDirectory,
-  testSysExConnectivity,
-  checkFirmwareSupport,
+  renameFile,
   uploadFiles,
-  movePath,
-  renamePath,
-} from "../lib/midi";
+  readFile,
+  triggerBrowserDownload,
+} from "@/commands";
 import { iconUrlForEntry } from "../lib/fileIcons";
 import { isExternalFileDrag, isInternalDrag } from "../lib/drag";
 import { isAudio, isText } from "../lib/fileType";
 import FileContextMenu from "./FileContextMenu";
+import {
+  fileOverrideConfirmationOpen,
+  filesToOverride,
+  confirmCallback,
+} from "./FileOverrideConfirmation"; // Assuming same directory or adjust path
 
 // Track last selected path for shift-clicking
 let lastSelectedPath: string | null = null;
@@ -137,7 +145,11 @@ function DirectoryItem({
   const itemError = useSignal<string | null>(null);
   const isDragOver = useSignal(false);
   const isContainerDragOver = useSignal(false);
-  const contextMenuPosition = useSignal<{ x: number; y: number } | null>(null);
+  const contextMenuPosition = useSignal<{
+    x: number;
+    y: number;
+    directAction?: "delete";
+  } | null>(null);
   const isEditing = editingPath.value === childPath;
   const nameInputRef = useSignal<HTMLInputElement | null>(null);
   const inputValue = useSignal(entry.name);
@@ -162,10 +174,12 @@ function DirectoryItem({
         itemError.value = null;
         console.log(`Loading directory contents for ${childPath}...`);
         try {
-          const entries = await listDirectory(childPath);
-          console.log(
-            `Successfully loaded ${entries?.length || 0} entries for ${childPath}`,
-          );
+          const entries = await listDirectory({ path: childPath });
+          fileTree.value = {
+            ...fileTree.value,
+            [childPath]: entries,
+          };
+          console.log(`Pulled additional files for ${childPath}`);
 
           // Force a UI update if the fileTree was updated but UI didn't refresh
           const dirContents = fileTree.value[childPath] as
@@ -273,6 +287,20 @@ function DirectoryItem({
       // Spacebar selects
       e.preventDefault(); // Prevent scrolling with spacebar
       handleSelect(e as unknown as MouseEvent);
+    } else if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      // Ensure the current item is selected if not already part of a multi-selection
+      if (!selectedPaths.value.has(childPath)) {
+        selectedPaths.value = new Set([childPath]);
+      } // If already selected (single or multi), respect existing selection for deletion
+
+      const el = e.currentTarget as HTMLElement;
+      const rect = el.getBoundingClientRect();
+      contextMenuPosition.value = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+        directAction: "delete",
+      };
     }
   };
 
@@ -307,13 +335,11 @@ function DirectoryItem({
     }
   };
 
-  const handleDrop = (e: DragEvent) => {
+  const handleDrop = async (e: DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     isContainerDragOver.value = false;
-    isDragOver.value = false;
 
-    // Create a visual feedback that the drop was received
     const element = e.currentTarget as HTMLElement;
     element.classList.add("bg-green-100", "dark:bg-green-900/30");
     setTimeout(() => {
@@ -322,26 +348,97 @@ function DirectoryItem({
 
     console.log(`Files dropped onto directory: ${childPath}`);
 
-    // Handle external file upload first
     if (e.dataTransfer?.files.length) {
-      const files = e.dataTransfer.files;
-      console.log(`Uploading ${files.length} files to directory: ${childPath}`);
+      const allDroppedFiles = Array.from(e.dataTransfer.files);
 
-      uploadFiles(Array.from(e.dataTransfer.files), childPath)
-        .then(() => {
-          console.log(`Upload complete, refreshing directory ${childPath}`);
-          // Refresh the directory contents to show the new file
-          return listDirectory(childPath);
-        })
-        .then(() => {
-          console.log(`Directory ${childPath} refreshed successfully`);
-          // Force a UI update - this is crucial to ensure the UI shows the new files
-          fileTree.value = { ...fileTree.value };
-        })
-        .catch((err) => {
+      const existingEntries = fileTree.value[childPath] || [];
+      const conflictingFiles: File[] = [];
+      const nonConflictingFiles: File[] = [];
+
+      for (const file of allDroppedFiles) {
+        const isConflict = existingEntries.some(
+          (entry) => entry.name === file.name && !isDirectory(entry),
+        );
+        if (isConflict) {
+          conflictingFiles.push(file);
+        } else {
+          nonConflictingFiles.push(file);
+        }
+      }
+
+      // Keep track of total files for progress updates if uploads are sequential
+      const totalFilesToProcess = allDroppedFiles.length;
+      let filesProcessedSoFar = 0;
+
+      const doUpload = async (filesToUpload: File[], overwrite = false) => {
+        if (filesToUpload.length === 0) return Promise.resolve();
+
+        console.log(
+          `Uploading ${filesToUpload.length} files to directory: ${childPath} (overwrite: ${overwrite})`,
+        );
+        fileTransferInProgress.value = true;
+
+        try {
+          await uploadFiles({
+            files: filesToUpload,
+            destDir: childPath,
+            overwrite: overwrite,
+            onProgress: (index, sent, total) => {
+              const currentFile = filesToUpload[index];
+              fileTransferProgress.value = {
+                path:
+                  childPath === "/"
+                    ? `/${currentFile.name}`
+                    : `${childPath}/${currentFile.name}`,
+                bytes: sent,
+                total,
+                currentFileIndex: filesProcessedSoFar + index,
+                totalFiles: totalFilesToProcess,
+              };
+            },
+          });
+          console.log(
+            `Upload batch complete for ${filesToUpload.map((f) => f.name).join(", ")}, refreshing directory ${childPath}`,
+          );
+          const entries = await listDirectory({ path: childPath, force: true });
+          fileTree.value = {
+            ...fileTree.value,
+            [childPath]: entries,
+          };
+          filesProcessedSoFar += filesToUpload.length;
+        } catch (err) {
           console.error("Failed to upload files:", err);
-          alert(`Upload failed: ${err.message || "Unknown error"}`);
-        });
+          alert(
+            `Upload failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        } finally {
+          // Only set to false when ALL operations (potential multiple calls to doUpload) are done
+          if (filesProcessedSoFar === totalFilesToProcess) {
+            fileTransferInProgress.value = false;
+            fileTransferProgress.value = null;
+          }
+        }
+      };
+
+      if (conflictingFiles.length > 0) {
+        filesToOverride.value = conflictingFiles.map((f) => f.name);
+        confirmCallback.value = async (confirmed) => {
+          fileOverrideConfirmationOpen.value = false;
+          confirmCallback.value = null;
+
+          if (confirmed) {
+            await doUpload(conflictingFiles, true);
+            // Only upload non-conflicting if they haven't been implicitly handled
+            // or if the overwrite didn't also create them (unlikely for simple overwrite)
+            await doUpload(nonConflictingFiles, false);
+          } else {
+            await doUpload(nonConflictingFiles, false);
+          }
+        };
+        fileOverrideConfirmationOpen.value = true;
+      } else {
+        await doUpload(allDroppedFiles, false);
+      }
       return;
     }
 
@@ -364,29 +461,33 @@ function DirectoryItem({
 
       console.log(`Moving file from ${sourcePath} to ${targetPath}`);
 
-      // Use direct reference to movePath instead of dynamic import
-      movePath(sourcePath, targetPath)
+      renameFile({ oldPath: sourcePath, newPath: targetPath })
         .then(() => {
-          console.log(`Move complete, refreshing directory ${childPath}`);
-          // Refresh the directory contents after move
-          return listDirectory(childPath);
-        })
-        .then(() => {
-          // Also refresh the source directory if different
-          if (sourcePath.lastIndexOf("/") !== childPath.lastIndexOf("/")) {
-            const sourceDir =
-              sourcePath.substring(0, sourcePath.lastIndexOf("/")) || "/";
-            console.log(`Refreshing source directory ${sourceDir}`);
-            return listDirectory(sourceDir);
-          }
-        })
-        .then(() => {
-          // Force a UI update
-          fileTree.value = { ...fileTree.value };
+          console.log(
+            `Move complete, refreshing tree globally from handleDrop`,
+          );
+          // A more targeted refresh would be better:
+          // Refresh sourceParentDir, targetParentDir (childPath)
+          // For simplicity, a global refresh or targeted refresh of relevant paths:
+          const sourceParentDir =
+            sourcePath.substring(0, sourcePath.lastIndexOf("/")) || "/";
+          Promise.all([
+            listDirectory({ path: sourceParentDir, force: true }),
+            listDirectory({ path: childPath, force: true }),
+          ]).then(([sourceEntries, targetEntries]) => {
+            const newFileTree = { ...fileTree.value };
+            newFileTree[sourceParentDir] = sourceEntries;
+            newFileTree[childPath] = targetEntries;
+            // Remove the old source path if it was a directory and is now empty or gone
+            // delete newFileTree[sourcePath]; // Be careful with this
+            fileTree.value = newFileTree;
+          });
         })
         .catch((err) => {
           console.error("Failed to move file:", err);
-          alert(`Move failed: ${err.message || "Unknown error"}`);
+          alert(
+            `Move failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
         });
     }
   };
@@ -416,29 +517,18 @@ function DirectoryItem({
     e.preventDefault();
     e.stopPropagation(); // Stop event bubbling
 
-    // Check if we have multiple selected items AND this item is already selected
-    const hasMultipleSelected = selectedPaths.value.size > 1;
-    const isItemSelected = selectedPaths.value.has(childPath);
-
-    // When right-clicking a file that's part of a multi-selection, keep the selection
-    if (hasMultipleSelected && isItemSelected) {
-      // Do nothing, keep current selection
-      console.log("Right clicked on multi-selected item, preserving selection");
-    }
-    // When no modifier keys are pressed on single selection or non-selected item
-    else if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+    /*
+     * If the user right-clicks on an item that is *already* inside the current
+     * selection we want to keep that multi-selection intact. If the item is
+     * *not* part of the selection we follow desktop-style semantics and make
+     * it the sole selected item.
+     */
+    if (!selectedPaths.value.has(childPath)) {
       selectedPaths.value = new Set([childPath]);
       lastSelectedPath = childPath;
     }
-    // Handle Ctrl/Cmd+click behavior to add to selection
-    else if (!isItemSelected) {
-      // Add this item to selection if it's not already selected (with modifier keys)
-      const newSelection = new Set(selectedPaths.value);
-      newSelection.add(childPath);
-      selectedPaths.value = newSelection;
-      lastSelectedPath = childPath;
-    }
 
+    // Finally, open the context-menu at the cursor position.
     contextMenuPosition.value = { x: e.pageX, y: e.pageY };
   };
 
@@ -456,18 +546,17 @@ function DirectoryItem({
   };
 
   const commitRename = async () => {
-    // Prevent duplicate calls
     if (isProcessingRename.value) return;
     isProcessingRename.value = true;
 
-    if (inputValue.value.trim() === "") {
+    const trimmedNewName = inputValue.value.trim();
+
+    if (trimmedNewName === "") {
       cancelEdit();
       isProcessingRename.value = false;
       return;
     }
-
-    // Don't allow special characters
-    if (/[\/\\:*?"<>|]/.test(inputValue.value.trim())) {
+    if (/[\/\\:*?"<>|]/.test(trimmedNewName)) {
       alert(
         'The name cannot contain the following characters: \\ / : * ? " < > |',
       );
@@ -475,25 +564,51 @@ function DirectoryItem({
       isProcessingRename.value = false;
       return;
     }
-
-    if (inputValue.value.trim() === entry.name) {
-      // No change, just cancel
+    if (trimmedNewName === entry.name) {
       cancelEdit();
       isProcessingRename.value = false;
       return;
     }
 
-    // Construct the old and new paths
-    const dirPath = path;
-    const oldPath = childPath;
+    const oldPath = childPath; // Full path of the item being renamed
+    const parentDir = path; // Parent path of the item being renamed
     const newPath =
-      dirPath === "/"
-        ? `/${inputValue.value.trim()}`
-        : `${dirPath}/${inputValue.value.trim()}`;
+      parentDir === "/"
+        ? `/${trimmedNewName}`
+        : `${parentDir}/${trimmedNewName}`;
 
     try {
-      cancelEdit(); // Cancel editing BEFORE the API call to prevent any blur events from firing
-      await renamePath(oldPath, newPath);
+      cancelEdit();
+      await renameFile({ oldPath, newPath });
+
+      // For files, oldParentPath and newParentPath will be the same unless future move logic is added here.
+      // For now, it simplifies to refreshing just one parent directory.
+      const parentPathToRefresh = parentDir; // Same as oldParentPath and newParentPath for file rename
+
+      const updatedEntries = await listDirectory({
+        path: parentPathToRefresh,
+        force: true,
+      });
+      const newFileTreeData = {
+        ...fileTree.peek(),
+        [parentPathToRefresh]: updatedEntries,
+      };
+
+      // File items are not keys in fileTree for children, so no key renaming needed for fileTreeData itself.
+      // File items are not typically in expandedPaths unless we change that feature.
+
+      if (selectedPaths.value.has(oldPath)) {
+        const newSelection = new Set(selectedPaths.value);
+        newSelection.delete(oldPath);
+        newSelection.add(newPath);
+        selectedPaths.value = newSelection;
+      }
+      // Also update lastSelectedPath if it was the one renamed
+      if (lastSelectedPath === oldPath) {
+        lastSelectedPath = newPath;
+      }
+
+      fileTree.value = newFileTreeData;
     } catch (error) {
       console.error("Failed to rename:", error);
       alert(
@@ -505,74 +620,21 @@ function DirectoryItem({
   };
 
   const handleEditKeyDown = (e: KeyboardEvent) => {
-    // Always stop propagation to prevent global shortcuts, but don't prevent default for all keys
     e.stopPropagation();
-
     if (e.key === "Enter") {
-      // For Enter key, prevent default to avoid form submission
       e.preventDefault();
-
-      // Don't process if already handling a rename
-      if (isProcessingRename.value) return;
-      isProcessingRename.value = true;
-
-      // Validation checks
-      if (inputValue.value.trim() === "") {
-        cancelEdit();
-        isProcessingRename.value = false;
-        return;
-      }
-
-      if (/[\/\\:*?"<>|]/.test(inputValue.value.trim())) {
-        alert(
-          'The name cannot contain the following characters: \\ / : * ? " < > |',
-        );
-        cancelEdit();
-        isProcessingRename.value = false;
-        return;
-      }
-
-      if (inputValue.value.trim() === entry.name) {
-        // No change, just cancel
-        cancelEdit();
-        isProcessingRename.value = false;
-        return;
-      }
-
-      // Construct paths
-      const dirPath = path;
-      const oldPath = childPath;
-      const newPath =
-        dirPath === "/"
-          ? `/${inputValue.value.trim()}`
-          : `${dirPath}/${inputValue.value.trim()}`;
-
-      // Cancel editing first to prevent blurring from triggering another rename
-      cancelEdit();
-
-      // Now do the rename
-      renamePath(oldPath, newPath)
-        .catch((error) => {
-          console.error("Rename failed:", error);
-          alert(
-            `Rename failed: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        })
-        .finally(() => {
-          // Reset processing flag after operation completes
-          isProcessingRename.value = false;
-        });
+      commitRename(); // commitRename will use inputValue and component props
     } else if (e.key === "Escape") {
-      // For Escape key, prevent default to avoid browser behavior
       e.preventDefault();
       cancelEdit();
     }
-    // For all other keys, allow default behavior (typing in the input)
   };
 
   return (
     <>
       <li
+        data-testid={`file-tree-folder-${entry.name}`}
+        aria-selected={isSelected}
         className={`${
           isContainerDragOver.value
             ? "drop-target bg-green-50 dark:bg-green-900/20 border-2 border-dashed border-green-500 dark:border-green-600 rounded shadow-sm"
@@ -603,7 +665,7 @@ function DirectoryItem({
           onContextMenu={handleContextMenu}
         >
           <div
-            className="w-4 h-4 mr-1 flex-shrink-0"
+            className="toggle-icon w-4 h-4 mr-1 flex-shrink-0"
             onClick={(e) => {
               e.stopPropagation();
               toggleExpand(e);
@@ -683,8 +745,12 @@ function DirectoryItem({
                   onClick={() => {
                     isLoading.value = true;
                     itemError.value = null;
-                    listDirectory(childPath, { force: true })
-                      .then(() => {
+                    listDirectory({ path: childPath, force: true })
+                      .then((entries) => {
+                        fileTree.value = {
+                          ...fileTree.value,
+                          [childPath]: entries,
+                        };
                         console.log(`Retry successful for ${childPath}`);
                         // Make sure the directory is marked as expanded
                         const newExpanded = new Set(expandedPaths.value);
@@ -786,7 +852,11 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
   const childPath = path === "/" ? `/${entry.name}` : `${path}/${entry.name}`;
   const isSelected = selectedPaths.value.has(childPath);
   const isDragOver = useSignal(false);
-  const contextMenuPosition = useSignal<{ x: number; y: number } | null>(null);
+  const contextMenuPosition = useSignal<{
+    x: number;
+    y: number;
+    directAction?: "delete";
+  } | null>(null);
   const isEditing = editingPath.value === childPath;
   const nameInputRef = useSignal<HTMLInputElement | null>(null);
   const inputValue = useSignal(entry.name);
@@ -835,6 +905,20 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
       // F2 key starts editing
       e.preventDefault();
       startEdit();
+    } else if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      // Ensure the current item is selected if not already part of a multi-selection
+      if (!selectedPaths.value.has(childPath)) {
+        selectedPaths.value = new Set([childPath]);
+      } // If already selected (single or multi), respect existing selection for deletion
+
+      const el = e.currentTarget as HTMLElement;
+      const rect = el.getBoundingClientRect();
+      contextMenuPosition.value = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+        directAction: "delete",
+      };
     }
   };
 
@@ -850,29 +934,18 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
     e.preventDefault();
     e.stopPropagation(); // Stop event bubbling
 
-    // Check if we have multiple selected items AND this item is already selected
-    const hasMultipleSelected = selectedPaths.value.size > 1;
-    const isItemSelected = selectedPaths.value.has(childPath);
-
-    // When right-clicking a file that's part of a multi-selection, keep the selection
-    if (hasMultipleSelected && isItemSelected) {
-      // Do nothing, keep current selection
-      console.log("Right clicked on multi-selected file, preserving selection");
-    }
-    // When no modifier keys are pressed on single selection or non-selected item
-    else if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+    /*
+     * If the user right-clicks on an item that is *already* inside the current
+     * selection we want to keep that multi-selection intact. If the item is
+     * *not* part of the selection we follow desktop-style semantics and make
+     * it the sole selected item.
+     */
+    if (!selectedPaths.value.has(childPath)) {
       selectedPaths.value = new Set([childPath]);
       lastSelectedPath = childPath;
     }
-    // Handle Ctrl/Cmd+click behavior to add to selection
-    else if (!isItemSelected) {
-      // Add this item to selection if it's not already selected (with modifier keys)
-      const newSelection = new Set(selectedPaths.value);
-      newSelection.add(childPath);
-      selectedPaths.value = newSelection;
-      lastSelectedPath = childPath;
-    }
 
+    // Finally, open the context-menu at the cursor position.
     contextMenuPosition.value = { x: e.pageX, y: e.pageY };
   };
 
@@ -889,18 +962,17 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
   };
 
   const commitRename = async () => {
-    // Prevent duplicate calls
     if (isProcessingRename.value) return;
     isProcessingRename.value = true;
 
-    if (inputValue.value.trim() === "") {
+    const trimmedNewName = inputValue.value.trim();
+
+    if (trimmedNewName === "") {
       cancelEdit();
       isProcessingRename.value = false;
       return;
     }
-
-    // Don't allow special characters
-    if (/[\/\\:*?"<>|]/.test(inputValue.value.trim())) {
+    if (/[\/\\:*?"<>|]/.test(trimmedNewName)) {
       alert(
         'The name cannot contain the following characters: \\ / : * ? " < > |',
       );
@@ -908,25 +980,51 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
       isProcessingRename.value = false;
       return;
     }
-
-    if (inputValue.value.trim() === entry.name) {
-      // No change, just cancel
+    if (trimmedNewName === entry.name) {
       cancelEdit();
       isProcessingRename.value = false;
       return;
     }
 
-    // Construct the old and new paths
-    const dirPath = path;
-    const oldPath = childPath;
+    const oldPath = childPath; // Full path of the item being renamed
+    const parentDir = path; // Parent path of the item being renamed
     const newPath =
-      dirPath === "/"
-        ? `/${inputValue.value.trim()}`
-        : `${dirPath}/${inputValue.value.trim()}`;
+      parentDir === "/"
+        ? `/${trimmedNewName}`
+        : `${parentDir}/${trimmedNewName}`;
 
     try {
-      cancelEdit(); // Cancel editing BEFORE the API call to prevent any blur events from firing
-      await renamePath(oldPath, newPath);
+      cancelEdit();
+      await renameFile({ oldPath, newPath });
+
+      // For files, oldParentPath and newParentPath will be the same unless future move logic is added here.
+      // For now, it simplifies to refreshing just one parent directory.
+      const parentPathToRefresh = parentDir; // Same as oldParentPath and newParentPath for file rename
+
+      const updatedEntries = await listDirectory({
+        path: parentPathToRefresh,
+        force: true,
+      });
+      const newFileTreeData = {
+        ...fileTree.peek(),
+        [parentPathToRefresh]: updatedEntries,
+      };
+
+      // File items are not keys in fileTree for children, so no key renaming needed for fileTreeData itself.
+      // File items are not typically in expandedPaths unless we change that feature.
+
+      if (selectedPaths.value.has(oldPath)) {
+        const newSelection = new Set(selectedPaths.value);
+        newSelection.delete(oldPath);
+        newSelection.add(newPath);
+        selectedPaths.value = newSelection;
+      }
+      // Also update lastSelectedPath if it was the one renamed
+      if (lastSelectedPath === oldPath) {
+        lastSelectedPath = newPath;
+      }
+
+      fileTree.value = newFileTreeData;
     } catch (error) {
       console.error("Failed to rename:", error);
       alert(
@@ -938,69 +1036,14 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
   };
 
   const handleEditKeyDown = (e: KeyboardEvent) => {
-    // Always stop propagation to prevent global shortcuts, but don't prevent default for all keys
     e.stopPropagation();
-
     if (e.key === "Enter") {
-      // For Enter key, prevent default to avoid form submission
       e.preventDefault();
-
-      // Don't process if already handling a rename
-      if (isProcessingRename.value) return;
-      isProcessingRename.value = true;
-
-      // Validation checks
-      if (inputValue.value.trim() === "") {
-        cancelEdit();
-        isProcessingRename.value = false;
-        return;
-      }
-
-      if (/[\/\\:*?"<>|]/.test(inputValue.value.trim())) {
-        alert(
-          'The name cannot contain the following characters: \\ / : * ? " < > |',
-        );
-        cancelEdit();
-        isProcessingRename.value = false;
-        return;
-      }
-
-      if (inputValue.value.trim() === entry.name) {
-        // No change, just cancel
-        cancelEdit();
-        isProcessingRename.value = false;
-        return;
-      }
-
-      // Construct paths
-      const dirPath = path;
-      const oldPath = childPath;
-      const newPath =
-        dirPath === "/"
-          ? `/${inputValue.value.trim()}`
-          : `${dirPath}/${inputValue.value.trim()}`;
-
-      // Cancel editing first to prevent blurring from triggering another rename
-      cancelEdit();
-
-      // Now do the rename
-      renamePath(oldPath, newPath)
-        .catch((error) => {
-          console.error("Rename failed:", error);
-          alert(
-            `Rename failed: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        })
-        .finally(() => {
-          // Reset processing flag after operation completes
-          isProcessingRename.value = false;
-        });
+      commitRename(); // commitRename will use inputValue and component props
     } else if (e.key === "Escape") {
-      // For Escape key, prevent default to avoid browser behavior
       e.preventDefault();
       cancelEdit();
     }
-    // For all other keys, allow default behavior (typing in the input)
   };
 
   // Handle double-click for file preview/edit
@@ -1027,8 +1070,20 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
     // Silently ignore other file types for now
   };
 
+  // Handler for per-file download
+  const handleDownloadFile = async (e: MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const data = await readFile({ path: childPath });
+      triggerBrowserDownload(data, entry.name);
+    } catch (err) {
+      console.error("Download failed:", err);
+    }
+  };
+
   return (
     <li
+      data-testid={`file-tree-item-${entry.name}`}
       className={`py-0.5 px-2 border-b border-neutral-100 dark:border-neutral-800 flex items-center cursor-pointer select-none relative ${
         isSelected ? "bg-blue-100 dark:bg-blue-900" : ""
       } ${
@@ -1044,6 +1099,24 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
       role="treeitem"
       aria-selected={isSelected}
     >
+      {/* Download button for individual file */}
+      <button
+        onClick={handleDownloadFile}
+        data-testid={`download-file-button-${entry.name}`}
+        className="cursor-pointer p-1 focus:outline-none hover:scale-120 transition-transform"
+        aria-label={`Download ${entry.name}`}
+      >
+        {/* Download icon */}
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          className="w-4 h-4"
+        >
+          <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
+          <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z" />
+        </svg>
+      </button>
       <span className="mr-1">
         <img
           src={iconUrlForEntry(entry)}
@@ -1081,6 +1154,19 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
           onClose={() => {
             contextMenuPosition.value = null;
           }}
+          selectedEntries={
+            Array.from(selectedPaths.value)
+              .map((selPath) => {
+                const dirPath =
+                  selPath.substring(0, selPath.lastIndexOf("/")) || "/";
+                const name = selPath.substring(selPath.lastIndexOf("/") + 1);
+                const selEntry = fileTree.value[dirPath]?.find(
+                  (e) => e.name === name,
+                );
+                return selEntry ? { path: dirPath, entry: selEntry } : null;
+              })
+              .filter(Boolean) as { path: string; entry: FileEntry }[]
+          }
         />
       )}
     </li>
@@ -1090,7 +1176,11 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
 /**
  * Root tree component for browsing files on the Deluge SD card
  */
-export default function FileBrowserTree() {
+export default function FileBrowserTree({
+  showWarning,
+}: {
+  showWarning: Signal<boolean>;
+}) {
   const rootPath = "/";
   const isLoading = useSignal(false);
   const error = useSignal<string | null>(null);
@@ -1111,10 +1201,12 @@ export default function FileBrowserTree() {
         })
         .then(() => {
           console.log("Device responded to version request");
-          return listDirectory(rootPath);
+          return listDirectory({ path: rootPath });
         })
         .then((entries) => {
           console.log(`Root directory loaded with ${entries.length} entries`);
+          // Update fileTree state with loaded entries
+          fileTree.value = { ...fileTree.value, [rootPath]: entries };
         })
         .catch((err) => {
           console.error("Failed to load root directory:", err);
@@ -1145,7 +1237,23 @@ export default function FileBrowserTree() {
     <div
       className="h-full flex flex-col font-mono text-sm"
       onContextMenu={handleRootContextMenu}
+      data-testid="file-browser-tree-root"
     >
+      {showWarning.value && (
+        <div className="bg-yellow-100 border border-yellow-300 text-yellow-900 p-2 text-sm font-medium flex flex-col">
+          <span>
+            <strong>Warning:</strong> The file system implementation may
+            sometimes be unstable. Please back up your SD card before using this
+            feature.
+          </span>
+          <button
+            onClick={() => (showWarning.value = false)}
+            className="cursor-pointer text-yellow-900 focus:outline-none border-t border-yellow-300 pt-2"
+          >
+            Hide
+          </button>
+        </div>
+      )}
       <div className="flex-grow overflow-y-auto">
         {isLoading.value ? (
           <div className="p-4 text-center">
@@ -1175,12 +1283,16 @@ export default function FileBrowserTree() {
                   })
                   .then(() => {
                     console.log("Retry: Device responded to version request");
-                    return listDirectory(rootPath, { force: true });
+                    return listDirectory({ path: rootPath, force: true });
                   })
                   .then((entries) => {
                     console.log(
                       `Retry: Root directory loaded with ${entries.length} entries`,
                     );
+                    fileTree.value = {
+                      ...fileTree.value,
+                      [rootPath]: entries,
+                    };
                   })
                   .catch((err) => {
                     console.error("Retry: Failed to load root directory:", err);

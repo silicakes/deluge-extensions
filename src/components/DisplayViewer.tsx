@@ -10,7 +10,7 @@ import {
   copyCanvasToBase64,
   oledFrame,
 } from "../lib/display";
-import { subscribeMidiListener } from "../lib/midi";
+import { subscribeMidiListener } from "@/commands";
 import { displaySettings, fullscreenActive } from "../state";
 import { addDebugMessage } from "../lib/debug";
 import { DisplayTypeSwitch } from "./DisplayTypeSwitch";
@@ -150,6 +150,7 @@ export function DisplayViewer() {
       <canvas
         ref={canvasRef}
         className="image-rendering-pixelated border block"
+        data-testid="main-display"
       />
 
       {/* Screenshot and Copy Base64 icons - only visible on hover, hidden in fullscreen */}
