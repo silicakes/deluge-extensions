@@ -66,29 +66,17 @@ describe("FileBrowserTree", () => {
 
     // Setup listDirectory mock to handle paths and update state
     vi.mocked(commands.listDirectory).mockImplementation(async ({ path }) => {
-      console.log(`Mock listDirectory (beforeEach) called with: ${path}`);
-      // Simulate delay
-      await new Promise((res) => setTimeout(res, 10));
-
-      let entries: FileEntry[] = [];
-      if (path === "/") {
-        entries = mockFileStructure["/"];
-      } else if (path === "/SONGS") {
-        entries = mockFileStructure["/SONGS"];
-      }
-
-      // Update fileTree state *like the real implementation*
-      if (entries.length > 0 || path === "/") {
-        // Update even if root is empty initially
-        fileTree.value = {
-          ...fileTree.value,
-          [path]: entries,
-        };
-      }
-      console.log(
-        `Mock listDirectory updated fileTree for ${path} with ${entries.length} entries`,
-      );
-      return entries; // Return the entries
+      // Return entries from current state (for rename tests), otherwise fallback to mockFileStructure
+      const stateEntries = fileTree.value[path];
+      const entries: FileEntry[] = stateEntries
+        ? stateEntries
+        : mockFileStructure[path as "/" | "/SONGS"] || [];
+      // Update fileTree state like the real implementation
+      fileTree.value = {
+        ...fileTree.value,
+        [path]: entries,
+      };
+      return entries;
     });
 
     // Mock other midi functions as needed (already done by vi.mock at top)

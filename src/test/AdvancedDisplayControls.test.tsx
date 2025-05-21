@@ -39,7 +39,7 @@ describe("AdvancedDisplayControls", () => {
     render(<AdvancedDisplayControls />);
 
     // Initially drawer should be closed
-    const drawer = screen.getByTestId("advanced-controls-drawer");
+    const drawer = screen.getByTestId("advanced-controls-panel");
     expect(drawer).toHaveAttribute("aria-hidden", "true");
 
     // Click toggle button
@@ -74,7 +74,7 @@ describe("AdvancedDisplayControls", () => {
     fireEvent.click(toggleButton);
 
     // Drawer should be open
-    const drawer = screen.getByTestId("advanced-controls-drawer");
+    const drawer = screen.getByTestId("advanced-controls-panel");
     expect(drawer).toHaveAttribute("aria-hidden", "false");
 
     // Click outside the drawer
@@ -92,7 +92,7 @@ describe("AdvancedDisplayControls", () => {
     fireEvent.click(toggleButton);
 
     // Drawer should be open
-    const drawer = screen.getByTestId("advanced-controls-drawer");
+    const drawer = screen.getByTestId("advanced-controls-panel");
     expect(drawer).toHaveAttribute("aria-hidden", "false");
 
     // Press Escape key
