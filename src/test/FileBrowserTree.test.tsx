@@ -10,7 +10,9 @@ import {
   FileEntry,
 } from "../state";
 import * as commands from "@/commands";
+import { signal } from "@preact/signals";
 
+const showWarning = signal(true);
 // Mock command APIs for directory operations and file uploads
 vi.mock("@/commands", () => ({
   listDirectory: vi.fn().mockResolvedValue([]),
@@ -84,8 +86,7 @@ describe("FileBrowserTree", () => {
 
   it("should load the root directory on mount", async () => {
     // Arrange: Render the component (beforeEach sets up the mock)
-    render(<FileBrowserTree />);
-
+    render(<FileBrowserTree showWarning={showWarning} />);
     // Assert: Initially shows loading or placeholder
     // Using queryByText because it might flash quickly
     expect(screen.queryByText(/Loading|No files/)).toBeInTheDocument();
@@ -104,7 +105,7 @@ describe("FileBrowserTree", () => {
 
   it("should show a message when MIDI is not connected", () => {
     midiOut.value = null;
-    render(<FileBrowserTree />);
+    render(<FileBrowserTree showWarning={showWarning} />);
     expect(screen.getByText(/No files found/)).toBeInTheDocument();
   });
 
@@ -112,7 +113,7 @@ describe("FileBrowserTree", () => {
     // Setup initial file tree state with some files
     fileTree.value = { "/": mockFileStructure["/"] };
 
-    render(<FileBrowserTree />);
+    render(<FileBrowserTree showWarning={showWarning} />);
 
     // Find and click on a file
     const fileElement = await screen.findByText("README.txt");
@@ -128,7 +129,7 @@ describe("FileBrowserTree", () => {
   it("should navigate to directories when clicked", async () => {
     // Arrange: Render the component (beforeEach sets up mock)
     const user = userEvent.setup();
-    render(<FileBrowserTree />);
+    render(<FileBrowserTree showWarning={showWarning} />);
 
     // Wait for initial root load
     const songsDirRow = await screen.findByText("SONGS");
@@ -172,7 +173,7 @@ describe("FileBrowserTree", () => {
     contextMenuMock.setAttribute("role", "menu");
     document.body.appendChild(contextMenuMock);
 
-    render(<FileBrowserTree />);
+    render(<FileBrowserTree showWarning={showWarning} />);
 
     // Verify the menu element exists (the mock we created)
     const contextMenu = document.querySelector("[role='menu']");
@@ -189,7 +190,7 @@ describe("FileBrowserTree", () => {
     // Preselect a file
     selectedPaths.value = new Set(["/SAMPLES"]);
 
-    render(<FileBrowserTree />);
+    render(<FileBrowserTree showWarning={showWarning} />);
 
     // Find a different file and right-click it
     const fileElement = await screen.findByText("README.txt");
@@ -209,7 +210,7 @@ describe("FileBrowserTree", () => {
     vi.mocked(commands.listDirectory).mockResolvedValue(mockFileStructure["/"]);
     // Clear any pre-populated state
     fileTree.value = {};
-    render(<FileBrowserTree />);
+    render(<FileBrowserTree showWarning={showWarning} />);
     // Wait for the command to be invoked
     await waitFor(() =>
       expect(commands.listDirectory).toHaveBeenCalledWith({ path: "/" }),
@@ -240,13 +241,13 @@ describe("FileBrowserTree", () => {
     it("rename-abort - checks that renameFile is not called when canceled", async () => {
       fileTree.value = { "/": mockFileStructure["/"] };
       const renameMock = vi.spyOn(commands, "renameFile");
-      render(<FileBrowserTree />);
+      render(<FileBrowserTree showWarning={showWarning} />);
       expect(renameMock).not.toHaveBeenCalled();
     });
 
     it("rename-initial - verifies that file names are displayed", async () => {
       fileTree.value = { "/": mockFileStructure["/"] };
-      render(<FileBrowserTree />);
+      render(<FileBrowserTree showWarning={showWarning} />);
       expect(screen.getByText("README.txt")).toBeInTheDocument();
     });
 
@@ -297,7 +298,7 @@ describe("FileBrowserTree", () => {
 
       // Act: render and perform inline rename on the file via F2
       const user = userEvent.setup();
-      render(<FileBrowserTree />);
+      render(<FileBrowserTree showWarning={showWarning} />);
       const fileElement = await screen.findByText("README.txt");
       // Find the row and trigger F2 to start editing
       const row = fileElement.closest("li");
@@ -363,7 +364,7 @@ describe("FileBrowserTree", () => {
 
       // Act: render, enter edit mode, change name, press Enter
       const user = userEvent.setup();
-      render(<FileBrowserTree />);
+      render(<FileBrowserTree showWarning={showWarning} />);
       const fileElement = await screen.findByText("README.txt");
       const row = fileElement.closest("li");
       expect(row).toBeTruthy();
@@ -437,7 +438,7 @@ describe("FileBrowserTree", () => {
 
       // Act: render and perform inline rename on the directory via double-click
       const user = userEvent.setup();
-      render(<FileBrowserTree />);
+      render(<FileBrowserTree showWarning={showWarning} />);
       const dirElement = await screen.findByText("SONGS");
       // Start editing by double-clicking the directory name
       await user.dblClick(dirElement);
@@ -472,7 +473,7 @@ describe("FileBrowserTree", () => {
     selectedPaths.value = new Set(["/SONGS/song1.xml", "/SONGS/song2.xml"]);
 
     // Render the component
-    render(<FileBrowserTree />);
+    render(<FileBrowserTree showWarning={showWarning} />);
 
     // Right-click on one of the selected files to open its context menu
     const fileSpan = await screen.findByText("song1.xml");
@@ -502,7 +503,7 @@ describe("FileBrowserTree", () => {
   describe("New Folder/File Creation", () => {
     it("should refresh UI and display a new folder after creation", async () => {
       // Arrange: Initial root directory is loaded
-      render(<FileBrowserTree />);
+      render(<FileBrowserTree showWarning={showWarning} />);
       await screen.findByText("SONGS"); // Wait for initial load
 
       const newFolderName = "MY_NEW_FOLDER";
@@ -555,7 +556,7 @@ describe("FileBrowserTree", () => {
 
     it("should refresh UI via FileContextMenu after creating a new folder in root", async () => {
       const user = userEvent.setup();
-      render(<FileBrowserTree />); // Renders FileBrowserTree, which can render FileContextMenu
+      render(<FileBrowserTree showWarning={showWarning} />); // Renders FileBrowserTree, which can render FileContextMenu
 
       // Wait for initial load, e.g., by finding a known root item
       await screen.findByText("SONGS");
@@ -643,7 +644,7 @@ describe("FileBrowserTree", () => {
         "/SONGS": mockFileStructure["/SONGS"],
       };
 
-      render(<FileBrowserTree />);
+      render(<FileBrowserTree showWarning={showWarning} />);
 
       const songsDirElement = await screen.findByText("SONGS");
       const songsDirRow = songsDirElement.closest("li"); // Get the <li> for context menu

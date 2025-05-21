@@ -10,7 +10,9 @@ import {
 } from "../state";
 import FileBrowserTree from "../components/FileBrowserTree";
 import * as commands from "@/commands";
+import { signal } from "@preact/signals";
 
+const showWarning = signal(true);
 // Mock the lazy loading
 vi.mock("preact/compat", async () => {
   const actual = await vi.importActual("preact/compat");
@@ -172,7 +174,7 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
     fileTree.value = fileTreeMock;
     expandedPaths.value = new Set(["/folder1"]);
 
-    render(<FileBrowserTree />);
+    render(<FileBrowserTree showWarning={showWarning} />);
 
     // Create a test file for the drop event
     const testFile = new File(["test content"], "test.txt", {
@@ -225,7 +227,7 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
     // Set up fileTree signal
     fileTree.value = fileTreeMock;
 
-    render(<FileBrowserTree />);
+    render(<FileBrowserTree showWarning={showWarning} />);
 
     // Create a test file for the drop event
     const testFile = new File(["test content"], "test.txt", {
