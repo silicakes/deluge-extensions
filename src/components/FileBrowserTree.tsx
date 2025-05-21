@@ -1,5 +1,5 @@
 import { useEffect } from "preact/hooks";
-import { useSignal } from "@preact/signals";
+import { useSignal, useSignalEffect } from "@preact/signals";
 import {
   fileTree,
   expandedPaths,
@@ -1176,11 +1176,20 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
  * Root tree component for browsing files on the Deluge SD card
  */
 export default function FileBrowserTree() {
+  const showWarning = useSignal(true);
+  useEffect(() => {
+    const stored = localStorage.getItem("fbTreeShowWarning");
+    if (stored !== null) {
+      showWarning.value = stored === "true";
+    }
+  }, []);
+  useSignalEffect(() => {
+    localStorage.setItem("fbTreeShowWarning", showWarning.value.toString());
+  });
   const rootPath = "/";
   const isLoading = useSignal(false);
   const error = useSignal<string | null>(null);
   const contextMenuPosition = useSignal<{ x: number; y: number } | null>(null);
-  const showWarning = useSignal(true);
 
   // Load root directory on first mount
   useEffect(() => {
