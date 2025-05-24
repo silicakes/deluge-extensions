@@ -54,7 +54,6 @@ function hasCorruptedEntries(fileTree: Record<string, FileEntry[]>) {
 }
 
 export default function FileBrowserSidebar() {
-  const isDraggingOver = useSignal(false);
   const hasSelectedFiles = useSignal(false);
   const downloadButtonVisible = useSignal(false); // For debugging
   const showNewFolderModal = useSignal(false);
@@ -128,37 +127,27 @@ export default function FileBrowserSidebar() {
   const handleDragOver = (e: DragEvent) => {
     e.preventDefault();
 
-    // Only show overlay for files being dragged, not text selection
+    // Only handle file drags, not text selection
     if (!e.dataTransfer?.types.includes("Files")) {
       return;
     }
 
-    // Don't show the overlay if we're hovering over a directory item
-    // Check if the current target or any of its parents has a data-path attribute
+    // Check if we're hovering over a directory item
     let element = e.target as HTMLElement;
     while (element && element !== e.currentTarget) {
       if (element.hasAttribute("data-path")) {
-        // We're hovering over a directory item, don't show the root upload overlay
+        // Directory items handle their own drag events
         return;
       }
       element = element.parentElement!;
     }
 
-    isDraggingOver.value = true;
-    console.log("File drag detected, showing upload indicator");
+    // We're over empty space in the sidebar - folders handle their own indicators
   };
 
   const handleDragLeave = (e: DragEvent) => {
     e.preventDefault();
-    // Check if we're leaving the sidebar entirely
-    // (not just moving between elements)
-    if (
-      e.relatedTarget === null ||
-      !(e.currentTarget as Node).contains(e.relatedTarget as Node)
-    ) {
-      isDraggingOver.value = false;
-      console.log("Drag left sidebar");
-    }
+    // Folders handle their own drag leave events
   };
 
   const handleDrop = async (e: DragEvent) => {
@@ -168,13 +157,11 @@ export default function FileBrowserSidebar() {
     while (element && element !== e.currentTarget) {
       if (element.hasAttribute("data-path")) {
         console.log("Drop handled by directory item, skipping sidebar handler");
-        isDraggingOver.value = false;
         return;
       }
       element = element.parentElement!;
     }
 
-    isDraggingOver.value = false;
     console.log("File dropped on sidebar (root level)");
 
     let targetDir = "/";
@@ -692,14 +679,7 @@ export default function FileBrowserSidebar() {
         </div>
       )}
 
-      {/* Keep this existing upload overlay */}
-      {isDraggingOver.value && (
-        <div className="absolute inset-0 bg-blue-500 bg-opacity-20 flex items-center justify-center">
-          <div className="text-xl bg-white dark:bg-gray-800 p-5 rounded-lg shadow-lg border-2 border-blue-500">
-            Drop to upload
-          </div>
-        </div>
-      )}
+      {/* Upload overlay removed - individual folders handle their own drop indicators */}
 
       {/* New Folder Modal */}
       {showNewFolderModal.value && (

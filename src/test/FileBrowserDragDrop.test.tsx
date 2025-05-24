@@ -13,6 +13,7 @@ import * as commands from "@/commands";
 import { signal } from "@preact/signals";
 
 const showWarning = signal(true);
+const showCorruptedWarning = signal(true);
 // Mock the lazy loading
 vi.mock("preact/compat", async () => {
   const actual = await vi.importActual("preact/compat");
@@ -97,7 +98,7 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
     expect(downloadMock).toHaveBeenCalled();
   });
 
-  it("should show drop overlay when files are dragged over", () => {
+  it("should NOT show drop overlay when files are dragged over (overlay removed for better UX)", () => {
     render(<FileBrowserSidebar />);
 
     // No overlay initially
@@ -112,8 +113,8 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
     // Simulate drag over
     fireEvent.dragOver(screen.getByRole("complementary"), { dataTransfer });
 
-    // Overlay should appear
-    expect(screen.getByText("Drop to upload")).toBeInTheDocument();
+    // Overlay should NOT appear anymore - individual folders handle their own drop indicators
+    expect(screen.queryByText("Drop to upload")).toBeNull();
   });
 
   it("should call uploadFiles when files are dropped", () => {
@@ -174,7 +175,12 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
     fileTree.value = fileTreeMock;
     expandedPaths.value = new Set(["/folder1"]);
 
-    render(<FileBrowserTree showWarning={showWarning} />);
+    render(
+      <FileBrowserTree
+        showWarning={showWarning}
+        showCorruptedWarning={showCorruptedWarning}
+      />,
+    );
 
     // Create a test file for the drop event
     const testFile = new File(["test content"], "test.txt", {
@@ -227,7 +233,12 @@ describe("FileBrowser Drag & Drop / Upload / Download", () => {
     // Set up fileTree signal
     fileTree.value = fileTreeMock;
 
-    render(<FileBrowserTree showWarning={showWarning} />);
+    render(
+      <FileBrowserTree
+        showWarning={showWarning}
+        showCorruptedWarning={showCorruptedWarning}
+      />,
+    );
 
     // Create a test file for the drop event
     const testFile = new File(["test content"], "test.txt", {

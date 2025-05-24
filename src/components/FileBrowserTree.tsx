@@ -13,6 +13,7 @@ import {
   previewFile,
   editingFileState,
   // fileUploadConflictState, // Conceptually, import a global state for the conflict dialog
+  fileTransferQueue,
 } from "../state";
 import { testSysExConnectivity, checkFirmwareSupport } from "@/commands";
 import {
@@ -37,6 +38,7 @@ import FileNameIssuesDialog, {
   fileIssuesCallback,
 } from "./FileNameIssuesDialog";
 import { validateFilename } from "@/lib/filenameValidator";
+import { transferManager } from "@/services/transferManager";
 
 // Track last selected path for shift-clicking
 let lastSelectedPath: string | null = null;
@@ -182,6 +184,7 @@ function DirectoryItem({
   const nameInputRef = useSignal<HTMLInputElement | null>(null);
   const inputValue = useSignal(entry.name);
   const isProcessingRename = useSignal(false);
+  const hoverExpandTimer = useSignal<number | null>(null);
 
   // Set up input focus when editing starts
   useEffect(() => {
@@ -190,6 +193,15 @@ function DirectoryItem({
       nameInputRef.value.select();
     }
   }, [isEditing, entry.name]);
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverExpandTimer.value !== null) {
+        window.clearTimeout(hoverExpandTimer.value);
+      }
+    };
+  }, []);
 
   const toggleExpand = async (e: MouseEvent | KeyboardEvent) => {
     e.stopPropagation(); // Prevent selection when toggling
@@ -338,15 +350,30 @@ function DirectoryItem({
 
     // Only show drop indicator for files being dragged, not text selection
     if (isExternalFileDrag(e) || isInternalDrag(e)) {
-      // Apply the visual indicator to show this is a valid drop target
-      isContainerDragOver.value = true;
-      console.log(`Drag over directory: ${childPath}`);
+      // Check if we're directly over this folder's row, not its children
+      const target = e.target as HTMLElement;
+      const currentTarget = e.currentTarget as HTMLElement;
+      const rowElement = currentTarget.querySelector(".directory-row");
 
-      // Ensure the root container's drag indicator doesn't show
-      const sidebarContainer = document.querySelector(".file-browser-sidebar");
-      if (sidebarContainer) {
-        e.stopPropagation(); // Make extra sure event doesn't bubble up
+      // Only show container drag over if we're over the container but not over the row
+      if (rowElement && !rowElement.contains(target)) {
+        isContainerDragOver.value = true;
+
+        // Also start hover timer when hovering over container area
+        if (!isExpanded && hoverExpandTimer.value === null) {
+          hoverExpandTimer.value = window.setTimeout(() => {
+            console.log(
+              `Auto-expanding folder ${childPath} after container hover`,
+            );
+            toggleExpand(e);
+            hoverExpandTimer.value = null;
+          }, 1000); // 1 second delay before auto-expand
+        }
+      } else {
+        isContainerDragOver.value = false;
       }
+
+      console.log(`Drag over directory: ${childPath}`);
     }
   };
 
@@ -360,6 +387,13 @@ function DirectoryItem({
     const currentTarget = e.currentTarget as HTMLElement;
     if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
       isContainerDragOver.value = false;
+      isDragOver.value = false;
+
+      // Clear the hover expand timer
+      if (hoverExpandTimer.value !== null) {
+        window.clearTimeout(hoverExpandTimer.value);
+        hoverExpandTimer.value = null;
+      }
     }
   };
 
@@ -376,8 +410,16 @@ function DirectoryItem({
       isContainerDragOver.value,
     );
 
+    // Reset both drag indicators
     isContainerDragOver.value = false;
-    console.log(`isContainerDragOver reset for ${childPath} (now false)`);
+    isDragOver.value = false;
+    console.log(`Drag indicators reset for ${childPath}`);
+
+    // Clear the hover expand timer
+    if (hoverExpandTimer.value !== null) {
+      window.clearTimeout(hoverExpandTimer.value);
+      hoverExpandTimer.value = null;
+    }
     // Expand directory on drop so new entries are visible
     const newExpandedOnDrop = new Set(expandedPaths.value);
     newExpandedOnDrop.add(childPath);
@@ -602,6 +644,17 @@ function DirectoryItem({
 
     if (isExternalFileDrag(e) || isInternalDrag(e)) {
       isDragOver.value = true;
+      // Make sure container drag over is false when we're over the row
+      isContainerDragOver.value = false;
+
+      // Start hover timer to auto-expand folder if not already expanded
+      if (!isExpanded && hoverExpandTimer.value === null) {
+        hoverExpandTimer.value = window.setTimeout(() => {
+          console.log(`Auto-expanding folder ${childPath} after hover`);
+          toggleExpand(e);
+          hoverExpandTimer.value = null;
+        }, 1000); // 1 second delay before auto-expand
+      }
     }
   };
 
@@ -611,8 +664,25 @@ function DirectoryItem({
 
     const relatedTarget = e.relatedTarget as HTMLElement | null;
     const currentTarget = e.currentTarget as HTMLElement;
+
+    // Check if we're truly leaving the row
     if (!relatedTarget || !currentTarget.contains(relatedTarget)) {
       isDragOver.value = false;
+
+      // Clear the hover expand timer
+      if (hoverExpandTimer.value !== null) {
+        window.clearTimeout(hoverExpandTimer.value);
+        hoverExpandTimer.value = null;
+      }
+
+      // Check if we're still within the parent li element
+      const parentLi = currentTarget.closest("li");
+      if (parentLi && relatedTarget && parentLi.contains(relatedTarget)) {
+        // We're still within the li but not on the row, so show container indicator
+        if (isExternalFileDrag(e) || isInternalDrag(e)) {
+          isContainerDragOver.value = true;
+        }
+      }
     }
   };
 
@@ -750,13 +820,17 @@ function DirectoryItem({
         onDrop={handleDrop}
       >
         <div
-          className={`flex items-center py-1 px-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer select-none ${
+          className={`directory-row flex items-center py-1 px-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer select-none ${
             isSelected
               ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300"
               : ""
           } ${isExpanded ? "font-medium" : ""} ${
             isDragOver.value
               ? "bg-green-100 dark:bg-green-900/40 border-2 border-dashed border-green-500 dark:border-green-600 rounded shadow-sm"
+              : ""
+          } ${
+            hoverExpandTimer.value !== null && !isExpanded
+              ? "animate-pulse"
               : ""
           }`}
           onClick={handleSelect}
@@ -811,7 +885,14 @@ function DirectoryItem({
               style={{ marginTop: "-2px" }}
             />
           </span>
-          <span className="ml-1 truncate" title={entry.name}>
+          <span
+            className="ml-1 truncate"
+            title={
+              hoverExpandTimer.value !== null && !isExpanded
+                ? `${entry.name} (expanding...)`
+                : entry.name
+            }
+          >
             {isEditing ? (
               <input
                 type="text"
@@ -838,12 +919,7 @@ function DirectoryItem({
         </div>
 
         {isExpanded && (
-          <ul
-            className="ml-4"
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
+          <ul className="ml-4">
             {isLoading.value ? (
               <li className="py-1 px-2 text-gray-500">Loading...</li>
             ) : itemError.value ? (
@@ -1355,6 +1431,9 @@ export default function FileBrowserTree({
   const isLoading = useSignal(false);
   const error = useSignal<string | null>(null);
   const contextMenuPosition = useSignal<{ x: number; y: number } | null>(null);
+  const isDraggingOverRoot = useSignal(false);
+  const isDraggingFiles = useSignal(false);
+  const lastRootUploadCount = useSignal(0);
 
   // Check if there are any corrupted entries in the current view
   const hasCorruptedEntries = () => {
@@ -1402,6 +1481,80 @@ export default function FileBrowserTree({
     }
   }, [midiOut.value]); // Re-run when MIDI device changes
 
+  // Add global drag listeners to show drop zone when dragging files
+  useEffect(() => {
+    let dragCounter = 0;
+
+    const handleGlobalDragEnter = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes("Files")) {
+        dragCounter++;
+        if (dragCounter === 1) {
+          isDraggingFiles.value = true;
+        }
+      }
+    };
+
+    const handleGlobalDragLeave = () => {
+      dragCounter--;
+      if (dragCounter === 0) {
+        isDraggingFiles.value = false;
+      }
+    };
+
+    const handleGlobalDrop = () => {
+      dragCounter = 0;
+      isDraggingFiles.value = false;
+    };
+
+    const handleGlobalDragEnd = () => {
+      dragCounter = 0;
+      isDraggingFiles.value = false;
+    };
+
+    document.addEventListener("dragenter", handleGlobalDragEnter);
+    document.addEventListener("dragleave", handleGlobalDragLeave);
+    document.addEventListener("drop", handleGlobalDrop);
+    document.addEventListener("dragend", handleGlobalDragEnd);
+
+    return () => {
+      document.removeEventListener("dragenter", handleGlobalDragEnter);
+      document.removeEventListener("dragleave", handleGlobalDragLeave);
+      document.removeEventListener("drop", handleGlobalDrop);
+      document.removeEventListener("dragend", handleGlobalDragEnd);
+    };
+  }, []);
+
+  // Watch for completed root uploads and refresh
+  useEffect(() => {
+    const rootUploads = fileTransferQueue.value.filter(
+      (t) =>
+        t.kind === "upload" && t.src.startsWith("/") && !t.src.includes("/", 1),
+    );
+    const completedCount = rootUploads.filter(
+      (t) => t.status === "done",
+    ).length;
+
+    // If we have more completed uploads than before, refresh root
+    if (completedCount > lastRootUploadCount.value && completedCount > 0) {
+      console.log("Root uploads completed, refreshing directory");
+      lastRootUploadCount.value = completedCount;
+
+      // Refresh root directory
+      listDirectoryComplete({ path: "/", force: true })
+        .then((entries) => {
+          fileTree.value = { ...fileTree.value, "/": entries };
+        })
+        .catch((err) => {
+          console.error("Failed to refresh root after upload:", err);
+        });
+    }
+
+    // Reset counter if queue is cleared
+    if (rootUploads.length === 0) {
+      lastRootUploadCount.value = 0;
+    }
+  }, [fileTransferQueue.value]);
+
   const handleRootContextMenu = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation(); // Stop event bubbling
@@ -1413,6 +1566,70 @@ export default function FileBrowserTree({
     }
 
     contextMenuPosition.value = { x: e.clientX, y: e.clientY };
+  };
+
+  const handleRootDragOver = (e: DragEvent) => {
+    e.preventDefault();
+
+    // Only show drop zone for files being dragged
+    if (isExternalFileDrag(e)) {
+      isDraggingOverRoot.value = true;
+    }
+  };
+
+  const handleRootDragLeave = (e: DragEvent) => {
+    e.preventDefault();
+    isDraggingOverRoot.value = false;
+  };
+
+  const handleRootDrop = async (e: DragEvent) => {
+    e.preventDefault();
+    isDraggingOverRoot.value = false;
+
+    if (e.dataTransfer?.files.length) {
+      const files = Array.from(e.dataTransfer.files);
+      console.log(
+        `Files dropped on root drop zone, uploading ${files.length} files to root`,
+      );
+
+      // Check for conflicts with existing files
+      const existingEntries = fileTree.value["/"] || [];
+      const conflictingFiles: File[] = [];
+      const nonConflictingFiles: File[] = [];
+
+      for (const file of files) {
+        const conflict = existingEntries.some(
+          (entry) =>
+            entry.name.toLowerCase() === file.name.toLowerCase() &&
+            !isDirectory(entry),
+        );
+        if (conflict) {
+          conflictingFiles.push(file);
+        } else {
+          nonConflictingFiles.push(file);
+        }
+      }
+
+      if (conflictingFiles.length > 0) {
+        filesToOverride.value = conflictingFiles.map((f) => f.name);
+        confirmCallback.value = async (confirmed) => {
+          fileOverrideConfirmationOpen.value = false;
+          confirmCallback.value = null;
+          if (confirmed) {
+            console.log("[Root Drop] User confirmed overwrite.");
+            transferManager.enqueueUploads(conflictingFiles, "/", true);
+            transferManager.enqueueUploads(nonConflictingFiles, "/", false);
+          } else {
+            console.log("[Root Drop] User cancelled overwrite.");
+            transferManager.enqueueUploads(nonConflictingFiles, "/", false);
+          }
+        };
+        fileOverrideConfirmationOpen.value = true;
+      } else {
+        console.log("[Root Drop] No conflicts, queueing uploads.");
+        transferManager.enqueueUploads(files, "/", false);
+      }
+    }
   };
 
   return (
@@ -1553,25 +1770,100 @@ export default function FileBrowserTree({
             </button>
           </div>
         ) : fileTree.value[rootPath]?.length ? (
-          <ul className="p-2">
-            {sortEntriesDirectoriesFirst(fileTree.value[rootPath]).map(
-              (entry) =>
-                isDirectory(entry) ? (
-                  <DirectoryItem
-                    key={entry.name}
-                    path={rootPath}
-                    entry={entry}
-                    level={0}
-                  />
-                ) : (
-                  <FileItem key={entry.name} path={rootPath} entry={entry} />
-                ),
+          <>
+            <ul className="p-2">
+              {sortEntriesDirectoriesFirst(fileTree.value[rootPath]).map(
+                (entry) =>
+                  isDirectory(entry) ? (
+                    <DirectoryItem
+                      key={entry.name}
+                      path={rootPath}
+                      entry={entry}
+                      level={0}
+                    />
+                  ) : (
+                    <FileItem key={entry.name} path={rootPath} entry={entry} />
+                  ),
+              )}
+            </ul>
+
+            {/* Root folder drop zone - appears when dragging files */}
+            {(isDraggingFiles.value || isDraggingOverRoot.value) && (
+              <div
+                className={`mx-2 mb-2 border-2 border-dashed rounded-lg transition-all duration-200 ${
+                  isDraggingOverRoot.value
+                    ? "p-4 border-green-500 bg-green-50 dark:bg-green-900/20"
+                    : "p-3 border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-900/20"
+                }`}
+                onDragOver={handleRootDragOver}
+                onDragLeave={handleRootDragLeave}
+                onDrop={handleRootDrop}
+              >
+                <div
+                  className={`text-center ${isDraggingOverRoot.value ? "text-green-600 dark:text-green-400" : "text-neutral-500 dark:text-neutral-400"} text-sm`}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 mx-auto mb-1"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    />
+                  </svg>
+                  Drop files here to upload to root folder
+                </div>
+              </div>
             )}
-          </ul>
+          </>
         ) : (
-          <div className="p-4 text-center text-neutral-500">
-            No files found on SD card
-          </div>
+          <>
+            <div className="p-4 text-center text-neutral-500">
+              No files found on SD card
+            </div>
+
+            {/* Root folder drop zone - always visible when empty */}
+            <div
+              className={`p-4 mx-2 mb-2 border-2 border-dashed rounded-lg transition-all ${
+                isDraggingOverRoot.value
+                  ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                  : isDraggingFiles.value
+                    ? "border-neutral-400 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-900/20"
+                    : "border-neutral-300 dark:border-neutral-700"
+              }`}
+              onDragOver={handleRootDragOver}
+              onDragLeave={handleRootDragLeave}
+              onDrop={handleRootDrop}
+              style={{ minHeight: "80px" }}
+            >
+              <div
+                className={`text-center ${isDraggingOverRoot.value ? "text-green-600 dark:text-green-400" : "text-neutral-400 dark:text-neutral-600"}`}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6 mx-auto mb-1"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                  />
+                </svg>
+                {isDraggingOverRoot.value
+                  ? "Drop files here to upload"
+                  : "Drag files here to upload"}
+              </div>
+            </div>
+          </>
         )}
       </div>
 
