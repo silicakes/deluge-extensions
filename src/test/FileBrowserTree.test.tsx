@@ -18,6 +18,7 @@ const showCorruptedWarning = signal(true);
 // Mock command APIs for directory operations and file uploads
 vi.mock("@/commands", () => ({
   listDirectory: vi.fn().mockResolvedValue([]),
+  listDirectoryComplete: vi.fn().mockResolvedValue([]),
   renameFile: vi.fn().mockResolvedValue(undefined),
   makeDirectory: vi.fn().mockResolvedValue(undefined),
   fsDelete: vi.fn().mockResolvedValue(undefined),
@@ -87,6 +88,23 @@ describe("FileBrowserTree", () => {
       return entries;
     });
 
+    // Setup listDirectoryComplete mock to handle paths and update state
+    vi.mocked(commands.listDirectoryComplete).mockImplementation(
+      async ({ path }) => {
+        // Return entries from current state (for rename tests), otherwise fallback to mockFileStructure
+        const stateEntries = fileTree.value[path];
+        const entries: FileEntry[] = stateEntries
+          ? stateEntries
+          : mockFileStructure[path as "/" | "/SONGS"] || [];
+        // Update fileTree state like the real implementation
+        fileTree.value = {
+          ...fileTree.value,
+          [path]: entries,
+        };
+        return entries;
+      },
+    );
+
     // Mock other midi functions as needed (already done by vi.mock at top)
   });
 
@@ -106,8 +124,8 @@ describe("FileBrowserTree", () => {
     const songsElement = await screen.findByText("SONGS");
     expect(songsElement).toBeInTheDocument();
 
-    // Verify listDirectory was called with root path
-    expect(commands.listDirectory).toHaveBeenCalledWith({ path: "/" });
+    // Verify listDirectoryComplete was called with root path
+    expect(commands.listDirectoryComplete).toHaveBeenCalledWith({ path: "/" });
 
     // Verify other root elements are present
     expect(screen.getByText("SAMPLES")).toBeInTheDocument();
@@ -169,14 +187,16 @@ describe("FileBrowserTree", () => {
     expect(iconContainer).toBeInTheDocument(); // Check if icon container is found
 
     // Verify initial call for root
-    expect(commands.listDirectory).toHaveBeenCalledWith({ path: "/" });
+    expect(commands.listDirectoryComplete).toHaveBeenCalledWith({ path: "/" });
 
     // Act: Click on the EXPAND ICON for the SONGS directory
     await user.click(iconContainer!);
 
-    // Assert: Wait for listDirectory to be called again for SONGS path
+    // Assert: Wait for listDirectoryComplete to be called again for SONGS path
     await waitFor(() => {
-      expect(commands.listDirectory).toHaveBeenCalledWith({ path: "/SONGS" });
+      expect(commands.listDirectoryComplete).toHaveBeenCalledWith({
+        path: "/SONGS",
+      });
     });
 
     // Assert: Child files should now be visible
@@ -242,8 +262,10 @@ describe("FileBrowserTree", () => {
 
   // Add a failing test for visibility of root filesystem entries
   it("should display root filesystem entries on open", async () => {
-    // Override listDirectory to only return entries without updating fileTree state
-    vi.mocked(commands.listDirectory).mockResolvedValue(mockFileStructure["/"]);
+    // Override listDirectoryComplete to only return entries without updating fileTree state
+    vi.mocked(commands.listDirectoryComplete).mockResolvedValue(
+      mockFileStructure["/"],
+    );
     // Clear any pre-populated state
     fileTree.value = {};
     render(
@@ -254,7 +276,9 @@ describe("FileBrowserTree", () => {
     );
     // Wait for the command to be invoked
     await waitFor(() =>
-      expect(commands.listDirectory).toHaveBeenCalledWith({ path: "/" }),
+      expect(commands.listDirectoryComplete).toHaveBeenCalledWith({
+        path: "/",
+      }),
     );
     // Expect root directories and files to be rendered (this will fail because component doesn't update fileTree)
     expect(await screen.findByText("SONGS")).toBeInTheDocument();
@@ -663,13 +687,13 @@ describe("FileBrowserTree", () => {
       const nameInput = await screen.findByPlaceholderText("Enter folder name");
       await user.type(nameInput, newFolderName);
 
-      // Spy on makeDirectory and listDirectory to see if they are called correctly by FileContextMenu
+      // Spy on makeDirectory and listDirectoryComplete to see if they are called correctly by FileContextMenu
       const makeDirectoryMock = vi
         .spyOn(commands, "makeDirectory")
         .mockResolvedValue(undefined); // Does not update fileTree by itself
-      const listDirectorySpy = vi.spyOn(commands, "listDirectory");
+      const listDirectorySpy = vi.spyOn(commands, "listDirectoryComplete");
 
-      // Ensure that *when FileContextMenu calls listDirectory for the root*,
+      // Ensure that *when FileContextMenu calls listDirectoryComplete for the root*,
       // it receives a list that includes the new folder.
       listDirectorySpy.mockImplementationOnce(async ({ path }) => {
         if (path === "/") {
@@ -704,7 +728,7 @@ describe("FileBrowserTree", () => {
         path: `/${newFolderName}`,
       });
 
-      // - CRITICAL: listDirectory should have been called by FileContextMenu for the parent path ("/")
+      // - CRITICAL: listDirectoryComplete should have been called by FileContextMenu for the parent path ("/")
       //   to refresh the contents *before* the fileTree.value = { ...fileTree.value } spread.
       await waitFor(() => {
         expect(listDirectorySpy).toHaveBeenCalledWith({ path: "/" }); // FileContextMenu uses path: "/" for root creation
@@ -750,9 +774,9 @@ describe("FileBrowserTree", () => {
       const makeDirectoryMock = vi
         .spyOn(commands, "makeDirectory")
         .mockResolvedValue(undefined);
-      const listDirectorySpy = vi.spyOn(commands, "listDirectory");
+      const listDirectorySpy = vi.spyOn(commands, "listDirectoryComplete");
 
-      // Expect listDirectory to be called for "/" because the test interaction
+      // Expect listDirectoryComplete to be called for "/" because the test interaction
       // seems to be triggering the root context menu's action path.
       listDirectorySpy.mockImplementationOnce(async ({ path }) => {
         console.log(
@@ -796,7 +820,7 @@ describe("FileBrowserTree", () => {
       });
 
       await waitFor(() => {
-        // Assert listDirectory was called for root
+        // Assert listDirectoryComplete was called for root
         expect(listDirectorySpy).toHaveBeenCalledWith({ path: "/" }); // Adjusted expectation
       });
 
@@ -835,7 +859,19 @@ describe("FileBrowserTree", () => {
         },
       ];
 
-      vi.mocked(commands.listDirectory).mockResolvedValue(mockRootFiles);
+      // Override the listDirectoryComplete mock for this test
+      vi.mocked(commands.listDirectoryComplete).mockImplementation(
+        async ({ path }) => {
+          if (path === "/") {
+            fileTree.value = {
+              ...fileTree.value,
+              "/": mockRootFiles,
+            };
+            return mockRootFiles;
+          }
+          return [];
+        },
+      );
 
       render(
         <FileBrowserTree
@@ -884,7 +920,19 @@ describe("FileBrowserTree", () => {
         },
       ];
 
-      vi.mocked(commands.listDirectory).mockResolvedValue(mockRootFiles);
+      // Override the listDirectoryComplete mock for this test
+      vi.mocked(commands.listDirectoryComplete).mockImplementation(
+        async ({ path }) => {
+          if (path === "/") {
+            fileTree.value = {
+              ...fileTree.value,
+              "/": mockRootFiles,
+            };
+            return mockRootFiles;
+          }
+          return [];
+        },
+      );
 
       render(
         <FileBrowserTree
@@ -926,7 +974,19 @@ describe("FileBrowserTree", () => {
         },
       ];
 
-      vi.mocked(commands.listDirectory).mockResolvedValue(mockRootFiles);
+      // Override the listDirectoryComplete mock for this test
+      vi.mocked(commands.listDirectoryComplete).mockImplementation(
+        async ({ path }) => {
+          if (path === "/") {
+            fileTree.value = {
+              ...fileTree.value,
+              "/": mockRootFiles,
+            };
+            return mockRootFiles;
+          }
+          return [];
+        },
+      );
 
       render(
         <FileBrowserTree
@@ -952,6 +1012,10 @@ describe("FileBrowserTree", () => {
       ).not.toBeInTheDocument();
 
       // But corrupted file indicators should still be visible
+      // Wait for the corrupted file to be rendered
+      await waitFor(() => {
+        expect(screen.getByText("B")).toBeInTheDocument();
+      });
       expect(screen.getByText("(corrupted)")).toBeInTheDocument();
     });
   });

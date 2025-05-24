@@ -7,7 +7,6 @@ import { executeCommand } from "../_shared/executor";
 import { builder } from "../_shared/builder";
 // parser import no longer needed
 import { SmsCommand } from "../_shared/types";
-import { listDirectory as actualListDirectory } from "./fsList";
 import type { ExecuteCommandOpts } from "../_shared/executor";
 import type { ReqFsDelete } from "./schema";
 
@@ -22,6 +21,7 @@ vi.mock("./fsList", async (importOriginal) => {
   return {
     ...original,
     listDirectory: vi.fn(), // We will mock its implementation per test suite needs
+    listDirectoryComplete: vi.fn(), // Mock listDirectoryComplete which is actually used by fsDelete
   };
 });
 
@@ -33,9 +33,9 @@ vi.mock("../../state", () => ({
 }));
 
 // Get the mock functions after vi.mock has been processed
-import { listDirectory } from "./fsList";
-const mockListDirectory = listDirectory as MockedFunction<
-  typeof actualListDirectory
+import { listDirectoryComplete } from "./fsList";
+const mockListDirectoryComplete = listDirectoryComplete as MockedFunction<
+  typeof listDirectoryComplete
 >;
 
 // Define an interface for the expected options for delete calls
@@ -67,8 +67,8 @@ describe("fsDelete command", () => {
 
   describe("when deleting files", () => {
     beforeEach(() => {
-      // For file deletion tests, listDirectory on the file path should throw (or indicate it's not a dir)
-      mockListDirectory.mockImplementation(async ({ path }) => {
+      // For file deletion tests, listDirectoryComplete on the file path should throw (or indicate it's not a dir)
+      mockListDirectoryComplete.mockImplementation(async ({ path }) => {
         // Simulate typical error when trying to list a file as a directory
         throw new Error(`Simulated: Cannot list path '${path}', it is a file.`);
       });
@@ -77,7 +77,7 @@ describe("fsDelete command", () => {
     it("calls executeCommand once for the file deletion", async () => {
       const params = { path: "/test.txt" };
       await fsDelete(params);
-      expect(mockListDirectory).toHaveBeenCalledWith({ path: "/" });
+      expect(mockListDirectoryComplete).toHaveBeenCalledWith({ path: "/" });
       expect(mockExecuteCommand).toHaveBeenCalledTimes(1);
       const callArgs = mockExecuteCommand.mock.calls[0][0];
       expect(callArgs.cmdId).toBe(SmsCommand.JSON);
@@ -96,7 +96,7 @@ describe("fsDelete command", () => {
       selectedPaths.value = new Set(["/KITS/file.kit"]);
       const params = { path: "/KITS/file.kit" };
       await fsDelete(params);
-      expect(mockListDirectory).toHaveBeenCalledWith({ path: "/KITS" });
+      expect(mockListDirectoryComplete).toHaveBeenCalledWith({ path: "/KITS" });
       expect(mockExecuteCommand).toHaveBeenCalledTimes(1);
       expect(fileTree.value["/KITS"]).toEqual([]);
       expect(selectedPaths.value.has("/KITS/file.kit")).toBe(false);
@@ -110,14 +110,16 @@ describe("fsDelete command", () => {
       await expect(fsDelete(params)).rejects.toThrow(
         `Failed to delete ${params.path} as part of deleting ${params.path}. Error: ${expectedError.message}`,
       );
-      expect(mockListDirectory).toHaveBeenCalledWith({ path: "/SONGS" });
+      expect(mockListDirectoryComplete).toHaveBeenCalledWith({
+        path: "/SONGS",
+      });
       expect(mockExecuteCommand).toHaveBeenCalledTimes(1);
     });
   });
 
   describe("when deleting directories", () => {
     beforeEach(() => {
-      mockListDirectory.mockImplementation(async ({ path }) => {
+      mockListDirectoryComplete.mockImplementation(async ({ path }) => {
         if (path === "/") {
           return [{ name: "DIR", attr: 0x10, size: 0, date: 0, time: 0 }];
         }
@@ -164,9 +166,11 @@ describe("fsDelete command", () => {
 
       await fsDelete(params);
 
-      // Check listDirectory calls
-      expect(mockListDirectory).toHaveBeenCalledWith({ path: "/DIR" });
-      expect(mockListDirectory).toHaveBeenCalledWith({ path: "/DIR/SUBDIR" });
+      // Check listDirectoryComplete calls
+      expect(mockListDirectoryComplete).toHaveBeenCalledWith({ path: "/DIR" });
+      expect(mockListDirectoryComplete).toHaveBeenCalledWith({
+        path: "/DIR/SUBDIR",
+      });
 
       expect(mockExecuteCommand).toHaveBeenCalledTimes(4);
 

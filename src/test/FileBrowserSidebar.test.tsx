@@ -57,10 +57,10 @@ describe("FileBrowserSidebar", () => {
     );
   });
 
-  it("refresh button always calls listDirectory for the root path", async () => {
-    // Mock the listDirectory command
-    const listDirectoryMock = vi
-      .spyOn(commands, "listDirectory")
+  it("refresh button always calls listDirectoryComplete for the root path", async () => {
+    // Mock the listDirectoryComplete command
+    const listDirectoryCompleteMock = vi
+      .spyOn(commands, "listDirectoryComplete")
       .mockResolvedValue([]);
 
     // Simulate a selected path that is not root
@@ -72,7 +72,7 @@ describe("FileBrowserSidebar", () => {
     fireEvent.click(refreshButton);
 
     await waitFor(() => {
-      expect(listDirectoryMock).toHaveBeenCalledWith({
+      expect(listDirectoryCompleteMock).toHaveBeenCalledWith({
         path: "/",
         force: true,
       });
