@@ -5,8 +5,7 @@
  * with the Deluge firmware 4.x using the smSysex protocol.
  */
 import { midiOut } from "../state";
-import { decode7Bit } from "@/commands/_shared/pack";
-import { pack_8bit_to_7bit } from "./sysexPacking";
+import { pack_8bit_to_7bit, unpack_7bit_from_8bit } from "./sysexPacking";
 import type { FileEntry } from "../state";
 
 // Define smSysex commands
@@ -413,7 +412,7 @@ function parseSysexResponse(data: Uint8Array): {
       // Simple check if unpacking is needed - might need refinement
       // Assuming 7-bit packing if it contains bytes >= 0x80
       try {
-        binaryData = decode7Bit(Array.from(packedBinary));
+        binaryData = unpack_7bit_from_8bit(packedBinary);
       } catch (e) {
         console.warn("Failed to decode binary data, assuming raw:", e);
         binaryData = packedBinary; // Fallback to raw if decode fails
@@ -584,7 +583,7 @@ function processBinaryResponse(data: Uint8Array, msgId: number): void {
     const packedData = data.slice(separatorIdx + 1, data.length - 1);
 
     // Unpack to 8-bit data
-    const unpacked = decode7Bit(Array.from(packedData));
+    const unpacked = unpack_7bit_from_8bit(packedData);
 
     // Call the handler
     handler(unpacked);

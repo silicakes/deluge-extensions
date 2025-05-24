@@ -292,7 +292,10 @@ export default function TestFilenameIssues() {
     // Test 3: Try uploading to a subdirectory instead of root
     log("\n=== Test 3: Upload to subdirectory ===");
     try {
-      const songsEntries = await listDirectoryComplete({ path: "/SONGS", force: true });
+      const songsEntries = await listDirectoryComplete({
+        path: "/SONGS",
+        force: true,
+      });
       log(`/SONGS directory has ${songsEntries.length} files`);
 
       // Upload a file that previously failed
@@ -305,7 +308,10 @@ export default function TestFilenameIssues() {
         overwrite: true,
       });
 
-      const updatedSongs = await listDirectoryComplete({ path: "/SONGS", force: true });
+      const updatedSongs = await listDirectoryComplete({
+        path: "/SONGS",
+        force: true,
+      });
       const uploaded = updatedSongs.find((e) => e.name === "subdir_test.txt");
       if (uploaded) {
         log(`✅ File uploaded successfully to /SONGS`);
@@ -331,14 +337,20 @@ export default function TestFilenameIssues() {
       const filename = testSequence[i];
       log(`\nTesting file ${i + 1}/${testSequence.length}: "${filename}"`);
 
-      const beforeEntries = await listDirectoryComplete({ path: "/", force: true });
+      const beforeEntries = await listDirectoryComplete({
+        path: "/",
+        force: true,
+      });
       const beforeCount = beforeEntries.filter(
         (e) => (e.attr & 0x10) === 0,
       ).length; // Count files only
 
       await testUpload(filename, `Sequence test ${i + 1}`);
 
-      const afterEntries = await listDirectoryComplete({ path: "/", force: true });
+      const afterEntries = await listDirectoryComplete({
+        path: "/",
+        force: true,
+      });
       const afterCount = afterEntries.filter(
         (e) => (e.attr & 0x10) === 0,
       ).length;
@@ -377,7 +389,10 @@ export default function TestFilenameIssues() {
     log("=== Test 1: Finding the failure trigger ===");
 
     // Get current file list
-    const initialEntries = await listDirectoryComplete({ path: "/", force: true });
+    const initialEntries = await listDirectoryComplete({
+      path: "/",
+      force: true,
+    });
     const initialFiles = initialEntries.filter(
       (e) => (e.attr & 0x10) === 0 && e.attr !== 47,
     );
@@ -398,7 +413,10 @@ export default function TestFilenameIssues() {
         });
 
         // Check if it was created
-        const checkEntries = await listDirectoryComplete({ path: "/", force: true });
+        const checkEntries = await listDirectoryComplete({
+          path: "/",
+          force: true,
+        });
         const found = checkEntries.find((e) => e.name === testName);
 
         if (found) {
@@ -541,7 +559,10 @@ export default function TestFilenameIssues() {
         });
 
         // Verify it was created
-        const entries = await listDirectoryComplete({ path: "/SONGS", force: true });
+        const entries = await listDirectoryComplete({
+          path: "/SONGS",
+          force: true,
+        });
         const found = entries.find((e) => e.name === filename);
 
         if (found) {

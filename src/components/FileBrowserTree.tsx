@@ -31,11 +31,12 @@ import {
   filesToOverride,
   confirmCallback,
 } from "./FileOverrideConfirmation"; // Assuming same directory or adjust path
-import FileSpaceWarning, {
-  fileSpaceWarningOpen,
-  filesWithSpacesNames,
-  spaceWarningCallback,
-} from "./FileSpaceWarning";
+import FileNameIssuesDialog, {
+  fileNameIssuesOpen,
+  fileValidationResults,
+  fileIssuesCallback,
+} from "./FileNameIssuesDialog";
+import { validateFilename } from "@/lib/filenameValidator";
 
 // Track last selected path for shift-clicking
 let lastSelectedPath: string | null = null;
@@ -425,7 +426,7 @@ function DirectoryItem({
       }
 
       // Define the upload process function
-      async function proceedWithUpload() {
+      async function proceedWithUpload(forceSanitize?: boolean) {
         // Keep track of total files for progress updates if uploads are sequential
         const totalFilesToProcess = allDroppedFiles.length;
         console.log(`totalFilesToProcess: ${totalFilesToProcess}`);
@@ -444,6 +445,7 @@ function DirectoryItem({
               files: filesToUpload,
               destDir: childPath,
               overwrite: overwrite,
+              forceSanitize: forceSanitize,
               onProgress: (index, sent, total) => {
                 const currentFile = filesToUpload[index];
                 fileTransferProgress.value = {
@@ -509,28 +511,36 @@ function DirectoryItem({
         }
       }
 
-      // Check for files with spaces in their names
-      const filesWithSpaces = allDroppedFiles.filter((f) => /\s/.test(f.name));
-      if (filesWithSpaces.length > 0) {
-        // Show warning dialog
-        filesWithSpacesNames.value = filesWithSpaces.map((f) => f.name);
-        spaceWarningCallback.value = async (proceed) => {
-          fileSpaceWarningOpen.value = false;
-          spaceWarningCallback.value = null;
+      // Validate all filenames
+      const validationResults = allDroppedFiles.map((file) => ({
+        file,
+        validation: validateFilename(file.name),
+      }));
+
+      const hasIssues = validationResults.some(
+        (r) => !r.validation.isValid || r.validation.warnings.length > 0,
+      );
+
+      if (hasIssues) {
+        // Show validation dialog
+        fileValidationResults.value = validationResults;
+        fileIssuesCallback.value = async (proceed, forceSanitize) => {
+          fileNameIssuesOpen.value = false;
+          fileIssuesCallback.value = null;
 
           if (!proceed) {
-            filesWithSpacesNames.value = [];
+            fileValidationResults.value = [];
             return;
           }
 
-          // Continue with the upload process
-          await proceedWithUpload();
+          // Continue with the upload process using forceSanitize if needed
+          await proceedWithUpload(forceSanitize);
         };
-        fileSpaceWarningOpen.value = true;
+        fileNameIssuesOpen.value = true;
         return; // Exit and wait for user response
       }
 
-      // If no files with spaces, proceed directly
+      // If no filename issues, proceed directly
       await proceedWithUpload();
       return;
     }
@@ -1588,8 +1598,8 @@ export default function FileBrowserTree({
         />
       )}
 
-      {/* File space warning dialog */}
-      <FileSpaceWarning />
+      {/* Filename issues dialog */}
+      <FileNameIssuesDialog />
     </div>
   );
 }

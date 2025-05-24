@@ -1,6 +1,19 @@
 /**
  * SysEx 7-bit packing utilities.
  * Based on Deluge firmware's approach.
+ *
+ * MIDI SysEx messages can only contain 7-bit values (0x00-0x7F).
+ * To transmit 8-bit data, we pack it using a scheme where:
+ * - Every 7 bytes of input become 8 bytes of output
+ * - First byte: MSBs of the next 7 bytes (bit 0 = MSB of byte 1, etc.)
+ * - Next 7 bytes: Lower 7 bits of each input byte
+ *
+ * Example:
+ * Input:  [0x80, 0x7F, 0x00, 0xFF, 0x55, 0xAA, 0x01]
+ * Output: [0x4B, 0x00, 0x7F, 0x00, 0x7F, 0x55, 0x2A, 0x01]
+ *         (MSBs: 0b01001011 = 0x4B)
+ *
+ * This format is compatible with the Synthstrom Deluge's vuefinder implementation.
  */
 
 /**

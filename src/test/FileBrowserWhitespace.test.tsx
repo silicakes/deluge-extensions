@@ -57,7 +57,13 @@ describe("FileBrowserTree - Whitespace in Filenames", () => {
     });
 
     const showWarning = signal(false);
-    render(<FileBrowserTree showWarning={showWarning} />);
+    const showCorruptedWarning = signal(false);
+    render(
+      <FileBrowserTree
+        showWarning={showWarning}
+        showCorruptedWarning={showCorruptedWarning}
+      />,
+    );
 
     // Find the SYNTHS folder
     const synthsFolder = await screen.findByTestId("file-tree-folder-SYNTHS");
@@ -89,12 +95,8 @@ describe("FileBrowserTree - Whitespace in Filenames", () => {
     // The drop target is the li element itself
     fireEvent.drop(synthsFolder, { dataTransfer });
 
-    // Wait for the warning dialog to appear
-    const uploadAnywayButton = await screen.findByText("Upload Anyway");
-    expect(uploadAnywayButton).toBeInTheDocument();
-
-    // Click the Upload Anyway button
-    fireEvent.click(uploadAnywayButton);
+    // Since spaces are no longer a problem, no warning dialog should appear
+    // The upload should proceed directly
 
     // Wait for upload to be called
     await waitFor(() => {
@@ -147,7 +149,13 @@ describe("FileBrowserTree - Whitespace in Filenames", () => {
     vi.spyOn(commands, "listDirectory").mockResolvedValue([]);
 
     const showWarning = signal(false);
-    render(<FileBrowserTree showWarning={showWarning} />);
+    const showCorruptedWarning = signal(false);
+    render(
+      <FileBrowserTree
+        showWarning={showWarning}
+        showCorruptedWarning={showCorruptedWarning}
+      />,
+    );
 
     const synthsFolder = await screen.findByTestId("file-tree-folder-SYNTHS");
 
@@ -165,9 +173,8 @@ describe("FileBrowserTree - Whitespace in Filenames", () => {
 
     fireEvent.drop(synthsFolder, { dataTransfer });
 
-    // Wait for the warning dialog to appear and click Upload Anyway
-    const uploadAnywayButton = await screen.findByText("Upload Anyway");
-    fireEvent.click(uploadAnywayButton);
+    // Since spaces are no longer a problem, no warning dialog should appear
+    // The upload should proceed directly
 
     await waitFor(() => {
       expect(consoleLogSpy).toHaveBeenCalledWith(
@@ -189,12 +196,15 @@ describe("FileBrowserTree - Whitespace in Filenames", () => {
 
     // Mock commands
     const uploadFilesSpy = vi.spyOn(commands, "uploadFiles");
-    const listDirectorySpy = vi.spyOn(commands, "listDirectory");
+    const listDirectoryCompleteSpy = vi.spyOn(
+      commands,
+      "listDirectoryComplete",
+    );
 
     // First call returns empty, second call after upload still returns empty
     // (simulating the file not appearing)
-    listDirectorySpy.mockResolvedValueOnce([]);
-    listDirectorySpy.mockResolvedValueOnce([]);
+    listDirectoryCompleteSpy.mockResolvedValueOnce([]);
+    listDirectoryCompleteSpy.mockResolvedValueOnce([]);
 
     // Track if upload was called
     let uploadCalled = false;
@@ -208,7 +218,13 @@ describe("FileBrowserTree - Whitespace in Filenames", () => {
     });
 
     const showWarning = signal(false);
-    render(<FileBrowserTree showWarning={showWarning} />);
+    const showCorruptedWarning = signal(false);
+    render(
+      <FileBrowserTree
+        showWarning={showWarning}
+        showCorruptedWarning={showCorruptedWarning}
+      />,
+    );
 
     const synthsFolder = await screen.findByTestId("file-tree-folder-SYNTHS");
 
@@ -226,17 +242,16 @@ describe("FileBrowserTree - Whitespace in Filenames", () => {
 
     fireEvent.drop(synthsFolder, { dataTransfer });
 
-    // Wait for the warning dialog to appear and click Upload Anyway
-    const uploadAnywayButton = await screen.findByText("Upload Anyway");
-    fireEvent.click(uploadAnywayButton);
+    // Since spaces are no longer a problem, no warning dialog should appear
+    // The upload should proceed directly
 
     await waitFor(() => {
       expect(uploadCalled).toBe(true);
     });
 
-    // Verify that listDirectory was called after upload
+    // Verify that listDirectoryComplete was called after upload
     await waitFor(() => {
-      expect(listDirectorySpy).toHaveBeenCalledWith(
+      expect(listDirectoryCompleteSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           path: "/SYNTHS",
           force: true,
@@ -253,7 +268,7 @@ describe("FileBrowserTree - Whitespace in Filenames", () => {
     );
   });
 
-  it("should cancel upload when Cancel Upload is clicked", async () => {
+  it("should cancel upload when Cancel Upload is clicked for files with trailing spaces", async () => {
     // Set up initial state
     fileTree.value = {
       "/": [{ name: "SYNTHS", size: 0, date: 0, time: 0, attr: 0x10 }],
@@ -266,14 +281,20 @@ describe("FileBrowserTree - Whitespace in Filenames", () => {
     uploadFilesSpy.mockResolvedValue();
 
     const showWarning = signal(false);
-    render(<FileBrowserTree showWarning={showWarning} />);
+    const showCorruptedWarning = signal(false);
+    render(
+      <FileBrowserTree
+        showWarning={showWarning}
+        showCorruptedWarning={showCorruptedWarning}
+      />,
+    );
 
     // Find the SYNTHS folder
     const synthsFolder = await screen.findByTestId("file-tree-folder-SYNTHS");
 
-    // Create a file with spaces
-    const testFile = new File(["content"], "Test With Spaces.xml", {
-      type: "text/xml",
+    // Create a file with trailing spaces (which will trigger a warning)
+    const testFile = new File(["content"], "test.txt ", {
+      type: "text/plain",
     });
 
     // Create dataTransfer object
