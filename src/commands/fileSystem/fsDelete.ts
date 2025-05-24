@@ -5,6 +5,7 @@ import { builder } from "../_shared/builder";
 // import { parser } from "../_shared/parser"; // Unused import removed
 import { SmsCommand } from "../_shared/types";
 import { listDirectoryComplete } from "./fsList";
+import { handleDelugeResponse } from "../../lib/errorHandler";
 
 async function deleteSinglePath(itemPath: string): Promise<void> {
   const deletePayload = { delete: { path: itemPath } };
@@ -26,14 +27,15 @@ async function deleteSinglePath(itemPath: string): Promise<void> {
         );
       }
       const deleteResponse = raw.json[responseKey] as { err: number };
-      if (deleteResponse.err !== 0 && deleteResponse.err !== 4) {
-        console.error(
-          `[deleteSinglePath] Deluge error on delete: ${deleteResponse.err}, path: ${itemPath}`,
-        );
-        throw new Error(
-          `Deluge delete error: ${deleteResponse.err} for path ${itemPath}`,
-        );
-      }
+
+      // Use the new error handler with special success codes for delete
+      handleDelugeResponse(
+        deleteResponse,
+        "delete",
+        { path: itemPath },
+        [0, 4], // 0 = success, 4 = file not found (which is OK for delete)
+      );
+
       console.log(
         `[deleteSinglePath] Delete command for ${itemPath} resulted in err: ${deleteResponse.err} (0 or 4 is OK here)`,
       );

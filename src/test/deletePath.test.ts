@@ -142,7 +142,7 @@ describe("deletePath", () => {
 
     // Act & Assert
     await expect(midi.fsDelete({ path: "/file.txt" })).rejects.toThrow(
-      `Failed to delete /file.txt as part of deleting /file.txt. Error: Deluge delete error: 42 for path /file.txt`,
+      `Failed to delete /file.txt as part of deleting /file.txt. Error: delete failed: Unknown error 42 ({"path":"/file.txt"})`,
     );
     // Check spy via midi namespace - should NOT be called
     expect(midi.listDirectory).not.toHaveBeenCalled();
