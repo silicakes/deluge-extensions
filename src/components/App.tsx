@@ -32,9 +32,14 @@ import PreviewManager from "./PreviewManager";
 
 // Lazily load the file browser sidebar
 const FileBrowserSidebar = lazy(() => import("./FileBrowserSidebar"));
+const TestFilenameIssues = lazy(() => import("./TestNumericFilenames"));
 
 export function App() {
   const [colorDrawerOpen, setColorDrawerOpen] = useState(false);
+
+  // Check if test query param is present
+  const urlParams = new URLSearchParams(window.location.search);
+  const showTestComponent = urlParams.get("test") === "true";
 
   // Load display settings from localStorage on mount
   useEffect(() => {
@@ -164,6 +169,14 @@ export function App() {
           {!fullscreenActive.value && <AdvancedDisplayControls />}
 
           <SysExConsole />
+
+          {/* Numeric filename test component - only show with ?test=true query parameter */}
+          {/* Access by adding ?test=true to the URL (e.g., http://localhost:5173/?test=true) */}
+          {showTestComponent && (
+            <Suspense fallback={<div>Loading test component...</div>}>
+              <TestFilenameIssues />
+            </Suspense>
+          )}
         </main>
       </div>
 

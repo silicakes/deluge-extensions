@@ -13,6 +13,8 @@ import * as commands from "@/commands";
 import { signal } from "@preact/signals";
 
 const showWarning = signal(true);
+const showCorruptedWarning = signal(true);
+
 // Mock command APIs for directory operations and file uploads
 vi.mock("@/commands", () => ({
   listDirectory: vi.fn().mockResolvedValue([]),
@@ -63,6 +65,10 @@ describe("FileBrowserTree", () => {
       send: vi.fn(),
     } as unknown as MIDIOutput;
 
+    // Reset warning states
+    showWarning.value = true;
+    showCorruptedWarning.value = true;
+
     // Clear all mocks
     vi.clearAllMocks();
 
@@ -86,7 +92,12 @@ describe("FileBrowserTree", () => {
 
   it("should load the root directory on mount", async () => {
     // Arrange: Render the component (beforeEach sets up the mock)
-    render(<FileBrowserTree showWarning={showWarning} />);
+    render(
+      <FileBrowserTree
+        showWarning={showWarning}
+        showCorruptedWarning={showCorruptedWarning}
+      />,
+    );
     // Assert: Initially shows loading or placeholder
     // Using queryByText because it might flash quickly
     expect(screen.queryByText(/Loading|No files/)).toBeInTheDocument();
@@ -105,7 +116,12 @@ describe("FileBrowserTree", () => {
 
   it("should show a message when MIDI is not connected", () => {
     midiOut.value = null;
-    render(<FileBrowserTree showWarning={showWarning} />);
+    render(
+      <FileBrowserTree
+        showWarning={showWarning}
+        showCorruptedWarning={showCorruptedWarning}
+      />,
+    );
     expect(screen.getByText(/No files found/)).toBeInTheDocument();
   });
 
@@ -113,7 +129,12 @@ describe("FileBrowserTree", () => {
     // Setup initial file tree state with some files
     fileTree.value = { "/": mockFileStructure["/"] };
 
-    render(<FileBrowserTree showWarning={showWarning} />);
+    render(
+      <FileBrowserTree
+        showWarning={showWarning}
+        showCorruptedWarning={showCorruptedWarning}
+      />,
+    );
 
     // Find and click on a file
     const fileElement = await screen.findByText("README.txt");
@@ -129,7 +150,12 @@ describe("FileBrowserTree", () => {
   it("should navigate to directories when clicked", async () => {
     // Arrange: Render the component (beforeEach sets up mock)
     const user = userEvent.setup();
-    render(<FileBrowserTree showWarning={showWarning} />);
+    render(
+      <FileBrowserTree
+        showWarning={showWarning}
+        showCorruptedWarning={showCorruptedWarning}
+      />,
+    );
 
     // Wait for initial root load
     const songsDirRow = await screen.findByText("SONGS");
@@ -173,7 +199,12 @@ describe("FileBrowserTree", () => {
     contextMenuMock.setAttribute("role", "menu");
     document.body.appendChild(contextMenuMock);
 
-    render(<FileBrowserTree showWarning={showWarning} />);
+    render(
+      <FileBrowserTree
+        showWarning={showWarning}
+        showCorruptedWarning={showCorruptedWarning}
+      />,
+    );
 
     // Verify the menu element exists (the mock we created)
     const contextMenu = document.querySelector("[role='menu']");
@@ -190,7 +221,12 @@ describe("FileBrowserTree", () => {
     // Preselect a file
     selectedPaths.value = new Set(["/SAMPLES"]);
 
-    render(<FileBrowserTree showWarning={showWarning} />);
+    render(
+      <FileBrowserTree
+        showWarning={showWarning}
+        showCorruptedWarning={showCorruptedWarning}
+      />,
+    );
 
     // Find a different file and right-click it
     const fileElement = await screen.findByText("README.txt");
@@ -210,7 +246,12 @@ describe("FileBrowserTree", () => {
     vi.mocked(commands.listDirectory).mockResolvedValue(mockFileStructure["/"]);
     // Clear any pre-populated state
     fileTree.value = {};
-    render(<FileBrowserTree showWarning={showWarning} />);
+    render(
+      <FileBrowserTree
+        showWarning={showWarning}
+        showCorruptedWarning={showCorruptedWarning}
+      />,
+    );
     // Wait for the command to be invoked
     await waitFor(() =>
       expect(commands.listDirectory).toHaveBeenCalledWith({ path: "/" }),
@@ -241,13 +282,23 @@ describe("FileBrowserTree", () => {
     it("rename-abort - checks that renameFile is not called when canceled", async () => {
       fileTree.value = { "/": mockFileStructure["/"] };
       const renameMock = vi.spyOn(commands, "renameFile");
-      render(<FileBrowserTree showWarning={showWarning} />);
+      render(
+        <FileBrowserTree
+          showWarning={showWarning}
+          showCorruptedWarning={showCorruptedWarning}
+        />,
+      );
       expect(renameMock).not.toHaveBeenCalled();
     });
 
     it("rename-initial - verifies that file names are displayed", async () => {
       fileTree.value = { "/": mockFileStructure["/"] };
-      render(<FileBrowserTree showWarning={showWarning} />);
+      render(
+        <FileBrowserTree
+          showWarning={showWarning}
+          showCorruptedWarning={showCorruptedWarning}
+        />,
+      );
       expect(screen.getByText("README.txt")).toBeInTheDocument();
     });
 
@@ -298,7 +349,12 @@ describe("FileBrowserTree", () => {
 
       // Act: render and perform inline rename on the file via F2
       const user = userEvent.setup();
-      render(<FileBrowserTree showWarning={showWarning} />);
+      render(
+        <FileBrowserTree
+          showWarning={showWarning}
+          showCorruptedWarning={showCorruptedWarning}
+        />,
+      );
       const fileElement = await screen.findByText("README.txt");
       // Find the row and trigger F2 to start editing
       const row = fileElement.closest("li");
@@ -364,7 +420,12 @@ describe("FileBrowserTree", () => {
 
       // Act: render, enter edit mode, change name, press Enter
       const user = userEvent.setup();
-      render(<FileBrowserTree showWarning={showWarning} />);
+      render(
+        <FileBrowserTree
+          showWarning={showWarning}
+          showCorruptedWarning={showCorruptedWarning}
+        />,
+      );
       const fileElement = await screen.findByText("README.txt");
       const row = fileElement.closest("li");
       expect(row).toBeTruthy();
@@ -438,7 +499,12 @@ describe("FileBrowserTree", () => {
 
       // Act: render and perform inline rename on the directory via double-click
       const user = userEvent.setup();
-      render(<FileBrowserTree showWarning={showWarning} />);
+      render(
+        <FileBrowserTree
+          showWarning={showWarning}
+          showCorruptedWarning={showCorruptedWarning}
+        />,
+      );
       const dirElement = await screen.findByText("SONGS");
       // Start editing by double-clicking the directory name
       await user.dblClick(dirElement);
@@ -473,7 +539,12 @@ describe("FileBrowserTree", () => {
     selectedPaths.value = new Set(["/SONGS/song1.xml", "/SONGS/song2.xml"]);
 
     // Render the component
-    render(<FileBrowserTree showWarning={showWarning} />);
+    render(
+      <FileBrowserTree
+        showWarning={showWarning}
+        showCorruptedWarning={showCorruptedWarning}
+      />,
+    );
 
     // Right-click on one of the selected files to open its context menu
     const fileSpan = await screen.findByText("song1.xml");
@@ -503,7 +574,12 @@ describe("FileBrowserTree", () => {
   describe("New Folder/File Creation", () => {
     it("should refresh UI and display a new folder after creation", async () => {
       // Arrange: Initial root directory is loaded
-      render(<FileBrowserTree showWarning={showWarning} />);
+      render(
+        <FileBrowserTree
+          showWarning={showWarning}
+          showCorruptedWarning={showCorruptedWarning}
+        />,
+      );
       await screen.findByText("SONGS"); // Wait for initial load
 
       const newFolderName = "MY_NEW_FOLDER";
@@ -556,7 +632,12 @@ describe("FileBrowserTree", () => {
 
     it("should refresh UI via FileContextMenu after creating a new folder in root", async () => {
       const user = userEvent.setup();
-      render(<FileBrowserTree showWarning={showWarning} />); // Renders FileBrowserTree, which can render FileContextMenu
+      render(
+        <FileBrowserTree
+          showWarning={showWarning}
+          showCorruptedWarning={showCorruptedWarning}
+        />,
+      ); // Renders FileBrowserTree, which can render FileContextMenu
 
       // Wait for initial load, e.g., by finding a known root item
       await screen.findByText("SONGS");
@@ -644,7 +725,12 @@ describe("FileBrowserTree", () => {
         "/SONGS": mockFileStructure["/SONGS"],
       };
 
-      render(<FileBrowserTree showWarning={showWarning} />);
+      render(
+        <FileBrowserTree
+          showWarning={showWarning}
+          showCorruptedWarning={showCorruptedWarning}
+        />,
+      );
 
       const songsDirElement = await screen.findByText("SONGS");
       const songsDirRow = songsDirElement.closest("li"); // Get the <li> for context menu
@@ -717,6 +803,156 @@ describe("FileBrowserTree", () => {
       // FileBrowserTree needs to re-render root, and then NEW_SUB_IN_SONGS should be found at root level
       const newSubFolderElement = await screen.findByText(newSubFolderName);
       expect(newSubFolderElement).toBeInTheDocument();
+    });
+  });
+
+  describe("Corrupted File Handling", () => {
+    it("should display corrupted files with warning indicators", async () => {
+      // Mock MIDI connection is already set up in beforeEach
+
+      // Mock root directory with normal and corrupted files
+      const mockRootFiles = [
+        {
+          name: "SONGS",
+          size: 0,
+          date: 0,
+          time: 0,
+          attr: 16, // Directory
+        },
+        {
+          name: "normal.xml",
+          size: 1024,
+          date: 0,
+          time: 0,
+          attr: 32, // Normal file
+        },
+        {
+          name: "R", // Single letter with attr 47 - corrupted
+          size: 0,
+          date: 0,
+          time: 0,
+          attr: 47, // Invalid combination (volume label + archive)
+        },
+      ];
+
+      vi.mocked(commands.listDirectory).mockResolvedValue(mockRootFiles);
+
+      render(
+        <FileBrowserTree
+          showWarning={showWarning}
+          showCorruptedWarning={showCorruptedWarning}
+        />,
+      );
+
+      // Wait for files to load
+      await waitFor(() => {
+        expect(screen.getByText("SONGS")).toBeInTheDocument();
+      });
+
+      // Check that normal file is displayed normally
+      expect(screen.getByText("normal.xml")).toBeInTheDocument();
+      expect(screen.getByTestId("file-tree-item-normal.xml")).not.toHaveClass(
+        "opacity-50",
+      );
+
+      // Check that corrupted file is displayed with indicators
+      const corruptedFile = screen.getByTestId("file-tree-item-R");
+      expect(corruptedFile).toHaveClass("opacity-50");
+      expect(corruptedFile).toHaveClass("cursor-not-allowed");
+      expect(screen.getByText("(corrupted)")).toBeInTheDocument();
+
+      // Check that warning banner is displayed
+      expect(
+        screen.getByText("Corrupted File Entries Detected"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Some files have invalid attributes/),
+      ).toBeInTheDocument();
+    });
+
+    it("should prevent interactions with corrupted files", async () => {
+      // Mock MIDI connection is already set up in beforeEach
+
+      // Mock root directory with corrupted file
+      const mockRootFiles = [
+        {
+          name: "o", // Single letter with attr 47 - corrupted
+          size: 0,
+          date: 0,
+          time: 0,
+          attr: 47,
+        },
+      ];
+
+      vi.mocked(commands.listDirectory).mockResolvedValue(mockRootFiles);
+
+      render(
+        <FileBrowserTree
+          showWarning={showWarning}
+          showCorruptedWarning={showCorruptedWarning}
+        />,
+      );
+
+      // Wait for files to load
+      await waitFor(() => {
+        expect(screen.getByText("o")).toBeInTheDocument();
+      });
+
+      const corruptedFile = screen.getByTestId("file-tree-item-o");
+
+      // Try to click - should not select
+      await userEvent.click(corruptedFile);
+      expect(selectedPaths.value.size).toBe(0);
+
+      // Check that download button is not shown
+      expect(
+        screen.queryByTestId("download-file-button-o"),
+      ).not.toBeInTheDocument();
+
+      // Right-click should not show context menu
+      fireEvent.contextMenu(corruptedFile);
+      expect(screen.queryByText("Delete")).not.toBeInTheDocument();
+    });
+
+    it("should allow hiding the corrupted files warning", async () => {
+      // Mock root directory with corrupted file
+      const mockRootFiles = [
+        {
+          name: "B",
+          size: 0,
+          date: 0,
+          time: 0,
+          attr: 47, // Corrupted
+        },
+      ];
+
+      vi.mocked(commands.listDirectory).mockResolvedValue(mockRootFiles);
+
+      render(
+        <FileBrowserTree
+          showWarning={showWarning}
+          showCorruptedWarning={showCorruptedWarning}
+        />,
+      );
+
+      // Wait for warning to appear
+      const warningHeader = await screen.findByText(
+        "Corrupted File Entries Detected",
+      );
+      expect(warningHeader).toBeInTheDocument();
+
+      // Click hide button
+      const hideButton = screen.getByText("Hide this warning");
+      fireEvent.click(hideButton);
+
+      // Warning should be hidden
+      expect(showCorruptedWarning.value).toBe(false);
+      expect(
+        screen.queryByText("Corrupted File Entries Detected"),
+      ).not.toBeInTheDocument();
+
+      // But corrupted file indicators should still be visible
+      expect(screen.getByText("(corrupted)")).toBeInTheDocument();
     });
   });
 });

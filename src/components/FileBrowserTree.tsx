@@ -16,7 +16,7 @@ import {
 } from "../state";
 import { testSysExConnectivity, checkFirmwareSupport } from "@/commands";
 import {
-  listDirectory,
+  listDirectoryComplete,
   renameFile,
   uploadFiles,
   readFile,
@@ -31,9 +31,36 @@ import {
   filesToOverride,
   confirmCallback,
 } from "./FileOverrideConfirmation"; // Assuming same directory or adjust path
+import FileSpaceWarning, {
+  fileSpaceWarningOpen,
+  filesWithSpacesNames,
+  spaceWarningCallback,
+} from "./FileSpaceWarning";
 
 // Track last selected path for shift-clicking
 let lastSelectedPath: string | null = null;
+
+/**
+ * Checks if a file entry has corrupted/invalid attributes
+ * Common issue: attr 47 (0x2F) indicates volume label + archive which is invalid
+ */
+function isCorruptedEntry(entry: FileEntry): boolean {
+  // Check for invalid attribute combinations
+  const ATTR_VOLUME_LABEL = 0x08;
+  const ATTR_ARCHIVE = 0x20;
+
+  // Volume label can't have archive bit
+  if (entry.attr & ATTR_VOLUME_LABEL && entry.attr & ATTR_ARCHIVE) {
+    return true;
+  }
+
+  // Additional check: single letter names with attr 47 are known corrupted entries
+  if (entry.attr === 47 && entry.name.length === 1) {
+    return true;
+  }
+
+  return false;
+}
 
 /**
  * Checks if an entry is a directory based on its attribute flags
@@ -174,7 +201,7 @@ function DirectoryItem({
         itemError.value = null;
         console.log(`Loading directory contents for ${childPath}...`);
         try {
-          const entries = await listDirectory({ path: childPath });
+          const entries = await listDirectoryComplete({ path: childPath });
           fileTree.value = {
             ...fileTree.value,
             [childPath]: entries,
@@ -336,9 +363,24 @@ function DirectoryItem({
   };
 
   const handleDrop = async (e: DragEvent) => {
+    console.log(
+      `DirectoryItem.handleDrop called for path=${childPath}, dataTransfer types=`,
+      e.dataTransfer?.types,
+    );
+    console.log("Selected paths before drop:", Array.from(selectedPaths.value));
     e.preventDefault();
     e.stopPropagation();
+    console.log(
+      `After preventDefault/stopPropagation for ${childPath}, isContainerDragOver was:`,
+      isContainerDragOver.value,
+    );
+
     isContainerDragOver.value = false;
+    console.log(`isContainerDragOver reset for ${childPath} (now false)`);
+    // Expand directory on drop so new entries are visible
+    const newExpandedOnDrop = new Set(expandedPaths.value);
+    newExpandedOnDrop.add(childPath);
+    expandedPaths.value = newExpandedOnDrop;
 
     const element = e.currentTarget as HTMLElement;
     element.classList.add("bg-green-100", "dark:bg-green-900/30");
@@ -350,95 +392,146 @@ function DirectoryItem({
 
     if (e.dataTransfer?.files.length) {
       const allDroppedFiles = Array.from(e.dataTransfer.files);
+      console.log(
+        "allDroppedFiles:",
+        allDroppedFiles.map((f) => f.name),
+      );
+      // Log planned upload paths for each file
+      const uploadPaths = allDroppedFiles.map((f) =>
+        childPath.endsWith("/")
+          ? `${childPath}${f.name}`
+          : `${childPath}/${f.name}`,
+      );
+      console.log("Planned upload paths:", uploadPaths);
 
       const existingEntries = fileTree.value[childPath] || [];
+      console.log(
+        `Existing entries in ${childPath}:`,
+        existingEntries.map((e) => e.name),
+      );
       const conflictingFiles: File[] = [];
       const nonConflictingFiles: File[] = [];
 
+      // Separate files into conflicting and non-conflicting
       for (const file of allDroppedFiles) {
-        const isConflict = existingEntries.some(
-          (entry) => entry.name === file.name && !isDirectory(entry),
+        const conflict = existingEntries.some(
+          (entry) => entry.name.toLowerCase() === file.name.toLowerCase(),
         );
-        if (isConflict) {
+        if (conflict) {
           conflictingFiles.push(file);
         } else {
           nonConflictingFiles.push(file);
         }
       }
 
-      // Keep track of total files for progress updates if uploads are sequential
-      const totalFilesToProcess = allDroppedFiles.length;
-      let filesProcessedSoFar = 0;
+      // Define the upload process function
+      async function proceedWithUpload() {
+        // Keep track of total files for progress updates if uploads are sequential
+        const totalFilesToProcess = allDroppedFiles.length;
+        console.log(`totalFilesToProcess: ${totalFilesToProcess}`);
+        let filesProcessedSoFar = 0;
 
-      const doUpload = async (filesToUpload: File[], overwrite = false) => {
-        if (filesToUpload.length === 0) return Promise.resolve();
+        const doUpload = async (filesToUpload: File[], overwrite = false) => {
+          if (filesToUpload.length === 0) return Promise.resolve();
 
-        console.log(
-          `Uploading ${filesToUpload.length} files to directory: ${childPath} (overwrite: ${overwrite})`,
-        );
-        fileTransferInProgress.value = true;
-
-        try {
-          await uploadFiles({
-            files: filesToUpload,
-            destDir: childPath,
-            overwrite: overwrite,
-            onProgress: (index, sent, total) => {
-              const currentFile = filesToUpload[index];
-              fileTransferProgress.value = {
-                path:
-                  childPath === "/"
-                    ? `/${currentFile.name}`
-                    : `${childPath}/${currentFile.name}`,
-                bytes: sent,
-                total,
-                currentFileIndex: filesProcessedSoFar + index,
-                totalFiles: totalFilesToProcess,
-              };
-            },
-          });
           console.log(
-            `Upload batch complete for ${filesToUpload.map((f) => f.name).join(", ")}, refreshing directory ${childPath}`,
+            `Uploading ${filesToUpload.length} files to directory: ${childPath} (overwrite: ${overwrite})`,
           );
-          const entries = await listDirectory({ path: childPath, force: true });
-          fileTree.value = {
-            ...fileTree.value,
-            [childPath]: entries,
-          };
-          filesProcessedSoFar += filesToUpload.length;
-        } catch (err) {
-          console.error("Failed to upload files:", err);
-          alert(
-            `Upload failed: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        } finally {
-          // Only set to false when ALL operations (potential multiple calls to doUpload) are done
-          if (filesProcessedSoFar === totalFilesToProcess) {
-            fileTransferInProgress.value = false;
-            fileTransferProgress.value = null;
-          }
-        }
-      };
+          fileTransferInProgress.value = true;
 
-      if (conflictingFiles.length > 0) {
-        filesToOverride.value = conflictingFiles.map((f) => f.name);
-        confirmCallback.value = async (confirmed) => {
-          fileOverrideConfirmationOpen.value = false;
-          confirmCallback.value = null;
-
-          if (confirmed) {
-            await doUpload(conflictingFiles, true);
-            // Only upload non-conflicting if they haven't been implicitly handled
-            // or if the overwrite didn't also create them (unlikely for simple overwrite)
-            await doUpload(nonConflictingFiles, false);
-          } else {
-            await doUpload(nonConflictingFiles, false);
+          try {
+            await uploadFiles({
+              files: filesToUpload,
+              destDir: childPath,
+              overwrite: overwrite,
+              onProgress: (index, sent, total) => {
+                const currentFile = filesToUpload[index];
+                fileTransferProgress.value = {
+                  path:
+                    childPath === "/"
+                      ? `/${currentFile.name}`
+                      : `${childPath}/${currentFile.name}`,
+                  bytes: sent,
+                  total,
+                  currentFileIndex: filesProcessedSoFar + index,
+                  totalFiles: totalFilesToProcess,
+                };
+              },
+            });
+            console.log(
+              `Upload batch complete for ${filesToUpload.map((f) => f.name).join(", ")}, refreshing directory ${childPath}`,
+            );
+            const entries = await listDirectoryComplete({
+              path: childPath,
+              force: true,
+            });
+            console.log(
+              `doUpload listDirectory returned entries for ${childPath}:`,
+              entries.map((e) => e.name),
+            );
+            fileTree.value = {
+              ...fileTree.value,
+              [childPath]: entries,
+            };
+            filesProcessedSoFar += filesToUpload.length;
+          } catch (err) {
+            console.error("Failed to upload files:", err);
+            alert(
+              `Upload failed: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          } finally {
+            // Only set to false when ALL operations (potential multiple calls to doUpload) are done
+            if (filesProcessedSoFar === totalFilesToProcess) {
+              fileTransferInProgress.value = false;
+              fileTransferProgress.value = null;
+            }
           }
         };
-        fileOverrideConfirmationOpen.value = true;
-      } else {
-        await doUpload(allDroppedFiles, false);
+
+        if (conflictingFiles.length > 0) {
+          filesToOverride.value = conflictingFiles.map((f) => f.name);
+          confirmCallback.value = async (confirmed) => {
+            fileOverrideConfirmationOpen.value = false;
+            confirmCallback.value = null;
+
+            if (confirmed) {
+              await doUpload(conflictingFiles, true);
+              // Only upload non-conflicting if they haven't been implicitly handled
+              // or if the overwrite didn't also create them (unlikely for simple overwrite)
+              await doUpload(nonConflictingFiles, false);
+            } else {
+              await doUpload(nonConflictingFiles, false);
+            }
+          };
+          fileOverrideConfirmationOpen.value = true;
+        } else {
+          await doUpload(allDroppedFiles, false);
+        }
       }
+
+      // Check for files with spaces in their names
+      const filesWithSpaces = allDroppedFiles.filter((f) => /\s/.test(f.name));
+      if (filesWithSpaces.length > 0) {
+        // Show warning dialog
+        filesWithSpacesNames.value = filesWithSpaces.map((f) => f.name);
+        spaceWarningCallback.value = async (proceed) => {
+          fileSpaceWarningOpen.value = false;
+          spaceWarningCallback.value = null;
+
+          if (!proceed) {
+            filesWithSpacesNames.value = [];
+            return;
+          }
+
+          // Continue with the upload process
+          await proceedWithUpload();
+        };
+        fileSpaceWarningOpen.value = true;
+        return; // Exit and wait for user response
+      }
+
+      // If no files with spaces, proceed directly
+      await proceedWithUpload();
       return;
     }
 
@@ -472,8 +565,8 @@ function DirectoryItem({
           const sourceParentDir =
             sourcePath.substring(0, sourcePath.lastIndexOf("/")) || "/";
           Promise.all([
-            listDirectory({ path: sourceParentDir, force: true }),
-            listDirectory({ path: childPath, force: true }),
+            listDirectoryComplete({ path: sourceParentDir, force: true }),
+            listDirectoryComplete({ path: childPath, force: true }),
           ]).then(([sourceEntries, targetEntries]) => {
             const newFileTree = { ...fileTree.value };
             newFileTree[sourceParentDir] = sourceEntries;
@@ -585,7 +678,7 @@ function DirectoryItem({
       // For now, it simplifies to refreshing just one parent directory.
       const parentPathToRefresh = parentDir; // Same as oldParentPath and newParentPath for file rename
 
-      const updatedEntries = await listDirectory({
+      const updatedEntries = await listDirectoryComplete({
         path: parentPathToRefresh,
         force: true,
       });
@@ -662,6 +755,7 @@ function DirectoryItem({
           onKeyDown={handleKeyDown}
           onDragOver={handleRowDragOver}
           onDragLeave={handleRowDragLeave}
+          onDrop={handleDrop}
           onContextMenu={handleContextMenu}
         >
           <div
@@ -734,7 +828,12 @@ function DirectoryItem({
         </div>
 
         {isExpanded && (
-          <ul className="ml-4">
+          <ul
+            className="ml-4"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
             {isLoading.value ? (
               <li className="py-1 px-2 text-gray-500">Loading...</li>
             ) : itemError.value ? (
@@ -745,7 +844,7 @@ function DirectoryItem({
                   onClick={() => {
                     isLoading.value = true;
                     itemError.value = null;
-                    listDirectory({ path: childPath, force: true })
+                    listDirectoryComplete({ path: childPath, force: true })
                       .then((entries) => {
                         fileTree.value = {
                           ...fileTree.value,
@@ -861,6 +960,7 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
   const nameInputRef = useSignal<HTMLInputElement | null>(null);
   const inputValue = useSignal(entry.name);
   const isProcessingRename = useSignal(false);
+  const isCorrupted = isCorruptedEntry(entry);
 
   // Set up input focus when editing starts
   useEffect(() => {
@@ -877,6 +977,13 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
   }, [isEditing, entry.name]);
 
   const handleSelect = (e: MouseEvent) => {
+    // Don't allow selection of corrupted entries
+    if (isCorrupted) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
     if (e.shiftKey && lastSelectedPath) {
       // Shift key: range selection
       selectRange(lastSelectedPath, childPath);
@@ -923,6 +1030,12 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
   };
 
   const handleDragStart = (e: DragEvent) => {
+    // Don't allow dragging corrupted entries
+    if (isCorrupted) {
+      e.preventDefault();
+      return;
+    }
+
     if (e.dataTransfer) {
       e.dataTransfer.setData("application/deluge-path", childPath);
       e.dataTransfer.setData("text/plain", entry.name);
@@ -933,6 +1046,11 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
   const handleContextMenu = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation(); // Stop event bubbling
+
+    // Don't show context menu for corrupted entries
+    if (isCorrupted) {
+      return;
+    }
 
     /*
      * If the user right-clicks on an item that is *already* inside the current
@@ -950,6 +1068,9 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
   };
 
   const startEdit = () => {
+    // Don't allow editing corrupted entries
+    if (isCorrupted) return;
+
     // Don't allow editing if file transfer is in progress
     if (fileTransferInProgress.value || !midiOut.value) return;
 
@@ -1001,7 +1122,7 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
       // For now, it simplifies to refreshing just one parent directory.
       const parentPathToRefresh = parentDir; // Same as oldParentPath and newParentPath for file rename
 
-      const updatedEntries = await listDirectory({
+      const updatedEntries = await listDirectoryComplete({
         path: parentPathToRefresh,
         force: true,
       });
@@ -1051,6 +1172,9 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
     e.preventDefault();
     e.stopPropagation();
 
+    // Don't trigger for corrupted entries
+    if (isCorrupted) return;
+
     // Don't trigger if we're editing
     if (isEditing) return;
 
@@ -1073,6 +1197,13 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
   // Handler for per-file download
   const handleDownloadFile = async (e: MouseEvent) => {
     e.stopPropagation();
+
+    // Don't allow downloading corrupted entries
+    if (isCorrupted) {
+      e.preventDefault();
+      return;
+    }
+
     try {
       const data = await readFile({ path: childPath });
       triggerBrowserDownload(data, entry.name);
@@ -1088,35 +1219,53 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
         isSelected ? "bg-blue-100 dark:bg-blue-900" : ""
       } ${
         isDragOver.value ? "bg-blue-50 dark:bg-blue-950 border-blue-200" : ""
+      } ${
+        isCorrupted
+          ? "opacity-50 cursor-not-allowed bg-red-50 dark:bg-red-900/20"
+          : ""
       }`}
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
       onContextMenu={handleContextMenu}
       data-path={childPath}
       tabIndex={0}
-      draggable={true}
+      draggable={!isCorrupted}
       onDragStart={handleDragStart}
       role="treeitem"
       aria-selected={isSelected}
+      title={
+        isCorrupted
+          ? `Corrupted file entry (attr: ${entry.attr}) - Cannot be accessed. Run disk check on SD card to fix.`
+          : undefined
+      }
     >
       {/* Download button for individual file */}
-      <button
-        onClick={handleDownloadFile}
-        data-testid={`download-file-button-${entry.name}`}
-        className="cursor-pointer p-1 focus:outline-none hover:scale-120 transition-transform"
-        aria-label={`Download ${entry.name}`}
-      >
-        {/* Download icon */}
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          className="w-4 h-4"
+      {!isCorrupted && (
+        <button
+          onClick={handleDownloadFile}
+          data-testid={`download-file-button-${entry.name}`}
+          className="cursor-pointer p-1 focus:outline-none hover:scale-120 transition-transform"
+          aria-label={`Download ${entry.name}`}
         >
-          <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
-          <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z" />
-        </svg>
-      </button>
+          {/* Download icon */}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            className="w-4 h-4"
+          >
+            <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
+            <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z" />
+          </svg>
+        </button>
+      )}
+
+      {isCorrupted && (
+        <span className="mr-1 text-red-500" title="Corrupted file entry">
+          ⚠️
+        </span>
+      )}
+
       <span className="mr-1">
         <img
           src={iconUrlForEntry(entry)}
@@ -1142,7 +1291,16 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
           aria-label="Rename file"
         />
       ) : (
-        <span onDblClick={handleDoubleClick}>{entry.name}</span>
+        <span
+          onDblClick={handleDoubleClick}
+          className={isCorrupted ? "line-through" : ""}
+        >
+          {entry.name}
+        </span>
+      )}
+
+      {isCorrupted && (
+        <span className="ml-2 text-xs text-red-500">(corrupted)</span>
       )}
 
       {contextMenuPosition.value && (
@@ -1178,20 +1336,32 @@ function FileItem({ path, entry }: { path: string; entry: FileEntry }) {
  */
 export default function FileBrowserTree({
   showWarning,
+  showCorruptedWarning,
 }: {
   showWarning: Signal<boolean>;
+  showCorruptedWarning: Signal<boolean>;
 }) {
   const rootPath = "/";
   const isLoading = useSignal(false);
   const error = useSignal<string | null>(null);
   const contextMenuPosition = useSignal<{ x: number; y: number } | null>(null);
 
-  // Load root directory on first mount
+  // Check if there are any corrupted entries in the current view
+  const hasCorruptedEntries = () => {
+    for (const entries of Object.values(fileTree.value)) {
+      if (entries && entries.some(isCorruptedEntry)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Load root directory when MIDI device is connected
   useEffect(() => {
     if (!fileTree.value[rootPath] && midiOut.value !== null) {
       isLoading.value = true;
       error.value = null;
-      console.log("Initial mount - loading root directory...");
+      console.log("MIDI connected - loading root directory...");
 
       // Test sequence: ping -> version check -> directory listing
       testSysExConnectivity()
@@ -1201,7 +1371,7 @@ export default function FileBrowserTree({
         })
         .then(() => {
           console.log("Device responded to version request");
-          return listDirectory({ path: rootPath });
+          return listDirectoryComplete({ path: rootPath });
         })
         .then((entries) => {
           console.log(`Root directory loaded with ${entries.length} entries`);
@@ -1217,8 +1387,10 @@ export default function FileBrowserTree({
         });
     } else if (fileTree.value[rootPath]) {
       console.log("Root directory already loaded");
+    } else if (!midiOut.value) {
+      console.log("Waiting for MIDI device connection...");
     }
-  }, []);
+  }, [midiOut.value]); // Re-run when MIDI device changes
 
   const handleRootContextMenu = (e: MouseEvent) => {
     e.preventDefault();
@@ -1254,6 +1426,53 @@ export default function FileBrowserTree({
           </button>
         </div>
       )}
+
+      {hasCorruptedEntries() && showCorruptedWarning.value && (
+        <div className="bg-red-100 border border-red-300 text-red-900 p-3 text-sm">
+          <div className="flex items-start">
+            <span className="mr-2 text-lg">⚠️</span>
+            <div className="flex-1">
+              <p className="font-bold mb-1">Corrupted File Entries Detected</p>
+              <p className="mb-2">
+                Some files have invalid attributes (marked with ⚠️) and cannot
+                be accessed. These are typically caused by interrupted uploads
+                or filesystem corruption.
+              </p>
+              <p className="font-medium">To fix this issue:</p>
+              <ol className="list-decimal list-inside ml-2 mt-1">
+                <li>Safely eject and remove the SD card from your Deluge</li>
+                <li>Insert it into your computer</li>
+                <li>
+                  Run disk repair:
+                  <ul className="list-disc list-inside ml-4 mt-1">
+                    <li>
+                      <strong>macOS:</strong> Use Disk Utility → First Aid
+                    </li>
+                    <li>
+                      <strong>Windows:</strong> Right-click drive → Properties →
+                      Tools → Check
+                    </li>
+                    <li>
+                      <strong>Linux:</strong> Run{" "}
+                      <code className="bg-red-200 px-1 rounded">
+                        fsck.vfat -a /dev/sdX
+                      </code>
+                    </li>
+                  </ul>
+                </li>
+                <li>Safely eject the card and reinsert into Deluge</li>
+              </ol>
+              <button
+                onClick={() => (showCorruptedWarning.value = false)}
+                className="mt-3 text-red-700 underline hover:no-underline text-sm"
+              >
+                Hide this warning
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex-grow overflow-y-auto">
         {isLoading.value ? (
           <div className="p-4 text-center">
@@ -1283,7 +1502,10 @@ export default function FileBrowserTree({
                   })
                   .then(() => {
                     console.log("Retry: Device responded to version request");
-                    return listDirectory({ path: rootPath, force: true });
+                    return listDirectoryComplete({
+                      path: rootPath,
+                      force: true,
+                    });
                   })
                   .then((entries) => {
                     console.log(
@@ -1365,6 +1587,9 @@ export default function FileBrowserTree({
           }
         />
       )}
+
+      {/* File space warning dialog */}
+      <FileSpaceWarning />
     </div>
   );
 }

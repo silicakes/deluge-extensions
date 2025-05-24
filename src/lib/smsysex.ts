@@ -20,7 +20,7 @@ export enum SmsCommand {
   PONG = 0x7f,
 }
 
-const ENABLE_SYSEX_LOG = false;
+const ENABLE_SYSEX_LOG = true;
 const log = ENABLE_SYSEX_LOG ? console.log : () => {};
 
 // Standard Synthstrom manufacturer ID
@@ -33,11 +33,15 @@ export interface SmsSession {
   sid: number; // Session ID
   midMin: number; // Minimum message ID for this session
   midMax: number; // Maximum message ID for this session
-  counter: number; // Current message counter (1-7)
+  counter: number; // Current counter (1 to range size)
 }
 
 // Cached session
 let currentSession: SmsSession | null = null;
+
+// Track total messages sent in current session
+let messagesSentInSession = 0;
+const MAX_MESSAGES_PER_SESSION = 100; // Was 10, now can handle more
 
 // Flag to force developer ID usage
 let useDevId = localStorage.getItem("dex-dev-sysex") === "true";
@@ -48,8 +52,10 @@ let useDevId = localStorage.getItem("dex-dev-sysex") === "true";
  * @returns Message ID byte
  */
 function buildMsgId(s: SmsSession): number {
-  // Format: bits 0-2 = counter (1-7), bits 3-6 = session ID
-  return s.midMin | (s.counter & 0x07);
+  // Use the full range from midMin to midMax
+  const range = s.midMax - s.midMin + 1;
+  const id = s.midMin + ((s.counter - 1) % range);
+  return id;
 }
 
 /**
@@ -57,8 +63,10 @@ function buildMsgId(s: SmsSession): number {
  * @param s Session to update
  */
 function incrementCounter(s: SmsSession): void {
-  // Increment and wrap 1-7 (we don't use 0)
-  s.counter = (s.counter % 7) + 1;
+  // Calculate the valid range
+  const range = s.midMax - s.midMin + 1;
+  // Increment counter within the range (1-based)
+  s.counter = (s.counter % range) + 1;
 }
 
 /**
@@ -183,9 +191,20 @@ export async function openSession(tag = "DEx"): Promise<SmsSession> {
  * Get the current session or open a new one if needed
  */
 export async function ensureSession(): Promise<SmsSession> {
+  // Force new session if we've sent too many messages
+  if (currentSession && messagesSentInSession >= MAX_MESSAGES_PER_SESSION) {
+    log(
+      `Message limit reached (${messagesSentInSession}), forcing new session`,
+    );
+    currentSession = null;
+    messagesSentInSession = 0;
+  }
+
   if (currentSession) {
     return currentSession;
   }
+
+  messagesSentInSession = 0; // Reset counter for new session
   return openSession();
 }
 
@@ -217,7 +236,10 @@ export async function sendJson(
   // Build message ID and increment counter
   const msgId = buildMsgId(s);
   incrementCounter(s);
-  log(`Using msgId: ${msgId.toString(16)}, counter now: ${s.counter}`);
+  messagesSentInSession++; // Track messages sent
+  log(
+    `Using msgId: ${msgId.toString(16)}, counter now: ${s.counter}, total messages: ${messagesSentInSession}`,
+  );
 
   // Convert JSON to bytes
   const jsonData = JSON.stringify(cmd);
@@ -639,4 +661,13 @@ export function setDeveloperIdMode(useDevMode: boolean): void {
 
   // Reset session when changing mode
   currentSession = null;
+}
+
+/**
+ * Reset the current session, forcing a new session on next operation
+ */
+export function resetSession(): void {
+  log("Resetting current session");
+  currentSession = null;
+  messagesSentInSession = 0;
 }

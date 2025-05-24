@@ -4,7 +4,7 @@ import { executeCommand } from "../_shared/executor";
 import { builder } from "../_shared/builder";
 // import { parser } from "../_shared/parser"; // Unused import removed
 import { SmsCommand } from "../_shared/types";
-import { listDirectory } from "./fsList";
+import { listDirectoryComplete } from "./fsList";
 
 async function deleteSinglePath(itemPath: string): Promise<void> {
   const deletePayload = { delete: { path: itemPath } };
@@ -48,7 +48,7 @@ async function getAllDescendantPaths(
 ): Promise<void> {
   let entries: FileEntry[] = [];
   try {
-    entries = await listDirectory({ path: dirPath });
+    entries = await listDirectoryComplete({ path: dirPath });
   } catch (e) {
     console.warn(
       `Failed to list directory ${dirPath} during recursive delete, assuming no children:`,
@@ -83,7 +83,7 @@ export async function fsDelete(params: ReqFsDelete): Promise<void> {
   const parentPath = lastSlashIdx === 0 ? "/" : path.substring(0, lastSlashIdx);
   const baseName = path.substring(lastSlashIdx + 1);
   try {
-    const parentEntries: FileEntry[] = await listDirectory({
+    const parentEntries: FileEntry[] = await listDirectoryComplete({
       path: parentPath,
     });
     const entry = parentEntries.find((e) => e.name === baseName);

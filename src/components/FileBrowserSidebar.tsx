@@ -7,13 +7,14 @@ import {
   selectedPaths,
   fileTree,
   anyTransferInProgress,
+  FileEntry,
 } from "../state";
 import {
   triggerBrowserDownload,
   makeDirectory,
   writeFile,
   readFile,
-  listDirectory,
+  listDirectoryComplete,
   fsDelete,
 } from "@/commands";
 import {
@@ -27,6 +28,31 @@ import { transferManager } from "@/services/transferManager";
 // Lazily load the FileBrowserTree component
 const FileBrowserTree = lazy(() => import("./FileBrowserTree"));
 
+// Helper function to check if there are any corrupted entries
+function hasCorruptedEntries(fileTree: Record<string, FileEntry[]>) {
+  const isCorruptedEntry = (entry: FileEntry) => {
+    const ATTR_VOLUME_LABEL = 0x08;
+    const ATTR_ARCHIVE = 0x20;
+
+    if (entry.attr & ATTR_VOLUME_LABEL && entry.attr & ATTR_ARCHIVE) {
+      return true;
+    }
+
+    if (entry.attr === 47 && entry.name.length === 1) {
+      return true;
+    }
+
+    return false;
+  };
+
+  for (const entries of Object.values(fileTree)) {
+    if (entries && entries.some(isCorruptedEntry)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export default function FileBrowserSidebar() {
   const isDraggingOver = useSignal(false);
   const hasSelectedFiles = useSignal(false);
@@ -39,15 +65,39 @@ export default function FileBrowserSidebar() {
   const lastUploadDir = useSignal<string | null>(null);
   // Warning toggle state persisted in localStorage
   const showWarning = useSignal(true);
+  const showCorruptedWarning = useSignal(true);
+
   useEffect(() => {
     const stored = localStorage.getItem("fbTreeShowWarning");
     if (stored !== null) {
       showWarning.value = stored === "true";
     }
+
+    const storedCorrupted = localStorage.getItem("fbTreeShowCorruptedWarning");
+    if (storedCorrupted !== null) {
+      showCorruptedWarning.value = storedCorrupted === "true";
+    }
   }, []);
+
   useSignalEffect(() => {
     localStorage.setItem("fbTreeShowWarning", showWarning.value.toString());
   });
+
+  useSignalEffect(() => {
+    localStorage.setItem(
+      "fbTreeShowCorruptedWarning",
+      showCorruptedWarning.value.toString(),
+    );
+  });
+
+  // Calculate total hidden warnings
+  const hiddenWarningsCount = () => {
+    let count = 0;
+    if (!showWarning.value) count++;
+    if (!showCorruptedWarning.value && hasCorruptedEntries(fileTree.value))
+      count++;
+    return count;
+  };
 
   // Auto-close sidebar when MIDI is disconnected
   useSignalEffect(() => {
@@ -261,7 +311,7 @@ export default function FileBrowserSidebar() {
 
     // Helper to refresh the directory and clear the file input
     const finish = async () => {
-      const updatedEntries = await listDirectory({
+      const updatedEntries = await listDirectoryComplete({
         path: targetDir,
         force: true,
       });
@@ -332,7 +382,7 @@ export default function FileBrowserSidebar() {
         }
         showNewFolderModal.value = false;
         newName.value = "";
-        const updatedEntries = await listDirectory({
+        const updatedEntries = await listDirectoryComplete({
           path: targetDir,
           force: true,
         });
@@ -351,7 +401,7 @@ export default function FileBrowserSidebar() {
       newName.value = "";
 
       // Refresh directory after creation
-      const updatedEntries = await listDirectory({ path: targetDir });
+      const updatedEntries = await listDirectoryComplete({ path: targetDir });
       fileTree.value = {
         ...fileTree.value,
         [targetDir]: updatedEntries,
@@ -408,7 +458,7 @@ export default function FileBrowserSidebar() {
         }
         showNewFileModal.value = false;
         newName.value = "";
-        const updatedEntries = await listDirectory({
+        const updatedEntries = await listDirectoryComplete({
           path: targetDir,
           force: true,
         });
@@ -427,7 +477,7 @@ export default function FileBrowserSidebar() {
       newName.value = "";
 
       // Refresh directory after creation
-      const updatedEntries = await listDirectory({ path: targetDir });
+      const updatedEntries = await listDirectoryComplete({ path: targetDir });
       fileTree.value = {
         ...fileTree.value,
         [targetDir]: updatedEntries,
@@ -443,13 +493,20 @@ export default function FileBrowserSidebar() {
   // Refresh current directory function
   const refreshRootDirectory = async () => {
     if (isRefreshing.value) return;
+
+    // Check if MIDI is connected before attempting refresh
+    if (!midiOut.value) {
+      console.log("Cannot refresh directory: MIDI device not connected");
+      return;
+    }
+
     isRefreshing.value = true;
 
     const rootDir = "/"; // Always refresh root
 
     try {
       console.log(`Refreshing root directory: ${rootDir}`);
-      const updatedEntries = await listDirectory({
+      const updatedEntries = await listDirectoryComplete({
         path: rootDir,
         force: true,
       });
@@ -482,15 +539,18 @@ export default function FileBrowserSidebar() {
             `(${selectedPaths.value.size} selected)`}
         </h2>
         <div className="flex items-center space-x-1">
-          {!showWarning.value && (
+          {hiddenWarningsCount() > 0 && (
             <button
-              onClick={() => (showWarning.value = true)}
+              onClick={() => {
+                showWarning.value = true;
+                showCorruptedWarning.value = true;
+              }}
               className="relative focus:outline-none cursor-pointer"
-              title="Show warning"
+              title="Show hidden warnings"
             >
               <span className="text-yellow-500 text-sm">⚠️</span>
               <span className="text-xs absolute top-3 -right-1 inline-flex items-center justify-center w-3 h-3 bg-red-500 text-white font-bold rounded-full">
-                1
+                {hiddenWarningsCount()}
               </span>
             </button>
           )}
@@ -618,7 +678,10 @@ export default function FileBrowserSidebar() {
             <div className="p-4 text-center">Loading file browser...</div>
           }
         >
-          <FileBrowserTree showWarning={showWarning} />
+          <FileBrowserTree
+            showWarning={showWarning}
+            showCorruptedWarning={showCorruptedWarning}
+          />
         </Suspense>
       </div>
 

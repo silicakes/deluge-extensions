@@ -22,5 +22,6 @@ export async function writeFile(params: {
   });
 
   // Upload the file using our new uploadFiles API
-  await uploadFiles({ files: [file], destDir: dir });
+  // Note: Adding overwrite: true to match test behavior
+  await uploadFiles({ files: [file], destDir: dir, overwrite: true });
 }

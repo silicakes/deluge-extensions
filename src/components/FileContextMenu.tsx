@@ -7,7 +7,12 @@ import {
   editingFileState,
   fileTree,
 } from "../state";
-import { makeDirectory, writeFile, fsDelete, listDirectory } from "@/commands";
+import {
+  makeDirectory,
+  writeFile,
+  fsDelete,
+  listDirectoryComplete,
+} from "@/commands";
 import { isAudio, isText } from "../lib/fileType";
 
 interface FileContextMenuPosition {
@@ -52,7 +57,7 @@ async function buildPathsToDelete(
       let children: FileEntry[] | undefined = fileTree.peek()[fullPath];
       if (!children) {
         try {
-          children = await listDirectory({ path: fullPath });
+          children = await listDirectoryComplete({ path: fullPath });
         } catch {
           children = undefined;
         }
@@ -225,7 +230,7 @@ export default function FileContextMenu({
 
     try {
       await makeDirectory({ path: newDirPath });
-      const updatedEntries = await listDirectory({
+      const updatedEntries = await listDirectoryComplete({
         path: determinedParentPath,
       });
       fileTree.value = {
@@ -272,7 +277,7 @@ export default function FileContextMenu({
 
     try {
       await writeFile({ path: newFilePath, data: new Uint8Array(0) });
-      const updatedEntries = await listDirectory({
+      const updatedEntries = await listDirectoryComplete({
         path: determinedParentPath,
       });
       fileTree.value = {
