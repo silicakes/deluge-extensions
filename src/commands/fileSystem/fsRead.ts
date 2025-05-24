@@ -28,6 +28,13 @@ const CHUNK_SIZE = 1024;
 /**
  * Reads a file from the Deluge device via SysEx and returns its contents.
  *
+ * Note: The addr parameter is explicitly provided for each read chunk
+ * to ensure proper file position tracking. Based on firmware analysis (smsysex.cpp):
+ * - The Deluge tracks file position internally via fp->fPosition
+ * - However, the addr parameter is REQUIRED for all read operations
+ * - If addr != fPosition, the firmware performs an f_lseek() to the requested position
+ * - This allows for both sequential and random access patterns
+ *
  * @param req - Request object containing the path of the file to read.
  * @param opts - Optional settings including AbortSignal and onProgress callback.
  * @returns A promise resolving to the file content as an ArrayBuffer.
