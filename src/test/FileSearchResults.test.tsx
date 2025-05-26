@@ -6,6 +6,7 @@ import {
   searchQuery,
   selectedPaths,
   fileTree,
+  expandedPaths,
 } from "../state";
 import FileSearchResults from "../components/FileSearchResults";
 
@@ -29,6 +30,7 @@ describe("FileSearchResults", () => {
     searchQuery.value = "";
     selectedPaths.value = new Set();
     fileTree.value = {};
+    expandedPaths.value = new Set();
   });
 
   it("should render nothing when not in search mode", () => {
@@ -213,5 +215,32 @@ describe("FileSearchResults", () => {
 
     // Should show the "Reveal in File Browser" option
     expect(screen.getByText("Reveal in File Browser")).toBeInTheDocument();
+  });
+
+  it("should expand directory when double-clicked", async () => {
+    searchMode.value = true;
+    searchQuery.value = "folder";
+    searchResults.value = [
+      {
+        item: {
+          path: "/test-folder",
+          entry: { name: "test-folder", size: 0, attr: 0x10, date: 0, time: 0 },
+          parentPath: "/",
+        },
+        score: 0.1,
+      },
+    ];
+
+    render(<FileSearchResults />);
+
+    const resultItem = screen.getByTestId("search-result-0");
+    fireEvent.dblClick(resultItem);
+
+    // Wait for async operations to complete
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Should exit search mode and expand the directory
+    expect(searchMode.value).toBe(false);
+    expect(expandedPaths.value.has("/test-folder")).toBe(true);
   });
 });

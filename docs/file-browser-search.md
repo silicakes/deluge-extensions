@@ -37,7 +37,7 @@ Search results support immediate interaction:
 - **Ctrl/Cmd + click**: Toggle selection (multi-select support)
 - **Double-click**:
   - Files: Open preview (audio) or editor (text)
-  - Folders: Navigate to folder in tree view
+  - Folders: Navigate to folder in tree view and expand it
 - **Right-click**: Show context menu with all file operations
   - **Reveal in File Browser**: Navigate to file's location in tree view (classic behavior)
   - All standard operations: rename, delete, preview, etc.

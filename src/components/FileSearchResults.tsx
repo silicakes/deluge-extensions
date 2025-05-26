@@ -55,8 +55,23 @@ export default function FileSearchResults() {
     const { item } = result;
 
     if (isDirectory(item.entry)) {
-      // For directories, navigate to them in the tree
+      // For directories, navigate to them in the tree and expand them
       await navigateToResult(result);
+
+      // Also expand the directory itself
+      const expandPaths = new Set(expandedPaths.value);
+      expandPaths.add(item.path);
+      expandedPaths.value = expandPaths;
+
+      // Load directory contents if not already loaded
+      if (!fileTree.value[item.path]) {
+        try {
+          const entries = await listDirectoryComplete({ path: item.path });
+          fileTree.value = { ...fileTree.value, [item.path]: entries };
+        } catch (err) {
+          console.error(`Failed to load directory ${item.path}:`, err);
+        }
+      }
     } else if (isAudio(item.entry)) {
       // For audio files, open preview
       previewFile.value = { path: item.path, type: "audio" };
