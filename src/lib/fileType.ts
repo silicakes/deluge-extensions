@@ -4,6 +4,15 @@ const audioExts = ["wav", "mp3", "ogg", "flac"];
 const textExts = ["txt", "xml", "json", "csv", "md", "yml", "yaml"];
 
 /**
+ * Determines if a file entry is a directory based on its attribute flags
+ * @param entry FileEntry to check
+ * @returns true if the entry is a directory
+ */
+export function isDirectory(entry: FileEntry): boolean {
+  return (entry.attr & 0x10) !== 0;
+}
+
+/**
  * Determines if a file entry is an audio file based on extension
  * @param entry FileEntry to check
  * @returns true if file is an audio file

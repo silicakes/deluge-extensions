@@ -42,6 +42,7 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 - **🗂️ SD-Card File Browser** _(requires Deluge **Community Firmware ≥ 1.3.0** – currently in **beta**)_:
 
   - Explore your card with a **lazy-loaded tree view** that only requests directory contents on demand.
+  - **🔍 Fuzzy Search**: Instantly find files with intelligent search that handles typos and partial matches. Press `Ctrl+F` to start searching!
   - **Sidebar UI** with file-type icons, single-selection highlight, and keyboard navigation.
   - **Drag-and-drop** inside the tree to move files & folders.
   - **Upload** files from your computer by dropping them onto the browser; **download** any file back with one click.
@@ -93,6 +94,8 @@ DEx provides convenient keyboard shortcuts for common actions:
 - **F**: Toggle fullscreen
 - **+ / =**: Increase canvas size
 - **-**: Decrease canvas size
+- **Ctrl+F / Cmd+F**: Focus file browser search (when file browser is open)
+- **Escape**: Clear file browser search
 - **?**: Toggle keyboard shortcuts help overlay
 
 ### Advanced Settings Drawer

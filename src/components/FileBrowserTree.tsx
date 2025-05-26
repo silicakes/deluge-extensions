@@ -14,6 +14,7 @@ import {
   editingFileState,
   // fileUploadConflictState, // Conceptually, import a global state for the conflict dialog
   fileTransferQueue,
+  searchMode,
 } from "../state";
 import { testSysExConnectivity, checkFirmwareSupport } from "@/commands";
 import {
@@ -39,6 +40,10 @@ import FileNameIssuesDialog, {
 } from "./FileNameIssuesDialog";
 import { validateFilename } from "@/lib/filenameValidator";
 import { transferManager } from "@/services/transferManager";
+import FileSearchBar from "./FileSearchBar";
+import FileSearchResults from "./FileSearchResults";
+// Import search service to ensure it's initialized
+import "../lib/fileSearch";
 
 // Track last selected path for shift-clicking
 let lastSelectedPath: string | null = null;
@@ -1700,8 +1705,13 @@ export default function FileBrowserTree({
         </div>
       )}
 
+      {/* Search Bar */}
+      <FileSearchBar />
+
       <div className="flex-grow overflow-y-auto">
-        {isLoading.value ? (
+        {searchMode.value ? (
+          <FileSearchResults />
+        ) : isLoading.value ? (
           <div className="p-4 text-center">
             <span className="inline-block animate-spin mr-2">⏳</span>
             Loading files...

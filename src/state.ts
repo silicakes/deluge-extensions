@@ -140,3 +140,26 @@ export const editingFileState = signal<{
 } | null>(null);
 export const pollingIntervalId = signal<number | null>(null);
 export const isSyncEnabled = signal(false);
+
+// Search functionality
+export const searchQuery = signal<string>("");
+export const searchResults = signal<SearchResult[]>([]);
+export const searchMode = signal<boolean>(false);
+export const searchFocused = signal<boolean>(false);
+
+export interface SearchResultMatch {
+  indices: readonly [number, number][];
+  key?: string;
+  refIndex?: number;
+  value?: string;
+}
+
+export interface SearchResult {
+  item: {
+    path: string;
+    entry: FileEntry;
+    parentPath: string;
+  };
+  score: number;
+  matches?: SearchResultMatch[];
+}

@@ -44,3 +44,29 @@ export function throttle<Args extends unknown[], R>(
     }
   };
 }
+
+/**
+ * Creates a debounced function that delays invoking the provided function
+ * until after the specified delay has elapsed since the last time it was invoked.
+ *
+ * @param func Function to debounce
+ * @param wait Milliseconds to delay (default: 300ms)
+ * @returns Debounced function
+ */
+export function debounce<Args extends unknown[], R>(
+  func: (...args: Args) => R,
+  wait: number = 300,
+): (...args: Args) => void {
+  let timeout: number | null = null;
+
+  return function (this: unknown, ...args: Args): void {
+    if (timeout !== null) {
+      window.clearTimeout(timeout);
+    }
+
+    timeout = window.setTimeout(() => {
+      func.apply(this, args);
+      timeout = null;
+    }, wait);
+  };
+}

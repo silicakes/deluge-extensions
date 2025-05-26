@@ -28,6 +28,8 @@ interface FileContextMenuProps {
   isDirectory: boolean;
   onClose: () => void;
   selectedEntries?: { path: string; entry: FileEntry }[];
+  isFromSearchResults?: boolean;
+  onRevealInBrowser?: () => void;
 }
 
 // Helper to determine directory flag (same logic as FileBrowserTree)
@@ -87,6 +89,8 @@ export default function FileContextMenu({
   isDirectory,
   onClose,
   selectedEntries = [],
+  isFromSearchResults = false,
+  onRevealInBrowser,
 }: FileContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const deleteModalRef = useRef<HTMLDivElement>(null);
@@ -351,6 +355,27 @@ export default function FileContextMenu({
           onClick={(e) => e.stopPropagation()}
         >
           <ul className="py-1 text-sm w-full">
+            {isFromSearchResults && onRevealInBrowser && (
+              <>
+                <li>
+                  <button
+                    className="px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 w-full text-left"
+                    onClick={() => {
+                      onRevealInBrowser();
+                      onClose();
+                    }}
+                  >
+                    <span className="inline-block w-5 text-center mr-2">
+                      🔍
+                    </span>
+                    Reveal in File Browser
+                  </button>
+                </li>
+                <li>
+                  <hr className="my-1 border-neutral-200 dark:border-neutral-700" />
+                </li>
+              </>
+            )}
             {isDirectory && (
               <>
                 <li>

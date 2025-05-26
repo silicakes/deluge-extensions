@@ -21,6 +21,7 @@
     "@heroicons/react": "^2.2.0",
     "@preact/signals": "^2.0.4",
     "@tailwindcss/vite": "^4.1.4",
+    "fuse.js": "^7.1.0",
     "preact": "^10.26.4",
     "tailwindcss": "^4.1.4",
     "zod": "^3.24.4"
