@@ -15,6 +15,7 @@ import {
   // fileUploadConflictState, // Conceptually, import a global state for the conflict dialog
   fileTransferQueue,
   searchMode,
+  fileBrowserLayout,
 } from "../state";
 import { testSysExConnectivity, checkFirmwareSupport } from "@/commands";
 import {
@@ -42,6 +43,10 @@ import { validateFilename } from "@/lib/filenameValidator";
 import { transferManager } from "@/services/transferManager";
 import FileSearchBar from "./FileSearchBar";
 import FileSearchResults from "./FileSearchResults";
+import LayoutSwitcher from "./LayoutSwitcher";
+import FileIconGrid from "./FileIconGrid";
+import FileCommanderView from "./FileCommanderView";
+import FileListView from "./FileListView";
 // Import search service to ensure it's initialized
 import "../lib/fileSearch";
 
@@ -1637,6 +1642,139 @@ export default function FileBrowserTree({
     }
   };
 
+  const renderLayout = () => {
+    // When in search mode, all layouts show search results
+    // The search results component handles the display appropriately
+    if (searchMode.value) {
+      switch (fileBrowserLayout.value) {
+        case "commander":
+          return <FileCommanderView />;
+        case "icons":
+          return <FileIconGrid path="/" />;
+        case "list":
+          return <FileListView path="/" />;
+        default:
+          return <FileSearchResults />;
+      }
+    }
+
+    // Normal layout rendering when not in search mode
+    switch (fileBrowserLayout.value) {
+      case "commander":
+        return <FileCommanderView />;
+      case "icons":
+        return <FileIconGrid path="/" />;
+      case "list":
+        return <FileListView path="/" />;
+      default:
+        // Tree view (existing implementation)
+        return (
+          <>
+            {fileTree.value[rootPath]?.length ? (
+              <>
+                <ul className="p-2">
+                  {sortEntriesDirectoriesFirst(fileTree.value[rootPath]).map(
+                    (entry) =>
+                      isDirectory(entry) ? (
+                        <DirectoryItem
+                          key={entry.name}
+                          path={rootPath}
+                          entry={entry}
+                          level={0}
+                        />
+                      ) : (
+                        <FileItem
+                          key={entry.name}
+                          path={rootPath}
+                          entry={entry}
+                        />
+                      ),
+                  )}
+                </ul>
+
+                {/* Root folder drop zone - appears when dragging files */}
+                {(isDraggingFiles.value || isDraggingOverRoot.value) && (
+                  <div
+                    className={`mx-2 mb-2 border-2 border-dashed rounded-lg transition-all duration-200 ${
+                      isDraggingOverRoot.value
+                        ? "p-4 border-green-500 bg-green-50 dark:bg-green-900/20"
+                        : "p-3 border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-900/20"
+                    }`}
+                    onDragOver={handleRootDragOver}
+                    onDragLeave={handleRootDragLeave}
+                    onDrop={handleRootDrop}
+                  >
+                    <div
+                      className={`text-center ${isDraggingOverRoot.value ? "text-green-600 dark:text-green-400" : "text-neutral-500 dark:text-neutral-400"} text-sm`}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-5 w-5 mx-auto mb-1"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                        />
+                      </svg>
+                      Drop files here to upload to root folder
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="p-4 text-center text-neutral-500">
+                  No files found on SD card
+                </div>
+
+                {/* Root folder drop zone - always visible when empty */}
+                <div
+                  className={`p-4 mx-2 mb-2 border-2 border-dashed rounded-lg transition-all ${
+                    isDraggingOverRoot.value
+                      ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                      : isDraggingFiles.value
+                        ? "border-neutral-400 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-900/20"
+                        : "border-neutral-300 dark:border-neutral-700"
+                  }`}
+                  onDragOver={handleRootDragOver}
+                  onDragLeave={handleRootDragLeave}
+                  onDrop={handleRootDrop}
+                  style={{ minHeight: "80px" }}
+                >
+                  <div
+                    className={`text-center ${isDraggingOverRoot.value ? "text-green-600 dark:text-green-400" : "text-neutral-400 dark:text-neutral-600"}`}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-6 w-6 mx-auto mb-1"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
+                    </svg>
+                    {isDraggingOverRoot.value
+                      ? "Drop files here to upload"
+                      : "Drag files here to upload"}
+                  </div>
+                </div>
+              </>
+            )}
+          </>
+        );
+    }
+  };
+
   return (
     <div
       className="h-full flex flex-col font-mono text-sm"
@@ -1705,13 +1843,16 @@ export default function FileBrowserTree({
         </div>
       )}
 
+      {/* Layout Switcher - show above search bar */}
+      <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+        <LayoutSwitcher />
+      </div>
+
       {/* Search Bar */}
       <FileSearchBar />
 
       <div className="flex-grow overflow-y-auto">
-        {searchMode.value ? (
-          <FileSearchResults />
-        ) : isLoading.value ? (
+        {isLoading.value ? (
           <div className="p-4 text-center">
             <span className="inline-block animate-spin mr-2">⏳</span>
             Loading files...
@@ -1779,101 +1920,8 @@ export default function FileBrowserTree({
               Retry Connection
             </button>
           </div>
-        ) : fileTree.value[rootPath]?.length ? (
-          <>
-            <ul className="p-2">
-              {sortEntriesDirectoriesFirst(fileTree.value[rootPath]).map(
-                (entry) =>
-                  isDirectory(entry) ? (
-                    <DirectoryItem
-                      key={entry.name}
-                      path={rootPath}
-                      entry={entry}
-                      level={0}
-                    />
-                  ) : (
-                    <FileItem key={entry.name} path={rootPath} entry={entry} />
-                  ),
-              )}
-            </ul>
-
-            {/* Root folder drop zone - appears when dragging files */}
-            {(isDraggingFiles.value || isDraggingOverRoot.value) && (
-              <div
-                className={`mx-2 mb-2 border-2 border-dashed rounded-lg transition-all duration-200 ${
-                  isDraggingOverRoot.value
-                    ? "p-4 border-green-500 bg-green-50 dark:bg-green-900/20"
-                    : "p-3 border-neutral-300 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-900/20"
-                }`}
-                onDragOver={handleRootDragOver}
-                onDragLeave={handleRootDragLeave}
-                onDrop={handleRootDrop}
-              >
-                <div
-                  className={`text-center ${isDraggingOverRoot.value ? "text-green-600 dark:text-green-400" : "text-neutral-500 dark:text-neutral-400"} text-sm`}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5 mx-auto mb-1"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                    />
-                  </svg>
-                  Drop files here to upload to root folder
-                </div>
-              </div>
-            )}
-          </>
         ) : (
-          <>
-            <div className="p-4 text-center text-neutral-500">
-              No files found on SD card
-            </div>
-
-            {/* Root folder drop zone - always visible when empty */}
-            <div
-              className={`p-4 mx-2 mb-2 border-2 border-dashed rounded-lg transition-all ${
-                isDraggingOverRoot.value
-                  ? "border-green-500 bg-green-50 dark:bg-green-900/20"
-                  : isDraggingFiles.value
-                    ? "border-neutral-400 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-900/20"
-                    : "border-neutral-300 dark:border-neutral-700"
-              }`}
-              onDragOver={handleRootDragOver}
-              onDragLeave={handleRootDragLeave}
-              onDrop={handleRootDrop}
-              style={{ minHeight: "80px" }}
-            >
-              <div
-                className={`text-center ${isDraggingOverRoot.value ? "text-green-600 dark:text-green-400" : "text-neutral-400 dark:text-neutral-600"}`}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6 mx-auto mb-1"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                  />
-                </svg>
-                {isDraggingOverRoot.value
-                  ? "Drop files here to upload"
-                  : "Drag files here to upload"}
-              </div>
-            </div>
-          </>
+          renderLayout()
         )}
       </div>
 

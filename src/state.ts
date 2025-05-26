@@ -163,3 +163,24 @@ export interface SearchResult {
   score: number;
   matches?: SearchResultMatch[];
 }
+
+// Layout functionality
+export type FileBrowserLayout = "tree" | "commander" | "icons" | "list";
+export const fileBrowserLayout = signal<FileBrowserLayout>("tree");
+
+// Commander view state
+export const commanderLeftPath = signal<string>("/");
+export const commanderRightPath = signal<string>("/");
+export const commanderActivePane = signal<"left" | "right">("left");
+
+// Icon view state
+export const iconSize = signal<"small" | "medium" | "large">("medium");
+export const iconsPerRow = signal<number>(4);
+
+// List view state
+export const listColumns = signal<string[]>(["name", "size", "date"]);
+export const listSortColumn = signal<string>("name");
+export const listSortDirection = signal<"asc" | "desc">("asc");
+
+// Search layout preference - remember layout when entering/exiting search
+export const searchLayoutPreference = signal<FileBrowserLayout | null>(null);

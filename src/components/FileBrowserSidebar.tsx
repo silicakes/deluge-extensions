@@ -514,7 +514,7 @@ export default function FileBrowserSidebar() {
   return (
     <aside
       data-testid="file-browser-panel"
-      className="fixed top-0 left-0 h-full w-72 sm:w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-hidden z-20 shadow-md flex flex-col"
+      className="fixed top-0 left-0 h-full w-80 sm:w-96 lg:w-[28rem] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-hidden z-20 shadow-md flex flex-col"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}

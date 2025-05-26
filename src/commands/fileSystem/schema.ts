@@ -50,6 +50,24 @@ export const ReqFsDelete = z.object({
 /** Response schema for fsDelete command. */
 export const RespFsDelete = z.object({ ok: z.boolean() });
 
+/** Request schema for copyFile command. */
+export const ReqCopyFile = z.object({
+  from: z.string().nonempty(),
+  to: z.string().nonempty(),
+});
+
+/** Response schema for copyFile command. */
+export const RespCopyFile = z.object({ ok: z.boolean() });
+
+/** Request schema for moveFile command. */
+export const ReqMoveFile = z.object({
+  from: z.string().nonempty(),
+  to: z.string().nonempty(),
+});
+
+/** Response schema for moveFile command. */
+export const RespMoveFile = z.object({ ok: z.boolean() });
+
 /** Request schema for listDirectory command. */
 export const ReqListDirectory = z.object({
   path: z.string().nonempty(),
@@ -83,5 +101,9 @@ export type ReqMakeDirectory = z.infer<typeof ReqMakeDirectory>;
 export type RespMakeDirectory = z.infer<typeof RespMakeDirectory>;
 export type ReqFsDelete = z.infer<typeof ReqFsDelete>;
 export type RespFsDelete = z.infer<typeof RespFsDelete>;
+export type ReqCopyFile = z.infer<typeof ReqCopyFile>;
+export type RespCopyFile = z.infer<typeof RespCopyFile>;
+export type ReqMoveFile = z.infer<typeof ReqMoveFile>;
+export type RespMoveFile = z.infer<typeof RespMoveFile>;
 export type ReqListDirectory = z.infer<typeof ReqListDirectory>;
 export type RespListDirectory = z.infer<typeof RespListDirectory>;

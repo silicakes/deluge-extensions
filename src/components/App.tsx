@@ -150,7 +150,7 @@ export function App() {
 
       {/* Container that shifts content when sidebar is open */}
       <div
-        className={`transition-all duration-300 ${fileBrowserOpen.value ? "ml-72 sm:ml-80" : ""}`}
+        className={`transition-all duration-300 ${fileBrowserOpen.value ? "ml-80 sm:ml-96 lg:ml-[28rem]" : ""}`}
       >
         {/* Pixel Size Controls - hidden in fullscreen */}
         {!fullscreenActive.value && (
