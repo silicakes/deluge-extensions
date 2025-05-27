@@ -52,8 +52,8 @@ export default function FileIconGrid({ path }: { path?: string } = {}) {
     })) as ExtendedEntry[];
   });
 
-  const iconSizeMap = "w-16 h-16"; // Larger icons for better visibility with more space
-  const gridCols = "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"; // Fewer columns to allow readable file names
+  const iconSizeMap = "w-10 h-10"; // Larger icons for better visibility with more space
+  const gridCols = "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-3"; // Fewer columns to allow readable file names
 
   // Handle breadcrumb navigation
   const getBreadcrumbs = (): Array<{
@@ -270,7 +270,7 @@ export default function FileIconGrid({ path }: { path?: string } = {}) {
                   className={`${iconSizeMap} object-contain mb-2`}
                 />
                 <div
-                  className="text-sm text-center w-full px-2 mt-1"
+                  className="text-sm text-center w-full mt-1 break-words"
                   title={entry.name}
                 >
                   {/* Single-line filename display like Finder with intelligent truncation */}
