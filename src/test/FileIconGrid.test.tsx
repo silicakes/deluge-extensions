@@ -86,14 +86,17 @@ describe("FileIconGrid", () => {
 
     render(<FileIconGrid />);
 
-    const fileElement = screen.getByText("test.wav").closest("div");
+    // Find the file item container (the div with data-path attribute)
+    const fileElement = screen.getByText("test.wav").closest("[data-path]");
     expect(fileElement).toHaveClass("bg-blue-100");
   });
 
-  it("should apply large grid classes", () => {
+  it("should apply responsive grid classes", () => {
     render(<FileIconGrid />);
 
     const grid = screen.getByTestId("icon-grid");
-    expect(grid).toHaveClass("grid-cols-2");
+    expect(grid).toHaveClass("grid-cols-3");
+    expect(grid).toHaveClass("sm:grid-cols-4");
+    expect(grid).toHaveClass("lg:grid-cols-5");
   });
 });

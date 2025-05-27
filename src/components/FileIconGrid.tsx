@@ -11,6 +11,7 @@ import {
 import { iconUrlForEntry } from "../lib/fileIcons";
 import { isDirectory, isAudio, isText } from "../lib/fileType";
 import { handleFileSelect } from "../lib/fileSelection";
+import { truncateFileName } from "../lib/filenameDisplay";
 import HighlightedText from "./HighlightedText";
 import { listDirectoryComplete } from "@/commands";
 import { expandedPaths, previewFile, editingFileState } from "../state";
@@ -51,8 +52,8 @@ export default function FileIconGrid({ path }: { path?: string } = {}) {
     })) as ExtendedEntry[];
   });
 
-  const iconSizeMap = "w-24 h-24"; // Large icons only
-  const gridCols = "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"; // Large icon grid
+  const iconSizeMap = "w-16 h-16"; // Larger icons for better visibility with more space
+  const gridCols = "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"; // Fewer columns to allow readable file names
 
   // Handle breadcrumb navigation
   const getBreadcrumbs = (): Array<{
@@ -245,7 +246,7 @@ export default function FileIconGrid({ path }: { path?: string } = {}) {
 
       <div className="flex-1 overflow-auto p-4">
         {/* Icon Grid */}
-        <div className={`grid gap-4 ${gridCols}`} data-testid="icon-grid">
+        <div className={`grid gap-3 ${gridCols}`} data-testid="icon-grid">
           {entries.value.map((entry, index) => {
             const isSelected = selectedPaths.value.has(entry.fullPath);
             const isDirResult = isDirectory(entry);
@@ -253,7 +254,7 @@ export default function FileIconGrid({ path }: { path?: string } = {}) {
             return (
               <div
                 key={`${entry.fullPath}-${index}`}
-                className={`flex flex-col items-center p-2 rounded-lg cursor-pointer transition-colors ${
+                className={`flex flex-col items-center p-3 rounded-lg cursor-pointer transition-colors min-h-[5rem] w-full ${
                   isSelected
                     ? "bg-blue-100 dark:bg-blue-900/30"
                     : "hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -268,21 +269,26 @@ export default function FileIconGrid({ path }: { path?: string } = {}) {
                   alt=""
                   className={`${iconSizeMap} object-contain mb-2`}
                 />
-                <span
-                  className="text-xs text-center truncate w-full"
+                <div
+                  className="text-sm text-center w-full px-2 mt-1"
                   title={entry.name}
                 >
-                  {/* Highlight search matches if in search mode */}
-                  {searchMode.value && entry.searchResult ? (
-                    <HighlightedText
-                      text={entry.name}
-                      matches={entry.searchResult.matches}
-                    />
-                  ) : (
-                    entry.name
-                  )}
-                  {isDirResult && <span className="ml-1 text-gray-500">/</span>}
-                </span>
+                  {/* Single-line filename display like Finder with intelligent truncation */}
+                  <div className="leading-tight text-center w-full">
+                    {/* Highlight search matches if in search mode */}
+                    {searchMode.value && entry.searchResult ? (
+                      <HighlightedText
+                        text={entry.name}
+                        matches={entry.searchResult.matches}
+                      />
+                    ) : (
+                      truncateFileName(entry.name, 25)
+                    )}
+                    {isDirResult && (
+                      <span className="ml-1 text-gray-500">/</span>
+                    )}
+                  </div>
+                </div>
               </div>
             );
           })}
