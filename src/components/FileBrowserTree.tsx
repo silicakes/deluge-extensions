@@ -1777,7 +1777,7 @@ export default function FileBrowserTree({
 
   return (
     <div
-      className="h-full flex flex-col font-mono text-sm"
+      className="h-full flex flex-col text-sm"
       onContextMenu={handleRootContextMenu}
       data-testid="file-browser-tree-root"
     >
