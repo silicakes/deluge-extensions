@@ -28,23 +28,48 @@ export async function writeFile(req: ReqWriteFile): Promise<void> {
     parse: parser.json<RespOpen>("^open"),
   });
 
-  // 2. WRITE
-  await executeCommand<object, { err: number }>({
-    cmdId: SmsCommand.JSON,
-    request: { write: { fid, addr: 0, size: data.length } },
-    build: () =>
-      builder.jsonPlusBinary(
-        { write: { fid, addr: 0, size: data.length } },
-        data,
-      ),
-    parse: parser.json<{ err: number }>("^write"),
-  });
+  try {
+    // 2. WRITE in chunks for large files
+    const chunkSize = 128; // Use 128 byte chunks to avoid SysEx size limits
+    let offset = 0;
 
-  // 3. CLOSE
-  await executeCommand<object, RespClose>({
-    cmdId: SmsCommand.JSON,
-    request: { close: { fid } },
-    build: () => builder.jsonOnly({ close: { fid } }),
-    parse: (raw): RespClose => parser.expectOk(raw) as RespClose,
-  });
+    while (offset < data.length) {
+      const size = Math.min(chunkSize, data.length - offset);
+      const chunk = data.slice(offset, offset + size);
+
+      await executeCommand<object, { err: number }>({
+        cmdId: SmsCommand.JSON,
+        request: { write: { fid, addr: offset, size: chunk.length } },
+        build: () =>
+          builder.jsonPlusBinary(
+            { write: { fid, addr: offset, size: chunk.length } },
+            chunk,
+          ),
+        parse: parser.json<{ err: number }>("^write"),
+      });
+
+      offset += size;
+    }
+
+    // 3. CLOSE
+    await executeCommand<object, RespClose>({
+      cmdId: SmsCommand.JSON,
+      request: { close: { fid } },
+      build: () => builder.jsonOnly({ close: { fid } }),
+      parse: (raw): RespClose => parser.expectOk(raw) as RespClose,
+    });
+  } catch (error) {
+    // Always try to close file on error
+    try {
+      await executeCommand<object, RespClose>({
+        cmdId: SmsCommand.JSON,
+        request: { close: { fid } },
+        build: () => builder.jsonOnly({ close: { fid } }),
+        parse: (raw): RespClose => parser.expectOk(raw) as RespClose,
+      });
+    } catch (closeError) {
+      console.error("Failed to close file after error:", closeError);
+    }
+    throw error;
+  }
 }

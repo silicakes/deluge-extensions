@@ -187,12 +187,12 @@ export default function BasicTextEditorModal() {
       // Only update if the editor's current text doesn't match the state
       // This prevents resetting cursor position during typing
       if (
-        editorRef.current.textContent !== editingFileState.value.currentContent
+        editorRef.current.innerText !== editingFileState.value.currentContent
       ) {
         console.log(
-          `[BasicTextEditor] Updating editor textContent from state (post-load/external change).`,
+          `[BasicTextEditor] Updating editor innerText from state (post-load/external change).`,
         );
-        editorRef.current.textContent = editingFileState.value.currentContent;
+        editorRef.current.innerText = editingFileState.value.currentContent;
       }
     }
   }, [loading.value, editingFileState.value?.currentContent]); // Rerun when loading finishes or content changes externally
@@ -226,7 +226,7 @@ export default function BasicTextEditorModal() {
         } else {
           // If not dirty, just update our content
           if (editorRef.current) {
-            editorRef.current.textContent = currentFileContent;
+            editorRef.current.innerText = currentFileContent;
           }
 
           editingFileState.value = {
@@ -250,7 +250,8 @@ export default function BasicTextEditorModal() {
 
     if (!editingFileState.value || !editorRef.current) return;
 
-    const newContent = editorRef.current.textContent || "";
+    // Use innerText instead of textContent to preserve line breaks and whitespace
+    const newContent = editorRef.current.innerText || "";
 
     // Only mark as dirty if content actually changed
     if (newContent !== editingFileState.value.currentContent) {
@@ -333,7 +334,7 @@ export default function BasicTextEditorModal() {
       // Discard local changes and load external version
       pollFile().then(() => {
         if (editingFileState.value && editorRef.current) {
-          editorRef.current.textContent = editingFileState.value.initialContent;
+          editorRef.current.innerText = editingFileState.value.initialContent;
           editingFileState.value = {
             ...editingFileState.value,
             currentContent: editingFileState.value.initialContent,

@@ -60,4 +60,70 @@ describe("moveFile", () => {
       }),
     ).rejects.toThrow("Move failed");
   });
+
+  it("should include update_paths when specified", async () => {
+    mockExecuteCommand.mockResolvedValue({});
+
+    await moveFile({
+      from: "/SONGS/old.XML",
+      to: "/SONGS/new.XML",
+      update_paths: true,
+    });
+
+    expect(mockExecuteCommand).toHaveBeenCalledWith({
+      cmdId: SmsCommand.JSON,
+      request: {
+        move: {
+          from: "/SONGS/old.XML",
+          to: "/SONGS/new.XML",
+          update_paths: true,
+        },
+      },
+      build: expect.any(Function),
+      parse: expect.any(Function),
+    });
+  });
+
+  it("should not include update_paths when false", async () => {
+    mockExecuteCommand.mockResolvedValue({});
+
+    await moveFile({
+      from: "/SONGS/old.XML",
+      to: "/SONGS/new.XML",
+      update_paths: false,
+    });
+
+    expect(mockExecuteCommand).toHaveBeenCalledWith({
+      cmdId: SmsCommand.JSON,
+      request: {
+        move: {
+          from: "/SONGS/old.XML",
+          to: "/SONGS/new.XML",
+        },
+      },
+      build: expect.any(Function),
+      parse: expect.any(Function),
+    });
+  });
+
+  it("should not include update_paths when not specified", async () => {
+    mockExecuteCommand.mockResolvedValue({});
+
+    await moveFile({
+      from: "/SONGS/old.XML",
+      to: "/SONGS/new.XML",
+    });
+
+    expect(mockExecuteCommand).toHaveBeenCalledWith({
+      cmdId: SmsCommand.JSON,
+      request: {
+        move: {
+          from: "/SONGS/old.XML",
+          to: "/SONGS/new.XML",
+        },
+      },
+      build: expect.any(Function),
+      parse: expect.any(Function),
+    });
+  });
 });

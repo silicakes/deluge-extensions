@@ -172,6 +172,7 @@ export const fileBrowserLayout = signal<FileBrowserLayout>("tree");
 export const commanderLeftPath = signal<string>("/");
 export const commanderRightPath = signal<string>("/");
 export const commanderActivePane = signal<"left" | "right">("left");
+export const commanderUpdatePaths = signal<boolean>(false);
 
 // Icon and List view state
 export const currentPath = signal<string>("/");

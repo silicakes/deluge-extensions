@@ -63,6 +63,7 @@ export const RespCopyFile = z.object({ ok: z.boolean() });
 export const ReqMoveFile = z.object({
   from: z.string().nonempty(),
   to: z.string().nonempty(),
+  update_paths: z.boolean().optional(),
 });
 
 /** Response schema for moveFile command. */

@@ -2,6 +2,7 @@ import {
   commanderLeftPath,
   commanderRightPath,
   commanderActivePane,
+  commanderUpdatePaths,
   searchMode,
   selectedPaths,
   fileTree,
@@ -99,7 +100,11 @@ export default function FileCommanderView() {
           targetPath === "/" ? `/${fileName}` : `${targetPath}/${fileName}`;
 
         console.log(`Moving ${sourcePath} to ${newPath}`);
-        await moveFile({ from: sourcePath, to: newPath });
+        await moveFile({
+          from: sourcePath,
+          to: newPath,
+          ...(commanderUpdatePaths.value && { update_paths: true }),
+        });
 
         // Track source directory for refresh
         sourceDirectories.add(sourceDir);
@@ -218,6 +223,21 @@ export default function FileCommanderView() {
           >
             Delete
           </button>
+
+          {/* Update Paths Toggle */}
+          <div className="flex items-center space-x-2 ml-4 pl-4 border-l border-gray-300 dark:border-gray-600">
+            <label className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300">
+              <input
+                type="checkbox"
+                checked={commanderUpdatePaths.value}
+                onChange={(e) =>
+                  (commanderUpdatePaths.value = e.currentTarget.checked)
+                }
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span>Update XML paths</span>
+            </label>
+          </div>
         </div>
         <div className="text-sm text-gray-500 dark:text-gray-400">
           {selectedPaths.value.size > 0 &&

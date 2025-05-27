@@ -5,6 +5,7 @@ import {
   commanderLeftPath,
   commanderRightPath,
   commanderActivePane,
+  commanderUpdatePaths,
   searchMode,
   selectedPaths,
   fileTree,
@@ -73,6 +74,7 @@ describe("FileCommanderView Operations", () => {
     commanderLeftPath.value = "/";
     commanderRightPath.value = "/KITS";
     commanderActivePane.value = "left";
+    commanderUpdatePaths.value = false;
     searchMode.value = false;
     selectedPaths.value = new Set(["/test.wav"]);
     fileTree.value = {
@@ -207,6 +209,39 @@ describe("FileCommanderView Operations", () => {
 
       alertSpy.mockRestore();
     });
+
+    it("includes update_paths when toggle is enabled", async () => {
+      commanderUpdatePaths.value = true;
+
+      render(<FileCommanderView />);
+
+      const moveButton = screen.getByText("Move →");
+      fireEvent.click(moveButton);
+
+      await waitFor(() => {
+        expect(mockMoveFile).toHaveBeenCalledWith({
+          from: "/test.wav",
+          to: "/KITS/test.wav",
+          update_paths: true,
+        });
+      });
+    });
+
+    it("does not include update_paths when toggle is disabled", async () => {
+      commanderUpdatePaths.value = false;
+
+      render(<FileCommanderView />);
+
+      const moveButton = screen.getByText("Move →");
+      fireEvent.click(moveButton);
+
+      await waitFor(() => {
+        expect(mockMoveFile).toHaveBeenCalledWith({
+          from: "/test.wav",
+          to: "/KITS/test.wav",
+        });
+      });
+    });
   });
 
   describe("Delete Operation", () => {
@@ -304,6 +339,37 @@ describe("FileCommanderView Operations", () => {
       expect(copyButton).not.toBeDisabled();
       expect(moveButton).not.toBeDisabled();
       expect(deleteButton).not.toBeDisabled();
+    });
+  });
+
+  describe("Update Paths Toggle", () => {
+    it("renders the update paths toggle", () => {
+      render(<FileCommanderView />);
+
+      const toggle = screen.getByLabelText("Update XML paths");
+      expect(toggle).toBeInTheDocument();
+      expect(toggle).toHaveAttribute("type", "checkbox");
+    });
+
+    it("reflects the current state of commanderUpdatePaths", () => {
+      commanderUpdatePaths.value = true;
+      render(<FileCommanderView />);
+
+      const toggle = screen.getByLabelText("Update XML paths");
+      expect(toggle).toBeChecked();
+    });
+
+    it("updates commanderUpdatePaths when toggled", () => {
+      render(<FileCommanderView />);
+
+      const toggle = screen.getByLabelText("Update XML paths");
+      expect(commanderUpdatePaths.value).toBe(false);
+
+      fireEvent.click(toggle);
+      expect(commanderUpdatePaths.value).toBe(true);
+
+      fireEvent.click(toggle);
+      expect(commanderUpdatePaths.value).toBe(false);
     });
   });
 });

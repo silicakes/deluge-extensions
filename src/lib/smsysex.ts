@@ -382,8 +382,10 @@ function parseSysexResponse(data: Uint8Array): {
   binaryData?: Uint8Array;
 } {
   try {
-    // Skip the SysEx header (F0 + manufacturer ID + command + msgId)
-    const headerSize = data[1] === 0x7d ? 4 : 7;
+    // Determine manufacturer ID type and calculate header size
+    const isDevId = data[1] === 0x7d;
+    const manufacturerIdSize = isDevId ? 1 : 4; // Dev ID is 1 byte, standard is 4 bytes
+    const headerSize = 1 + manufacturerIdSize + 1 + 1; // F0 + manufacturer + command + msgId
 
     // Find the end of the SysEx message (F7)
     const sysexEnd = data.lastIndexOf(0xf7);

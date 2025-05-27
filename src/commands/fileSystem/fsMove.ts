@@ -13,13 +13,24 @@ export type MoveFileParams = ReqMoveFile;
  * @param params - The move parameters
  * @param params.from - Source file path
  * @param params.to - Destination file path
+ * @param params.update_paths - Whether to automatically update XML paths for the moved file
  */
 export async function moveFile(params: MoveFileParams): Promise<void> {
-  const { from, to } = params;
+  const { from, to, update_paths } = params;
+
+  // Build the move request object
+  const moveRequest: { from: string; to: string; update_paths?: boolean } = {
+    from,
+    to,
+  };
+  if (update_paths) {
+    moveRequest.update_paths = true;
+  }
+
   await executeCommand<object, Record<string, unknown>>({
     cmdId: SmsCommand.JSON,
-    request: { move: { from, to } },
-    build: () => builder.jsonOnly({ move: { from, to } }),
+    request: { move: moveRequest },
+    build: () => builder.jsonOnly({ move: moveRequest }),
     parse: parser.expectOk,
   });
 }
