@@ -1,6 +1,5 @@
 import { useSignal, useComputed } from "@preact/signals";
 import {
-  iconSize,
   fileTree,
   selectedPaths,
   searchMode,
@@ -52,17 +51,8 @@ export default function FileIconGrid({ path }: { path?: string } = {}) {
     })) as ExtendedEntry[];
   });
 
-  const iconSizeMap = {
-    small: "w-12 h-12",
-    medium: "w-16 h-16",
-    large: "w-24 h-24",
-  };
-
-  const gridCols = {
-    small: "grid-cols-6 sm:grid-cols-8 lg:grid-cols-12", // Reduced columns for larger icons
-    medium: "grid-cols-4 sm:grid-cols-6 lg:grid-cols-8",
-    large: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4", // Reduced for larger icons
-  };
+  const iconSizeMap = "w-24 h-24"; // Large icons only
+  const gridCols = "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"; // Large icon grid
 
   // Handle breadcrumb navigation
   const getBreadcrumbs = (): Array<{
@@ -254,32 +244,8 @@ export default function FileIconGrid({ path }: { path?: string } = {}) {
       )}
 
       <div className="flex-1 overflow-auto p-4">
-        {/* Size Controls - hide during search mode */}
-        {!searchMode.value && (
-          <div className="mb-4 flex justify-end">
-            <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-              {(["small", "medium", "large"] as const).map((size) => (
-                <button
-                  key={size}
-                  onClick={() => (iconSize.value = size)}
-                  className={`px-2 py-1 rounded text-xs ${
-                    iconSize.value === size
-                      ? "bg-white dark:bg-gray-700 shadow-sm"
-                      : "hover:bg-gray-200 dark:hover:bg-gray-700"
-                  }`}
-                >
-                  {size}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Icon Grid */}
-        <div
-          className={`grid gap-4 ${gridCols[iconSize.value]}`}
-          data-testid="icon-grid"
-        >
+        <div className={`grid gap-4 ${gridCols}`} data-testid="icon-grid">
           {entries.value.map((entry, index) => {
             const isSelected = selectedPaths.value.has(entry.fullPath);
             const isDirResult = isDirectory(entry);
@@ -300,7 +266,7 @@ export default function FileIconGrid({ path }: { path?: string } = {}) {
                 <img
                   src={iconUrlForEntry(entry)}
                   alt=""
-                  className={`${iconSizeMap[iconSize.value]} object-contain mb-2`}
+                  className={`${iconSizeMap} object-contain mb-2`}
                 />
                 <span
                   className="text-xs text-center truncate w-full"

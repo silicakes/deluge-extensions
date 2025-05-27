@@ -176,8 +176,7 @@ export const commanderActivePane = signal<"left" | "right">("left");
 // Icon and List view state
 export const currentPath = signal<string>("/");
 
-// Icon view state
-export const iconSize = signal<"small" | "medium" | "large">("medium");
+// Icon view state (removed - now uses fixed large size)
 export const iconsPerRow = signal<number>(4);
 
 // List view state

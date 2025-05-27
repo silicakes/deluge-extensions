@@ -1,12 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/preact";
-import {
-  fileTree,
-  selectedPaths,
-  searchMode,
-  searchResults,
-  iconSize,
-} from "../state";
+import { render, screen } from "@testing-library/preact";
+import { fileTree, selectedPaths, searchMode, searchResults } from "../state";
 import FileIconGrid from "../components/FileIconGrid";
 
 // Mock the commands
@@ -48,7 +42,6 @@ describe("FileIconGrid", () => {
     selectedPaths.value = new Set();
     searchMode.value = false;
     searchResults.value = [];
-    iconSize.value = "medium";
   });
 
   it("should render files in grid format", () => {
@@ -59,37 +52,11 @@ describe("FileIconGrid", () => {
       ],
     };
 
-    render(<FileIconGrid path="/" />);
+    render(<FileIconGrid />);
 
     expect(screen.getByTestId("icon-grid")).toBeInTheDocument();
     expect(screen.getByText("test.wav")).toBeInTheDocument();
     expect(screen.getByText("sample.wav")).toBeInTheDocument();
-  });
-
-  it("should show size controls when not in search mode", () => {
-    render(<FileIconGrid path="/" />);
-
-    expect(screen.getByText("small")).toBeInTheDocument();
-    expect(screen.getByText("medium")).toBeInTheDocument();
-    expect(screen.getByText("large")).toBeInTheDocument();
-  });
-
-  it("should hide size controls during search mode", () => {
-    searchMode.value = true;
-    render(<FileIconGrid path="/" />);
-
-    expect(screen.queryByText("small")).not.toBeInTheDocument();
-    expect(screen.queryByText("medium")).not.toBeInTheDocument();
-    expect(screen.queryByText("large")).not.toBeInTheDocument();
-  });
-
-  it("should change icon size when size button is clicked", () => {
-    render(<FileIconGrid path="/" />);
-
-    const largeButton = screen.getByText("large");
-    fireEvent.click(largeButton);
-
-    expect(iconSize.value).toBe("large");
   });
 
   it("should display search results when in search mode", () => {
@@ -106,7 +73,7 @@ describe("FileIconGrid", () => {
       },
     ];
 
-    render(<FileIconGrid path="/" />);
+    render(<FileIconGrid />);
 
     expect(screen.getByText("test.wav")).toBeInTheDocument();
   });
@@ -117,23 +84,14 @@ describe("FileIconGrid", () => {
     };
     selectedPaths.value = new Set(["/test.wav"]);
 
-    render(<FileIconGrid path="/" />);
+    render(<FileIconGrid />);
 
     const fileElement = screen.getByText("test.wav").closest("div");
     expect(fileElement).toHaveClass("bg-blue-100");
   });
 
-  it("should apply small grid classes", () => {
-    iconSize.value = "small";
-    render(<FileIconGrid path="/" />);
-
-    const grid = screen.getByTestId("icon-grid");
-    expect(grid).toHaveClass("grid-cols-6");
-  });
-
   it("should apply large grid classes", () => {
-    iconSize.value = "large";
-    render(<FileIconGrid path="/" />);
+    render(<FileIconGrid />);
 
     const grid = screen.getByTestId("icon-grid");
     expect(grid).toHaveClass("grid-cols-2");
