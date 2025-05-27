@@ -173,6 +173,9 @@ export const commanderLeftPath = signal<string>("/");
 export const commanderRightPath = signal<string>("/");
 export const commanderActivePane = signal<"left" | "right">("left");
 
+// Icon and List view state
+export const currentPath = signal<string>("/");
+
 // Icon view state
 export const iconSize = signal<"small" | "medium" | "large">("medium");
 export const iconsPerRow = signal<number>(4);

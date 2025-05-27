@@ -12,6 +12,7 @@ import {
   expandedPaths,
   previewFile,
   editingFileState,
+  currentPath,
 } from "../state";
 import { formatBytes, formatDate } from "../lib/format";
 import { iconUrlForEntry } from "../lib/fileIcons";
@@ -83,12 +84,17 @@ const columns: Column[] = [
   },
 ];
 
-export default function FileListView({ path }: { path: string }) {
+export default function FileListView({ path }: { path?: string } = {}) {
   const contextMenuPosition = useSignal<{
     x: number;
     y: number;
     entry: ExtendedEntry;
   } | null>(null);
+
+  // Use currentPath for navigation when not in search mode
+  const activePath = useComputed(() =>
+    searchMode.value ? path || "/" : currentPath.value,
+  );
 
   // Use search results when in search mode, otherwise use directory entries
   const entries = useComputed(() => {
@@ -100,10 +106,15 @@ export default function FileListView({ path }: { path: string }) {
       })) as ExtendedEntry[];
     }
 
-    const rawEntries = (fileTree.value[path] || []).map((entry) => ({
-      ...entry,
-      fullPath: path === "/" ? `/${entry.name}` : `${path}/${entry.name}`,
-    })) as ExtendedEntry[];
+    const rawEntries = (fileTree.value[activePath.value] || []).map(
+      (entry) => ({
+        ...entry,
+        fullPath:
+          activePath.value === "/"
+            ? `/${entry.name}`
+            : `${activePath.value}/${entry.name}`,
+      }),
+    ) as ExtendedEntry[];
 
     return sortEntries(
       rawEntries,
@@ -111,6 +122,59 @@ export default function FileListView({ path }: { path: string }) {
       listSortDirection.value,
     );
   });
+
+  // Handle breadcrumb navigation
+  const getBreadcrumbs = (): Array<{
+    name: string;
+    path: string;
+    isEllipsis?: boolean;
+  }> => {
+    if (activePath.value === "/") return [{ name: "Root", path: "/" }];
+
+    const parts = activePath.value.split("/").filter(Boolean);
+    const breadcrumbs = [{ name: "Root", path: "/" }];
+
+    let pathBuilder = "";
+    for (const part of parts) {
+      pathBuilder += "/" + part;
+      breadcrumbs.push({ name: part, path: pathBuilder });
+    }
+
+    // If we have more than 4 breadcrumbs, show a compact version
+    if (breadcrumbs.length > 4) {
+      return [
+        breadcrumbs[0], // Root
+        { name: "...", path: "", isEllipsis: true }, // Ellipsis
+        ...breadcrumbs.slice(-2), // Last 2 items
+      ];
+    }
+
+    return breadcrumbs;
+  };
+
+  const navigateTo = async (newPath: string) => {
+    if (searchMode.value) return; // Don't navigate during search
+
+    console.log(
+      `[FileListView] Navigating from ${currentPath.value} to ${newPath}`,
+    );
+
+    try {
+      // Load directory if not already loaded
+      if (!fileTree.value[newPath]) {
+        console.log(`[FileListView] Loading directory contents for ${newPath}`);
+        const entries = await listDirectoryComplete({ path: newPath });
+        fileTree.value = { ...fileTree.value, [newPath]: entries };
+      }
+
+      // Update current path
+      console.log(`[FileListView] Setting currentPath to ${newPath}`);
+      currentPath.value = newPath;
+      console.log(`[FileListView] currentPath is now ${currentPath.value}`);
+    } catch (err) {
+      console.error(`Failed to navigate to ${newPath}:`, err);
+    }
+  };
 
   const handleSort = (columnKey: string) => {
     // Don't allow sorting during search mode - search has its own relevance sorting
@@ -153,20 +217,8 @@ export default function FileListView({ path }: { path: string }) {
 
   const handleDoubleClick = async (entry: ExtendedEntry) => {
     if (isDirectory(entry)) {
-      // For directories, expand them and navigate
-      const expandPaths = new Set(expandedPaths.value);
-      expandPaths.add(entry.fullPath);
-      expandedPaths.value = expandPaths;
-
-      // Load directory contents if not already loaded
-      if (!fileTree.value[entry.fullPath]) {
-        try {
-          const entries = await listDirectoryComplete({ path: entry.fullPath });
-          fileTree.value = { ...fileTree.value, [entry.fullPath]: entries };
-        } catch (err) {
-          console.error(`Failed to load directory ${entry.fullPath}:`, err);
-        }
-      }
+      // For directories, navigate to them
+      await navigateTo(entry.fullPath);
     } else if (isAudio(entry)) {
       // For audio files, open preview
       previewFile.value = { path: entry.fullPath, type: "audio" };
@@ -220,8 +272,59 @@ export default function FileListView({ path }: { path: string }) {
     expandedPaths.value = expandPaths;
   };
 
+  // Load initial directory if not already loaded
+  if (!searchMode.value && !fileTree.value[activePath.value]) {
+    listDirectoryComplete({ path: activePath.value })
+      .then((entries) => {
+        fileTree.value = { ...fileTree.value, [activePath.value]: entries };
+      })
+      .catch((err) => {
+        console.error(`Failed to load directory ${activePath.value}:`, err);
+      });
+  }
+
   return (
     <div className="h-full flex flex-col">
+      {/* Breadcrumb Navigation - hide during search mode */}
+      {!searchMode.value && (
+        <div className="p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+          <div className="flex items-center space-x-1 text-sm overflow-x-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800">
+            <div className="flex items-center space-x-1 min-w-max">
+              {getBreadcrumbs().map((crumb, index) => (
+                <div
+                  key={crumb.path || `ellipsis-${index}`}
+                  className="flex items-center flex-shrink-0"
+                >
+                  {index > 0 && (
+                    <span className="mx-1 text-gray-400 flex-shrink-0">/</span>
+                  )}
+                  {crumb.isEllipsis ? (
+                    <span
+                      className="px-2 py-1 text-gray-500 dark:text-gray-400 cursor-default"
+                      title={`Full path: ${activePath}`}
+                    >
+                      {crumb.name}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => navigateTo(crumb.path)}
+                      className={`px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 whitespace-nowrap ${
+                        crumb.path === activePath.value
+                          ? "bg-blue-500 text-white"
+                          : "text-gray-700 dark:text-gray-300"
+                      }`}
+                      title={crumb.path} // Show full path on hover
+                    >
+                      {crumb.name}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
         {columns.map((column) => (
@@ -285,7 +388,7 @@ export default function FileListView({ path }: { path: string }) {
       {/* Context Menu */}
       {contextMenuPosition.value && (
         <FileContextMenu
-          path={path}
+          path={activePath.value}
           entry={contextMenuPosition.value.entry}
           position={{
             x: contextMenuPosition.value.x,

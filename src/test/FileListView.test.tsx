@@ -8,6 +8,7 @@ import {
   searchResults,
   listSortColumn,
   listSortDirection,
+  currentPath,
   FileEntry,
 } from "../state";
 
@@ -64,6 +65,7 @@ describe("FileListView", () => {
     searchResults.value = [];
     listSortColumn.value = "name";
     listSortDirection.value = "asc";
+    currentPath.value = "/"; // Reset to root path
   });
 
   it("renders file list with correct columns", () => {

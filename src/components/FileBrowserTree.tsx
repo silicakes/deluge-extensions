@@ -1650,9 +1650,9 @@ export default function FileBrowserTree({
         case "commander":
           return <FileCommanderView />;
         case "icons":
-          return <FileIconGrid path="/" />;
+          return <FileIconGrid />;
         case "list":
-          return <FileListView path="/" />;
+          return <FileListView />;
         default:
           return <FileSearchResults />;
       }
@@ -1663,9 +1663,9 @@ export default function FileBrowserTree({
       case "commander":
         return <FileCommanderView />;
       case "icons":
-        return <FileIconGrid path="/" />;
+        return <FileIconGrid />;
       case "list":
-        return <FileListView path="/" />;
+        return <FileListView />;
       default:
         // Tree view (existing implementation)
         return (

@@ -7,6 +7,7 @@ import {
   searchResults,
   SearchResult,
   FileEntry,
+  currentPath,
 } from "../state";
 import { iconUrlForEntry } from "../lib/fileIcons";
 import { isDirectory, isAudio, isText } from "../lib/fileType";
@@ -21,12 +22,17 @@ interface ExtendedEntry extends FileEntry {
   searchResult?: SearchResult;
 }
 
-export default function FileIconGrid({ path }: { path: string }) {
+export default function FileIconGrid({ path }: { path?: string } = {}) {
   const contextMenuPosition = useSignal<{
     x: number;
     y: number;
     entry: ExtendedEntry;
   } | null>(null);
+
+  // Use currentPath for navigation when not in search mode
+  const activePath = useComputed(() =>
+    searchMode.value ? path || "/" : currentPath.value,
+  );
 
   // Use search results when in search mode, otherwise use directory entries
   const entries = useComputed(() => {
@@ -37,9 +43,12 @@ export default function FileIconGrid({ path }: { path: string }) {
         searchResult: result,
       })) as ExtendedEntry[];
     }
-    return (fileTree.value[path] || []).map((entry) => ({
+    return (fileTree.value[activePath.value] || []).map((entry) => ({
       ...entry,
-      fullPath: path === "/" ? `/${entry.name}` : `${path}/${entry.name}`,
+      fullPath:
+        activePath.value === "/"
+          ? `/${entry.name}`
+          : `${activePath.value}/${entry.name}`,
     })) as ExtendedEntry[];
   });
 
@@ -50,9 +59,62 @@ export default function FileIconGrid({ path }: { path: string }) {
   };
 
   const gridCols = {
-    small: "grid-cols-8 sm:grid-cols-12 lg:grid-cols-16",
+    small: "grid-cols-6 sm:grid-cols-8 lg:grid-cols-12", // Reduced columns for larger icons
     medium: "grid-cols-4 sm:grid-cols-6 lg:grid-cols-8",
-    large: "grid-cols-2 sm:grid-cols-4 lg:grid-cols-6",
+    large: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4", // Reduced for larger icons
+  };
+
+  // Handle breadcrumb navigation
+  const getBreadcrumbs = (): Array<{
+    name: string;
+    path: string;
+    isEllipsis?: boolean;
+  }> => {
+    if (activePath.value === "/") return [{ name: "Root", path: "/" }];
+
+    const parts = activePath.value.split("/").filter(Boolean);
+    const breadcrumbs = [{ name: "Root", path: "/" }];
+
+    let pathBuilder = "";
+    for (const part of parts) {
+      pathBuilder += "/" + part;
+      breadcrumbs.push({ name: part, path: pathBuilder });
+    }
+
+    // If we have more than 4 breadcrumbs, show a compact version
+    if (breadcrumbs.length > 4) {
+      return [
+        breadcrumbs[0], // Root
+        { name: "...", path: "", isEllipsis: true }, // Ellipsis
+        ...breadcrumbs.slice(-2), // Last 2 items
+      ];
+    }
+
+    return breadcrumbs;
+  };
+
+  const navigateTo = async (newPath: string) => {
+    if (searchMode.value) return; // Don't navigate during search
+
+    console.log(
+      `[FileIconGrid] Navigating from ${currentPath.value} to ${newPath}`,
+    );
+
+    try {
+      // Load directory if not already loaded
+      if (!fileTree.value[newPath]) {
+        console.log(`[FileIconGrid] Loading directory contents for ${newPath}`);
+        const entries = await listDirectoryComplete({ path: newPath });
+        fileTree.value = { ...fileTree.value, [newPath]: entries };
+      }
+
+      // Update current path
+      console.log(`[FileIconGrid] Setting currentPath to ${newPath}`);
+      currentPath.value = newPath;
+      console.log(`[FileIconGrid] currentPath is now ${currentPath.value}`);
+    } catch (err) {
+      console.error(`Failed to navigate to ${newPath}:`, err);
+    }
   };
 
   const handleItemClick = async (entry: ExtendedEntry, e: MouseEvent) => {
@@ -83,20 +145,8 @@ export default function FileIconGrid({ path }: { path: string }) {
 
   const handleDoubleClick = async (entry: ExtendedEntry) => {
     if (isDirectory(entry)) {
-      // For directories, expand them and navigate
-      const expandPaths = new Set(expandedPaths.value);
-      expandPaths.add(entry.fullPath);
-      expandedPaths.value = expandPaths;
-
-      // Load directory contents if not already loaded
-      if (!fileTree.value[entry.fullPath]) {
-        try {
-          const entries = await listDirectoryComplete({ path: entry.fullPath });
-          fileTree.value = { ...fileTree.value, [entry.fullPath]: entries };
-        } catch (err) {
-          console.error(`Failed to load directory ${entry.fullPath}:`, err);
-        }
-      }
+      // For directories, navigate to them
+      await navigateTo(entry.fullPath);
     } else if (isAudio(entry)) {
       // For audio files, open preview
       previewFile.value = { path: entry.fullPath, type: "audio" };
@@ -150,80 +200,139 @@ export default function FileIconGrid({ path }: { path: string }) {
     expandedPaths.value = expandPaths;
   };
 
+  // Load initial directory if not already loaded
+  if (!searchMode.value && !fileTree.value[activePath.value]) {
+    listDirectoryComplete({ path: activePath.value })
+      .then((entries) => {
+        fileTree.value = { ...fileTree.value, [activePath.value]: entries };
+      })
+      .catch((err) => {
+        console.error(`Failed to load directory ${activePath.value}:`, err);
+      });
+  }
+
   return (
-    <div className="p-4">
-      {/* Size Controls - hide during search mode */}
+    <div className="h-full flex flex-col">
+      {/* Breadcrumb Navigation - hide during search mode */}
       {!searchMode.value && (
-        <div className="mb-4 flex justify-end">
-          <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-            {(["small", "medium", "large"] as const).map((size) => (
-              <button
-                key={size}
-                onClick={() => (iconSize.value = size)}
-                className={`px-2 py-1 rounded text-xs ${
-                  iconSize.value === size
-                    ? "bg-white dark:bg-gray-700 shadow-sm"
-                    : "hover:bg-gray-200 dark:hover:bg-gray-700"
-                }`}
-              >
-                {size}
-              </button>
-            ))}
+        <div className="p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+          <div className="flex items-center space-x-1 text-sm overflow-x-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800">
+            <div className="flex items-center space-x-1 min-w-max">
+              {getBreadcrumbs().map((crumb, index) => (
+                <div
+                  key={crumb.path || `ellipsis-${index}`}
+                  className="flex items-center flex-shrink-0"
+                >
+                  {index > 0 && (
+                    <span className="mx-1 text-gray-400 flex-shrink-0">/</span>
+                  )}
+                  {crumb.isEllipsis ? (
+                    <span
+                      className="px-2 py-1 text-gray-500 dark:text-gray-400 cursor-default"
+                      title={`Full path: ${activePath}`}
+                    >
+                      {crumb.name}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => navigateTo(crumb.path)}
+                      className={`px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 whitespace-nowrap ${
+                        crumb.path === activePath.value
+                          ? "bg-blue-500 text-white"
+                          : "text-gray-700 dark:text-gray-300"
+                      }`}
+                      title={crumb.path} // Show full path on hover
+                    >
+                      {crumb.name}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Icon Grid */}
-      <div
-        className={`grid gap-4 ${gridCols[iconSize.value]}`}
-        data-testid="icon-grid"
-      >
-        {entries.value.map((entry, index) => {
-          const isSelected = selectedPaths.value.has(entry.fullPath);
-          const isDirResult = isDirectory(entry);
-
-          return (
-            <div
-              key={`${entry.fullPath}-${index}`}
-              className={`flex flex-col items-center p-2 rounded-lg cursor-pointer transition-colors ${
-                isSelected
-                  ? "bg-blue-100 dark:bg-blue-900/30"
-                  : "hover:bg-gray-100 dark:hover:bg-gray-800"
-              }`}
-              onClick={(e) => handleItemClick(entry, e)}
-              onDblClick={() => handleDoubleClick(entry)}
-              onContextMenu={(e) => handleContextMenu(entry, e)}
-              data-path={entry.fullPath}
-            >
-              <img
-                src={iconUrlForEntry(entry)}
-                alt=""
-                className={`${iconSizeMap[iconSize.value]} object-contain mb-2`}
-              />
-              <span
-                className="text-xs text-center truncate w-full"
-                title={entry.name}
-              >
-                {/* Highlight search matches if in search mode */}
-                {searchMode.value && entry.searchResult ? (
-                  <HighlightedText
-                    text={entry.name}
-                    matches={entry.searchResult.matches}
-                  />
-                ) : (
-                  entry.name
-                )}
-                {isDirResult && <span className="ml-1 text-gray-500">/</span>}
-              </span>
+      <div className="flex-1 overflow-auto p-4">
+        {/* Size Controls - hide during search mode */}
+        {!searchMode.value && (
+          <div className="mb-4 flex justify-end">
+            <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+              {(["small", "medium", "large"] as const).map((size) => (
+                <button
+                  key={size}
+                  onClick={() => (iconSize.value = size)}
+                  className={`px-2 py-1 rounded text-xs ${
+                    iconSize.value === size
+                      ? "bg-white dark:bg-gray-700 shadow-sm"
+                      : "hover:bg-gray-200 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  {size}
+                </button>
+              ))}
             </div>
-          );
-        })}
+          </div>
+        )}
+
+        {/* Icon Grid */}
+        <div
+          className={`grid gap-4 ${gridCols[iconSize.value]}`}
+          data-testid="icon-grid"
+        >
+          {entries.value.map((entry, index) => {
+            const isSelected = selectedPaths.value.has(entry.fullPath);
+            const isDirResult = isDirectory(entry);
+
+            return (
+              <div
+                key={`${entry.fullPath}-${index}`}
+                className={`flex flex-col items-center p-2 rounded-lg cursor-pointer transition-colors ${
+                  isSelected
+                    ? "bg-blue-100 dark:bg-blue-900/30"
+                    : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                }`}
+                onClick={(e) => handleItemClick(entry, e)}
+                onDblClick={() => handleDoubleClick(entry)}
+                onContextMenu={(e) => handleContextMenu(entry, e)}
+                data-path={entry.fullPath}
+              >
+                <img
+                  src={iconUrlForEntry(entry)}
+                  alt=""
+                  className={`${iconSizeMap[iconSize.value]} object-contain mb-2`}
+                />
+                <span
+                  className="text-xs text-center truncate w-full"
+                  title={entry.name}
+                >
+                  {/* Highlight search matches if in search mode */}
+                  {searchMode.value && entry.searchResult ? (
+                    <HighlightedText
+                      text={entry.name}
+                      matches={entry.searchResult.matches}
+                    />
+                  ) : (
+                    entry.name
+                  )}
+                  {isDirResult && <span className="ml-1 text-gray-500">/</span>}
+                </span>
+              </div>
+            );
+          })}
+          {/* Empty state */}
+          {entries.value.length === 0 && !searchMode.value && (
+            <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
+              <p>This directory is empty</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Context Menu */}
       {contextMenuPosition.value && (
         <FileContextMenu
-          path={path}
+          path={activePath.value}
           entry={contextMenuPosition.value.entry}
           position={{
             x: contextMenuPosition.value.x,

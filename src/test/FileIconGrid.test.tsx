@@ -128,7 +128,7 @@ describe("FileIconGrid", () => {
     render(<FileIconGrid path="/" />);
 
     const grid = screen.getByTestId("icon-grid");
-    expect(grid).toHaveClass("grid-cols-8");
+    expect(grid).toHaveClass("grid-cols-6");
   });
 
   it("should apply large grid classes", () => {
