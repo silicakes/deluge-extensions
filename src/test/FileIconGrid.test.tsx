@@ -95,8 +95,8 @@ describe("FileIconGrid", () => {
     render(<FileIconGrid />);
 
     const grid = screen.getByTestId("icon-grid");
-    expect(grid).toHaveClass("grid-cols-3");
-    expect(grid).toHaveClass("sm:grid-cols-4");
-    expect(grid).toHaveClass("lg:grid-cols-5");
+    expect(grid).toHaveClass("grid-cols-2");
+    expect(grid).toHaveClass("sm:grid-cols-3");
+    expect(grid).toHaveClass("lg:grid-cols-4");
   });
 });
