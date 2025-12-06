@@ -112,7 +112,7 @@ export async function openSession(tag = "DEx"): Promise<SmsSession> {
       reject(
         new Error(
           "Session negotiation timed out after 10000ms. Check that your Deluge is connected, " +
-            "powered on, and has firmware version 4.0 or higher with SysEx Protocol enabled.",
+            "powered on, and has **community firmware** version 1.2 or higher with SysEx Protocol enabled.",
         ),
       );
     }, 10000);
