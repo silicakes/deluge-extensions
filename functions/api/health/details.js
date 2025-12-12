@@ -15,25 +15,21 @@ async function checkDurableObject(env) {
 }
 
 export async function onRequest(context) {
-  const url = new URL(context.request.url);
-  const details = url.searchParams.get("details") === "1";
+  const env = context.env ?? {};
+  const doCheck = await checkDurableObject(env);
 
-  if (!details) {
-    return new Response("ok", {
-      status: 200,
-      headers: {
-        "content-type": "text/plain",
-        "cache-control": "no-store",
-      },
-    });
-  }
-
-  const doCheck = await checkDurableObject(context.env);
   const body = {
     ok: true,
-    hasRoomsBinding: !!context.env?.ROOMS,
+    hasRoomsBinding: !!env.ROOMS,
     durableObject: doCheck,
+    pages: {
+      branch: env.CF_PAGES_BRANCH ?? null,
+      commitSha: env.CF_PAGES_COMMIT_SHA ?? null,
+      deploymentId: env.CF_PAGES_DEPLOYMENT_ID ?? null,
+      url: env.CF_PAGES_URL ?? null,
+    },
   };
+
   return new Response(JSON.stringify(body, null, 2), {
     status: 200,
     headers: {

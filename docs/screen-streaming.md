@@ -76,14 +76,24 @@ In your Cloudflare Pages project (Settings → Functions → Durable Objects):
 ### Verify
 
 - `https://<your-dex-domain>/api/health` returns `ok`
+- `https://<your-dex-domain>/api/health/details` returns JSON where:
+  - `hasRoomsBinding` is `true`
+  - `durableObject.ok` is `true` (you’ll typically see `durableObject.status: 426`)
+- `https://<your-dex-domain>/api/health?details=1` returns JSON where:
+  - `hasRoomsBinding` is `true`
+  - `durableObject.ok` is `true` (you’ll typically see `durableObject.status: 426`)
 - Starting a stream connects to `wss://<your-dex-domain>/api/rooms/.../ws?role=streamer`
 
 ### Alternative: deploy relay separately
 
-You can also deploy the relay as a standalone Worker (see `worker/wrangler.toml`) and point the frontend at it:
+You can also deploy the relay as a standalone Worker (see `wrangler.toml`) and point the frontend at it:
 
 - build-time: `VITE_STREAM_HOST=wss://<relay-host>`
 - runtime: `?streamHost=wss://<relay-host>`
+
+Note:
+
+- Cloudflare Pages build only looks for `wrangler.toml` at the repo root (it won’t auto-discover `worker/wrangler.toml`).
 
 ---
 

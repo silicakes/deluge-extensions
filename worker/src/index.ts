@@ -19,6 +19,13 @@ function isWebSocketUpgrade(request: Request): boolean {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    if (!env?.ROOMS) {
+      return new Response("Missing Durable Object binding: ROOMS", {
+        status: 500,
+        headers: { "content-type": "text/plain" },
+      });
+    }
+
     const url = new URL(request.url);
     const m = url.pathname.match(/^\/api\/rooms\/([^/]+)\/ws$/);
     if (!m) return new Response("Not found", { status: 404 });
