@@ -59,13 +59,13 @@ The default deployment expects the relay to be available on the same origin as t
 wss://<your-dex-domain>/api/rooms/<roomId>/ws?role=...
 ```
 
-This repo implements the relay as a Pages “advanced worker” in `functions/_worker.ts`.
+This repo implements the relay as a Pages “advanced worker” in `functions/_worker.js`.
 
 ### Setup
 
 In your Cloudflare Pages project (Settings → Functions → Durable Objects):
 
-1. Deploy the site normally (Pages will pick up `functions/_worker.ts` automatically).
+1. Deploy the site normally (Pages will pick up `functions/_worker.js` automatically).
 2. Add a Durable Object binding:
    - binding name: `ROOMS`
    - class name: `RoomDurableObject`
