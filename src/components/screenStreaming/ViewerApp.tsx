@@ -51,8 +51,15 @@ function errToFriendlyMessage(err: ErrMsg): string {
 }
 
 function leaveViewerMode() {
-  const next = new URL(window.location.origin + window.location.pathname);
-  window.location.assign(next.toString());
+  const url = new URL(window.location.href);
+  url.searchParams.delete("roomId");
+
+  const exitPath = url.pathname.match(/^(.*\/)(?:roomId=|room\/)/);
+  if (exitPath) url.pathname = exitPath[1] || "/";
+
+  url.search = url.searchParams.toString();
+  url.hash = "";
+  window.location.assign(url.toString());
 }
 
 export function ViewerApp(props: { roomId: string }) {

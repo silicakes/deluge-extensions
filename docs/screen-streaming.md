@@ -1,3 +1,12 @@
+# Screen Streaming
+
+This document covers:
+
+- How to use screen streaming (streamer + viewer)
+- Local development / LAN testing (local relay)
+- Remote deployment (Cloudflare Pages + Durable Objects)
+- Protocol + architecture notes
+
 ## Goal
 
 Add “Screen Streaming” to DEx in a way that matches how DEx actually works today:
@@ -6,6 +15,75 @@ Add “Screen Streaming” to DEx in a way that matches how DEx actually works t
 - **Viewer** (iOS Safari / any browser): runs a lightweight DEx “viewer mode” that does **not** use WebMIDI; it just joins a room and renders the incoming display state to a canvas.
 - Transport: **WebSocket signaling + WebSocket data relay** via **Cloudflare Worker + Durable Object (DO)**.
 - Optional later: upgrade to WebRTC DataChannel; keep room/auth concepts and the same on-wire frame format where possible.
+
+---
+
+## Using screen streaming
+
+### Streamer (Deluge connected)
+
+1. Open DEx in a WebMIDI-capable browser (Chrome/Edge) and connect your Deluge.
+2. Click **Screen streaming** in the header.
+3. Choose a room code (diceware-style words) and optionally enable a password.
+4. Click **Start streaming**.
+5. Share the **Join URL** or QR code with viewers.
+6. Use **Refresh display** if you want to force a keyframe.
+
+Notes:
+
+- Rooms are one-way: only the creator streams.
+- Viewer cap is 5.
+
+### Viewer (no Deluge needed)
+
+1. Open the Join URL (works on iOS Safari and any modern browser).
+2. If prompted, enter the room password.
+3. Only the *active* Deluge display is rendered (OLED vs 7-seg).
+
+Debug (hidden):
+
+- Tap the room code 7× to reveal a **Request keyframe** button (sends `viewer:request_full`).
+
+Fullscreen / keep-awake:
+
+- Fullscreen can be toggled via the UI or the `f` shortcut (external keyboard).
+- On browsers that support the Screen Wake Lock API, DEx requests a wake lock while fullscreen is active to reduce screen sleep.
+
+---
+
+## Remote deployment (Cloudflare Pages)
+
+The default deployment expects the relay to be available on the same origin as the SPA:
+
+```
+wss://<your-dex-domain>/api/rooms/<roomId>/ws?role=...
+```
+
+This repo implements the relay as a Pages “advanced worker” in `functions/_worker.ts`.
+
+### Setup
+
+In your Cloudflare Pages project (Settings → Functions → Durable Objects):
+
+1. Deploy the site normally (Pages will pick up `functions/_worker.ts` automatically).
+2. Add a Durable Object binding:
+   - binding name: `ROOMS`
+   - class name: `RoomDurableObject`
+   - create/select a DO namespace for the room instances
+   - apply to Preview and Production environments as needed
+3. Redeploy.
+
+### Verify
+
+- `https://<your-dex-domain>/api/health` returns `ok`
+- Starting a stream connects to `wss://<your-dex-domain>/api/rooms/.../ws?role=streamer`
+
+### Alternative: deploy relay separately
+
+You can also deploy the relay as a standalone Worker (see `worker/wrangler.toml`) and point the frontend at it:
+
+- build-time: `VITE_STREAM_HOST=wss://<relay-host>`
+- runtime: `?streamHost=wss://<relay-host>`
 
 ---
 
@@ -272,16 +350,46 @@ Viewer mode should:
 
 ## Local relay (alternative deployment)
 
-Provide a Node-based relay server that speaks the same protocol:
+Provide a local Node-based relay server that speaks the same protocol (no persistence, in-memory rooms):
 
 - `/api/rooms/:roomId/ws?role=...`
 - Same hello/control + same binary `DISPLAY_SYSEX` envelope
 
+Run:
+
+```sh
+node server.mjs
+```
+
+If your frontend is served over HTTPS (hosted DEx / installed PWA), browsers will require `wss://` (TLS). The relay supports TLS via Node built-ins:
+
+```sh
+node server/relay.mjs --host 0.0.0.0 --port 8787 --tls-cert ./cert.pem --tls-key ./key.pem
+```
+
+Local dev flow (LAN testing):
+
+1. Start the relay: `node server.mjs` (default port `8787`)
+2. Start the client: `yarn dev --host`
+3. In the streamer UI, keep the room as `local-local` (stable dev room) and set **Share base URL** to `http://<lan-ip>:5173` so the QR/link works on mobile.
+4. On mobile (same network), open the Join URL shown in the modal, e.g.:
+   - `http://<lan-ip>:5173/?roomId=local-local`
+   - or `http://<lan-ip>:5173/roomId=local-local`
+5. DEx will connect to the relay at `ws(s)://<lan-ip>:8787` by default on local hostnames (no extra query params needed).
+
+If you need a secure context on mobile (e.g. to test APIs that require HTTPS), serve the frontend over HTTPS and run the relay with TLS so it’s reachable as `wss://<lan-ip>:8787`.
+
+Then point the frontend at it:
+
+- Build-time: `VITE_STREAM_HOST=ws://<relay-host>:8787`
+- Runtime: `?streamHost=ws://<relay-host>:8787`
+
 Frontend config:
 
-- `STREAM_HOST=wss://...` (env var at build time) or query param override.
-  - Frontend (Vite): use `VITE_STREAM_HOST=wss://...`
-  - Runtime override: `?streamHost=wss://...`
+- Build-time: `VITE_STREAM_HOST=wss://...`
+- Runtime override: `?streamHost=wss://...`
+
+Note: if you start DEx with `?streamHost=...`, the streaming UI’s Join URL / QR will include the same `streamHost` (unless you override the Share base URL).
 
 ---
 

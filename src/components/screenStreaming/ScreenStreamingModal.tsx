@@ -3,6 +3,7 @@ import { XMarkIcon } from "@heroicons/react/24/outline";
 import { midiIn, midiOut } from "@/state";
 import { createRoomId, normalizeRoomId } from "@/lib/screenStreaming/roomCode";
 import { derivePasswordToken } from "@/lib/screenStreaming/passwordToken";
+import { getStreamHostOverrideFromQuery } from "@/lib/screenStreaming/wsUrl";
 import type { ErrMsg } from "@/lib/screenStreaming/control";
 import {
   refreshStreamedDisplay,
@@ -15,9 +16,39 @@ import {
 } from "@/services/screenStreamingStreamer";
 import { QrCodeSvg } from "./QrCodeSvg";
 
-function buildViewerUrl(roomId: string): string {
-  const url = new URL(window.location.origin + window.location.pathname);
+const LOCAL_DEV_ROOM_ID = "local-local";
+const SHARE_BASE_URL_KEY = "dex.screenStreaming.shareBaseUrl";
+
+function normalizeShareBaseUrl(input: string): string | null {
+  const raw = input.trim();
+  if (!raw) return null;
+  const tryParse = (value: string) => {
+    try {
+      return new URL(value);
+    } catch {
+      return null;
+    }
+  };
+
+  const direct = tryParse(raw);
+  if (direct) return direct.toString().replace(/\/$/, "");
+
+  const withHttp = tryParse(`http://${raw}`);
+  if (withHttp) return withHttp.toString().replace(/\/$/, "");
+
+  return null;
+}
+
+function buildViewerUrl(roomId: string, shareBaseUrl: string): string {
+  const normalizedBase = normalizeShareBaseUrl(shareBaseUrl);
+  const url = normalizedBase
+    ? new URL(window.location.pathname, normalizedBase)
+    : new URL(window.location.origin + window.location.pathname);
   url.searchParams.set("roomId", roomId);
+  if (!normalizedBase) {
+    const streamHost = getStreamHostOverrideFromQuery(window.location);
+    if (streamHost) url.searchParams.set("streamHost", streamHost);
+  }
   return url.toString();
 }
 
@@ -38,16 +69,21 @@ export function ScreenStreamingModal(props: { onClose: () => void }) {
   const roomState = screenStreamerRoomState.value;
   const err = screenStreamerError.value;
 
-  const [draftRoomId, setDraftRoomId] = useState(() => createRoomId());
+  const [draftRoomId, setDraftRoomId] = useState(() =>
+    import.meta.env.DEV ? LOCAL_DEV_ROOM_ID : createRoomId(),
+  );
   const [requirePassword, setRequirePassword] = useState(false);
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [shareBaseUrl, setShareBaseUrl] = useState(() => {
+    return window.localStorage.getItem(SHARE_BASE_URL_KEY) ?? "";
+  });
 
   const effectiveRoomId = status === "idle" ? draftRoomId : activeRoomId;
   const joinUrl = useMemo(
-    () => (effectiveRoomId ? buildViewerUrl(effectiveRoomId) : null),
-    [effectiveRoomId],
+    () => (effectiveRoomId ? buildViewerUrl(effectiveRoomId, shareBaseUrl) : null),
+    [effectiveRoomId, shareBaseUrl],
   );
 
   useEffect(() => {
@@ -60,6 +96,11 @@ export function ScreenStreamingModal(props: { onClose: () => void }) {
   const canStop = status !== "idle";
 
   const regenerateRoom = () => setDraftRoomId(createRoomId());
+  const useLocalRoom = () => setDraftRoomId(LOCAL_DEV_ROOM_ID);
+
+  useEffect(() => {
+    window.localStorage.setItem(SHARE_BASE_URL_KEY, shareBaseUrl);
+  }, [shareBaseUrl]);
 
   const start = async () => {
     if (!draftRoomId) return;
@@ -160,8 +201,42 @@ export function ScreenStreamingModal(props: { onClose: () => void }) {
                   Regenerate
                 </button>
               )}
+              {status === "idle" && import.meta.env.DEV && (
+                <button
+                  type="button"
+                  onClick={useLocalRoom}
+                  className="px-3 py-2 rounded-md border border-[var(--color-border)] hover:bg-[var(--color-bg-hover)] text-sm"
+                  title="Use a stable room name for local dev"
+                >
+                  Use local-local
+                </button>
+              )}
             </div>
           </div>
+
+          {status === "idle" && import.meta.env.DEV && (
+            <div className="space-y-2">
+              <div className="text-sm font-semibold">Local dev</div>
+              <div className="text-xs text-[var(--color-text-muted)]">
+                Tip: run the relay on port 8787 and start Vite with{" "}
+                <span className="font-mono">yarn dev --host</span>. For mobile, set
+                the share base URL to the LAN URL printed by Vite (not localhost).
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-[var(--color-text-muted)]">
+                  Share base URL (for QR/link)
+                </label>
+                <input
+                  value={shareBaseUrl}
+                  onInput={(e) =>
+                    setShareBaseUrl((e.target as HTMLInputElement).value)
+                  }
+                  className="w-full px-3 py-2 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] font-mono text-xs"
+                  placeholder="http://192.168.1.10:5173"
+                />
+              </div>
+            </div>
+          )}
 
           {status === "idle" && (
             <div className="space-y-2">
