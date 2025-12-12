@@ -1,5 +1,4 @@
 /// <reference types="cypress" />
-/// <reference path="../support/commands.ts" />
 
 describe("MIDI Connection and Basic Display", () => {
   const DELUGE_MIDI_PORT_NAME = "Deluge Port 1"; // As per user update

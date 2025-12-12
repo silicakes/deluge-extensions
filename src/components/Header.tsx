@@ -5,6 +5,7 @@ import { FullscreenToggleButton } from "./FullscreenToggleButton";
 import FileBrowserToggleButton from "./FileBrowserToggleButton";
 import { HelpIconButton } from "./HelpIconButton";
 import { fullscreenActive } from "../state";
+import { ScreenStreamingButton } from "./screenStreaming/ScreenStreamingButton";
 
 export function Header() {
   return (
@@ -31,6 +32,7 @@ export function Header() {
       {/* Right: controls */}
       {!fullscreenActive.value && (
         <div className="flex items-center gap-3 flex-wrap">
+          <ScreenStreamingButton />
           <FileBrowserToggleButton />
           <FullscreenToggleButton />
           <ThemeSwitcher />
