@@ -412,115 +412,119 @@ export class RoomDurableObject {
       }
 
       if (meta.role === "streamer") {
-        if (msg.t === "streamer:hello") {
-          const hello = msg as StreamerHello;
+        this.handleStreamerControlMessage(ws, meta, msg);
+      } else {
+        this.handleViewerControlMessage(ws, meta, msg);
+      }
+    } else if (data instanceof ArrayBuffer) {
+      if (!this.streamer || this.streamer.ws !== ws) return;
+      this.handleStreamerBinaryMessage(ws, meta, data);
+    }
+  }
 
-          if (this.streamer && this.streamer.ws !== ws) {
-            this.err(ws, meta.roomId, hello.clientId, "room_has_streamer", "Room already has a streamer");
-            return;
-          }
+  private handleStreamerControlMessage(ws: WebSocket, meta: ConnMeta, msg: AnyControl) {
+    if (msg.t === "streamer:hello") {
+      const hello = msg as StreamerHello;
 
-          if (this.ownerKey && this.ownerKey !== hello.ownerKey) {
-            this.err(
-              ws,
-              meta.roomId,
-              hello.clientId,
-              "room_owned_by_other_streamer",
-              "Room is owned by another streamer",
-            );
-            return;
-          }
-          if (!this.ownerKey) this.ownerKey = hello.ownerKey;
-
-          this.passwordToken = hello.passwordToken ?? null;
-          this.streamer = { ws, meta, ownerKey: hello.ownerKey };
-
-          this.ok(ws, meta.roomId, hello.clientId, "streamer");
-          return;
-        }
-
-        if (!this.streamer || this.streamer.ws !== ws) return;
-
-        if (msg.t === "display:active") {
-          const da = msg as DisplayActive;
-          this.maybeUpdateActiveDisplay(da.active, da.roomId, da.clientId);
-          return;
-        }
-
+      if (this.streamer && this.streamer.ws !== ws) {
+        this.err(ws, meta.roomId, hello.clientId, "room_has_streamer", "Room already has a streamer");
         return;
       }
 
-      // Viewer role
-      if (msg.t === "viewer:hello") {
-        const hello = msg as ViewerHello;
-
-        const viewerCount = this.viewers.size + this.pendingViewers.size;
-        if (viewerCount >= VIEWER_CAP) {
-          this.err(ws, meta.roomId, hello.clientId, "room_full", "Room is full");
-          return;
-        }
-
-        if (this.passwordToken) {
-          if (!hello.passwordToken) {
-            this.err(
-              ws,
-              meta.roomId,
-              hello.clientId,
-              "password_required",
-              "Password required",
-            );
-            return;
-          }
-          if (hello.passwordToken !== this.passwordToken) {
-            this.err(ws, meta.roomId, hello.clientId, "bad_password", "Bad password");
-            return;
-          }
-        }
-
-        meta.authed = true;
-        meta.clientId = hello.clientId;
-
-        this.ok(ws, meta.roomId, hello.clientId, "viewer");
-
-        const needsOledKeyframe =
-          (this.activeDisplay ?? "oled") === "oled" && this.lastOledFull == null;
-        if (needsOledKeyframe && this.streamer) {
-          this.pendingViewers.set(hello.clientId, { ws, meta });
-          this.broadcastViewerUpdate(meta.roomId);
-          this.sendJson(this.streamer.ws, {
-            t: "streamer:request_full",
-            roomId: meta.roomId,
-            clientId: hello.clientId,
-          });
-          return;
-        }
-
-        // Send snapshots first, then add to broadcast set.
-        if (this.lastOledFull) ws.send(this.lastOledFull);
-        if (this.lastSeg7) ws.send(this.lastSeg7);
-        this.viewers.set(hello.clientId, { ws, meta });
-        this.broadcastViewerUpdate(meta.roomId);
+      if (this.ownerKey && this.ownerKey !== hello.ownerKey) {
+        this.err(
+          ws,
+          meta.roomId,
+          hello.clientId,
+          "room_owned_by_other_streamer",
+          "Room is owned by another streamer",
+        );
         return;
       }
+      if (!this.ownerKey) this.ownerKey = hello.ownerKey;
 
-      if (!meta.authed || !meta.clientId) return;
+      this.passwordToken = hello.passwordToken ?? null;
+      this.streamer = { ws, meta, ownerKey: hello.ownerKey };
 
-      if (msg.t === "viewer:request_full") {
-        if (!this.streamer) return;
-        this.sendJson(this.streamer.ws, {
-          t: "streamer:request_full",
-          roomId: meta.roomId,
-          clientId: meta.clientId,
-        });
-      }
-
+      this.ok(ws, meta.roomId, hello.clientId, "streamer");
       return;
     }
 
-    // Binary frames
-    if (!(data instanceof ArrayBuffer)) return;
     if (!this.streamer || this.streamer.ws !== ws) return;
 
+    if (msg.t === "display:active") {
+      const da = msg as DisplayActive;
+      this.maybeUpdateActiveDisplay(da.active, da.roomId, da.clientId);
+      return;
+    }
+  }
+
+  private handleViewerControlMessage(ws: WebSocket, meta: ConnMeta, msg: AnyControl) {
+    if (msg.t === "viewer:hello") {
+      const hello = msg as ViewerHello;
+
+      const viewerCount = this.viewers.size + this.pendingViewers.size;
+      if (viewerCount >= VIEWER_CAP) {
+        this.err(ws, meta.roomId, hello.clientId, "room_full", "Room is full");
+        return;
+      }
+
+      if (this.passwordToken) {
+        if (!hello.passwordToken) {
+          this.err(
+            ws,
+            meta.roomId,
+            hello.clientId,
+            "password_required",
+            "Password required",
+          );
+          return;
+        }
+        if (hello.passwordToken !== this.passwordToken) {
+          this.err(ws, meta.roomId, hello.clientId, "bad_password", "Bad password");
+          return;
+        }
+      }
+
+      meta.authed = true;
+      meta.clientId = hello.clientId;
+
+      this.ok(ws, meta.roomId, hello.clientId, "viewer");
+
+      const needsOledKeyframe =
+        (this.activeDisplay ?? "oled") === "oled" && this.lastOledFull == null;
+      if (needsOledKeyframe && this.streamer) {
+        this.pendingViewers.set(hello.clientId, { ws, meta });
+        this.broadcastViewerUpdate(meta.roomId);
+        this.sendJson(this.streamer.ws, {
+          t: "streamer:request_full",
+          roomId: meta.roomId,
+          clientId: hello.clientId,
+        });
+        return;
+      }
+
+      // Send snapshots first, then add to broadcast set.
+      if (this.lastOledFull) ws.send(this.lastOledFull);
+      if (this.lastSeg7) ws.send(this.lastSeg7);
+      this.viewers.set(hello.clientId, { ws, meta });
+      this.broadcastViewerUpdate(meta.roomId);
+      return;
+    }
+
+    if (!meta.authed || !meta.clientId) return;
+
+    if (msg.t === "viewer:request_full") {
+      if (!this.streamer) return;
+      this.sendJson(this.streamer.ws, {
+        t: "streamer:request_full",
+        roomId: meta.roomId,
+        clientId: meta.clientId,
+      });
+    }
+  }
+
+  private handleStreamerBinaryMessage(ws: WebSocket, meta: ConnMeta, data: ArrayBuffer) {
     if (data.byteLength > MAX_FRAME_BYTES) {
       ws.close(1009, "frame too large");
       return;
