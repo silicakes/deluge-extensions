@@ -262,20 +262,29 @@ export class RoomDurableObject {
   }
 
   private onClose(ws: WebSocket, meta: ConnMeta) {
-    if (this.streamer?.ws === ws) {
+    const streamerLeft = this.streamer?.ws === ws;
+    if (streamerLeft) {
       this.streamer = null;
     }
 
+    let viewerRemoved = false;
     if (meta.clientId) {
-      this.viewers.delete(meta.clientId);
-      this.pendingViewers.delete(meta.clientId);
+      if (this.viewers.delete(meta.clientId)) viewerRemoved = true;
+      if (this.pendingViewers.delete(meta.clientId)) viewerRemoved = true;
     } else {
+      const preSize = this.viewers.size + this.pendingViewers.size;
       for (const [id, v] of this.viewers) {
         if (v.ws === ws) this.viewers.delete(id);
       }
       for (const [id, v] of this.pendingViewers) {
         if (v.ws === ws) this.pendingViewers.delete(id);
       }
+      const postSize = this.viewers.size + this.pendingViewers.size;
+      if (preSize !== postSize) viewerRemoved = true;
+    }
+
+    if (viewerRemoved || streamerLeft) {
+      this.broadcastViewerUpdate(meta.roomId);
     }
 
     this.stopSweepIfIdle();
@@ -333,6 +342,40 @@ export class RoomDurableObject {
     for (const { ws } of this.viewers.values()) {
       this.sendJson(ws, msg);
     }
+  }
+
+  private broadcastToAll(msg: any) {
+    const str = JSON.stringify({ ...msg, ts: Date.now() });
+    if (this.streamer) {
+      try {
+        this.streamer.ws.send(str);
+      } catch {
+        // ignore
+      }
+    }
+    for (const { ws } of this.viewers.values()) {
+      try {
+        ws.send(str);
+      } catch {
+        // ignore
+      }
+    }
+    for (const { ws } of this.pendingViewers.values()) {
+      try {
+        ws.send(str);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  private broadcastViewerUpdate(roomId: string) {
+    this.broadcastToAll({
+      t: "room:viewers",
+      roomId,
+      clientId: "server",
+      viewers: this.viewers.size + this.pendingViewers.size,
+    });
   }
 
   private flushPendingOnOledFull(buf: ArrayBuffer) {
@@ -443,6 +486,7 @@ export class RoomDurableObject {
           (this.activeDisplay ?? "oled") === "oled" && this.lastOledFull == null;
         if (needsOledKeyframe && this.streamer) {
           this.pendingViewers.set(hello.clientId, { ws, meta });
+          this.broadcastViewerUpdate(meta.roomId);
           this.sendJson(this.streamer.ws, {
             t: "streamer:request_full",
             roomId: meta.roomId,
@@ -455,6 +499,7 @@ export class RoomDurableObject {
         if (this.lastOledFull) ws.send(this.lastOledFull);
         if (this.lastSeg7) ws.send(this.lastSeg7);
         this.viewers.set(hello.clientId, { ws, meta });
+        this.broadcastViewerUpdate(meta.roomId);
         return;
       }
 
