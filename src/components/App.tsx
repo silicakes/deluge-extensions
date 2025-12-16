@@ -18,6 +18,7 @@ import {
   midiOut,
   fileTransferInProgress,
   fullscreenActive,
+  viewerRoomId,
 } from "../state";
 import { PwaUpdatePrompt } from "./PwaUpdatePrompt";
 import { PixelSizeControls } from "./PixelSizeControls";
@@ -29,6 +30,7 @@ import { FileOverrideConfirmation } from "./FileOverrideConfirmation";
 import { AdvancedDisplayControls } from "./AdvancedDisplayControls";
 import { shortcuts, registerGlobalShortcuts } from "../lib/shortcuts";
 import PreviewManager from "./PreviewManager";
+import { ViewerModal } from "./screenStreaming/ViewerModal";
 
 // Lazily load the file browser sidebar
 const FileBrowserSidebar = lazy(() => import("./FileBrowserSidebar"));
@@ -40,6 +42,15 @@ export function App() {
   // Check if test query param is present
   const urlParams = new URLSearchParams(window.location.search);
   const showTestComponent = urlParams.get("test") === "true";
+
+  // On initial load, check for a roomId in the URL to activate viewer mode
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const roomId = params.get("roomId");
+    if (roomId) {
+      viewerRoomId.value = roomId;
+    }
+  }, []);
 
   // Load display settings from localStorage on mount
   useEffect(() => {
@@ -145,6 +156,7 @@ export function App() {
 
   return (
     <div className="app-container">
+      <ViewerModal />
       <PwaUpdatePrompt />
       <Header />
 

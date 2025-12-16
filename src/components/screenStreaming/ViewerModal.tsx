@@ -8,7 +8,7 @@ import {
   registerCanvas,
   resizeCanvas,
 } from "@/lib/display";
-import { displaySettings, fullscreenActive } from "@/state";
+import { displaySettings, fullscreenActive, viewerRoomId } from "@/state";
 import type {
   AnyControlMsg,
   ErrMsg,
@@ -17,7 +17,10 @@ import type {
   RoomState,
 } from "@/lib/screenStreaming/control";
 import { nowMs } from "@/lib/screenStreaming/control";
-import { decodeDisplaySysexFrame, DisplaySysexKind } from "@/lib/screenStreaming/codec";
+import {
+  decodeDisplaySysexFrame,
+  DisplaySysexKind,
+} from "@/lib/screenStreaming/codec";
 import { createClientId } from "@/lib/screenStreaming/ids";
 import { derivePasswordToken } from "@/lib/screenStreaming/passwordToken";
 import { buildRoomWsUrl } from "@/lib/screenStreaming/wsUrl";
@@ -51,18 +54,19 @@ function errToFriendlyMessage(err: ErrMsg): string {
 }
 
 function leaveViewerMode() {
+  // Clear the signal to hide the modal
+  viewerRoomId.value = null;
+
+  // Clean up the URL
   const url = new URL(window.location.href);
-  url.searchParams.delete("roomId");
-
-  const exitPath = url.pathname.match(/^(.*\/)(?:roomId=|room\/)/);
-  if (exitPath) url.pathname = exitPath[1] || "/";
-
-  url.search = url.searchParams.toString();
-  url.hash = "";
-  window.location.assign(url.toString());
+  if (url.searchParams.has("roomId")) {
+    url.searchParams.delete("roomId");
+    window.history.replaceState({}, "", url.toString());
+  }
 }
 
-export function ViewerApp(props: { roomId: string }) {
+export function ViewerModal() {
+  const roomId = viewerRoomId.value;
   const clientId = useMemo(() => createClientId(), []);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -101,7 +105,7 @@ export function ViewerApp(props: { roomId: string }) {
     if (canvasRef.current) resizeCanvas(canvasRef.current);
   }, [displaySettings.value]);
 
-  // Handle fullscreen changes (mirror DisplayViewer behavior).
+  // Handle fullscreen changes
   useEffect(() => {
     if (!canvasRef.current) return;
 
@@ -141,8 +145,10 @@ export function ViewerApp(props: { roomId: string }) {
     };
   }, []);
 
-  // WebSocket connect/reconnect (roomId, passwordToken).
+  // Main WebSocket connection effect
   useEffect(() => {
+    if (!roomId) return; // Don't connect if there's no room
+
     hasOledFullRef.current = false;
     lastSeqRef.current = null;
     endStateRef.current = null;
@@ -150,7 +156,7 @@ export function ViewerApp(props: { roomId: string }) {
     setActiveDisplay(null);
     setRoomState(null);
 
-    const wsUrl = buildRoomWsUrl({ roomId: props.roomId, role: "viewer" });
+    const wsUrl = buildRoomWsUrl({ roomId, role: "viewer" });
     const ws = new WebSocket(wsUrl);
     ws.binaryType = "arraybuffer";
     socketRef.current = ws;
@@ -183,13 +189,13 @@ export function ViewerApp(props: { roomId: string }) {
       setStatus("awaiting_ok");
       sendJson({
         t: "viewer:hello",
-        roomId: props.roomId,
+        roomId,
         clientId,
         passwordToken: passwordToken ?? undefined,
       });
 
       pingIdRef.current = window.setInterval(() => {
-        sendJson({ t: "ping", roomId: props.roomId, clientId });
+        sendJson({ t: "ping", roomId, clientId });
       }, 15_000);
     };
 
@@ -223,6 +229,10 @@ export function ViewerApp(props: { roomId: string }) {
         activeDisplayRef.current = msg.active;
         setActiveDisplay(msg.active);
         return;
+      }
+      
+      if (msg.t === "room:viewers") {
+        setRoomState(prev => prev ? { ...prev, viewers: msg.viewers } : null);
       }
     };
 
@@ -319,15 +329,15 @@ export function ViewerApp(props: { roomId: string }) {
         // ignore
       }
     };
-  }, [props.roomId, passwordToken]);
+  }, [roomId, passwordToken]);
 
   const requestKeyframe = () => {
     const ws = socketRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN || !roomId) return;
     ws.send(
       JSON.stringify({
         t: "viewer:request_full",
-        roomId: props.roomId,
+        roomId,
         clientId,
         ts: nowMs(),
       }),
@@ -351,9 +361,10 @@ export function ViewerApp(props: { roomId: string }) {
   };
 
   const handleSubmitPassword = async () => {
+    if (!roomId) return;
     setPasswordBusy(true);
     try {
-      const token = await derivePasswordToken(props.roomId, password);
+      const token = await derivePasswordToken(roomId, password);
       setPasswordToken(token);
       setLastErr(null);
       setStatus("connecting");
@@ -362,11 +373,15 @@ export function ViewerApp(props: { roomId: string }) {
     }
   };
 
+  if (!roomId) {
+    return null;
+  }
+
   const showError = status === "error" || status === "closed";
   const showPasswordPrompt = status === "needs_password";
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
+    <div className="fixed inset-0 bg-[var(--color-bg)] text-[var(--color-text)] z-50 overflow-y-auto">
       <header className="w-full px-4 py-2 flex items-center bg-[var(--color-bg-offset)] shadow-sm border-b border-[var(--color-border)] sticky top-0 z-20">
         <div className="flex items-center gap-2">
           <img
@@ -382,7 +397,7 @@ export function ViewerApp(props: { roomId: string }) {
               onClick={unlockDebugIfNeeded}
               title="Room code"
             >
-              {props.roomId}
+              {roomId}
             </button>
           </div>
         </div>

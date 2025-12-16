@@ -187,3 +187,6 @@ export const listSortDirection = signal<"asc" | "desc">("asc");
 
 // Search layout preference - remember layout when entering/exiting search
 export const searchLayoutPreference = signal<FileBrowserLayout | null>(null);
+
+// Screen streaming viewer state
+export const viewerRoomId = signal<string | null>(null);
