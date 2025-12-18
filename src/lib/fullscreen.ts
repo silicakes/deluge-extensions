@@ -11,24 +11,27 @@ export const isMobile =
 // Store the wake lock sentinel
 let wakeLockSentinel: WakeLockSentinel | null = null;
 
+async function requestWakeLock(): Promise<void> {
+  if (!("wakeLock" in navigator)) return;
+  if (document.visibilityState !== "visible") return;
+  if (wakeLockSentinel && !wakeLockSentinel.released) return;
+
+  try {
+    wakeLockSentinel = await (navigator as Navigator).wakeLock.request("screen");
+  } catch (err) {
+    console.error("Failed to request wake lock:", err);
+  }
+}
+
 /**
- * Request fullscreen mode and activate screen wake lock on mobile
+ * Request fullscreen mode and (if supported) a screen wake lock.
  */
 export async function request(): Promise<void> {
   try {
     await document.documentElement.requestFullscreen({ navigationUI: "hide" });
     fullscreenActive.value = true;
 
-    // Request wake lock on mobile if supported
-    if (isMobile && "wakeLock" in navigator) {
-      try {
-        wakeLockSentinel = await (navigator as Navigator).wakeLock.request(
-          "screen",
-        );
-      } catch (err) {
-        console.error("Failed to request wake lock:", err);
-      }
-    }
+    await requestWakeLock();
   } catch (err) {
     console.error("Failed to enter fullscreen:", err);
   }
@@ -43,6 +46,7 @@ export async function exit(): Promise<void> {
   try {
     await document.exitFullscreen();
     fullscreenActive.value = false;
+    releaseWakeLock();
   } catch (err) {
     console.error("Failed to exit fullscreen:", err);
   }
@@ -91,6 +95,10 @@ export function initFullscreenListeners(): void {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") {
       releaseWakeLock();
+      return;
+    }
+    if (document.fullscreenElement) {
+      void requestWakeLock();
     }
   });
 

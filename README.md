@@ -24,6 +24,7 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 
 - **👀 Dual Display Mirroring**: View _both_ the OLED and the classic 7-Segment displays in real-time. Perfect for seeing intricate details or getting a quick overview.
 - **📱 Fullscreen Mode**: Enter a distraction-free fullscreen view that works beautifully on both desktop and mobile devices! Perfect for performances or when projecting your Deluge's display to an audience.
+- **📡 Screen Streaming**: Share the Deluge display to other devices via a room link / QR code (one-way; viewers don’t need WebMIDI). See `docs/screen-streaming.md`.
 - **🎨 Customizable OLED View**: Tailor the OLED display to your liking! Adjust pixel scaling (size) and choose custom foreground/background colors. Settings are saved automatically!
 - **↔️ Resizable Display**: Instantly resize the mirrored display canvas with dedicated buttons for the perfect fit on your screen.
 - **⚙️ Advanced Settings Drawer**: Access technical controls like display customization, manual refresh triggers, ping tests, and decoding tests.
@@ -80,6 +81,7 @@ https://github.com/user-attachments/assets/be507463-47b3-4adc-a98c-2b184429e9fa
 - **Get Debug Messages**: Manually requests the latest debug info from the Deluge.
 - **Monitor UI Changes**: Toggles the UI monitoring mode on/off.
 - **Full Screen**: Enters a distraction-free fullscreen mode that optimizes the display for your current device and screen size. Press 'ESC' or tap the button again to exit.
+- **Screen Streaming**: Share the Deluge display to other devices via a room link / QR code (one-way; viewers don’t need WebMIDI). See `docs/screen-streaming.md`.
 - **📸 Screenshot**: Download a snapshot of the current canvas as a PNG by clicking the camera icon or pressing 's'.
 - **📋 Copy Base64**: Copy the current OLED display as a gzipped, base64-encoded string (in a markdown directive) by clicking the copy icon or pressing 'c'.
 - **❓ Keyboard Help**: View all available keyboard shortcuts by clicking the question mark icon or pressing '?'.
@@ -98,6 +100,15 @@ DEx provides convenient keyboard shortcuts for common actions:
 - **Escape**: Clear file browser search
 - **?**: Toggle keyboard shortcuts help overlay
 
+### Screen Streaming (Viewer mode)
+
+Screen streaming lets you mirror the Deluge display to other devices (e.g. iOS).
+
+- **Streamer** (Chrome/Edge): connect your Deluge → click **Screen streaming** → **Start streaming** → share the Join URL / QR.
+- **Viewer** (any browser / iOS Safari): open the Join URL and enter the password if required.
+
+See `docs/screen-streaming.md` for local relay (LAN) and Cloudflare deployment details.
+
 ### Advanced Settings Drawer
 
 - **OLED Display Settings**: Customize pixel size and colors. Click 'Apply Settings' to see changes and save them.
@@ -108,13 +119,12 @@ DEx provides convenient keyboard shortcuts for common actions:
 
 ### Mobile Usage Tips
 
-**iOS currently doesn't support WebMIDI in its common browsers (Safari, Chrome, etc.).
-Although some third-party browsers claim patched support, I can't recommend any because I don't use iPhone.**
+**iOS doesn’t support WebMIDI in common browsers (Safari/Chrome), so you can’t connect a Deluge directly.
+However, you can still view the Deluge display on iOS using Screen Streaming (Viewer mode).**
 
 - For the best experience on mobile devices, use the **Full Screen** button to maximize the display.
 - On Android, you may need a USB OTG (On-The-Go) adapter to connect your Deluge.
   Although for me, it works with a regular USB-C to USB-B cable.
--
 - Rotate your device to landscape orientation for an optimal viewing experience.
 - Press 'f' on external keyboards or tap the Full Screen button again to exit fullscreen mode.
 

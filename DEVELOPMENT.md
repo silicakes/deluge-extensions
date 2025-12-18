@@ -53,6 +53,38 @@ If port 5173 is taken Vite will pick the next free port and print it to the cons
 
 ---
 
+## Screen streaming (local relay / LAN testing)
+
+Screen streaming uses a WebSocket relay. For local dev we provide a dependency-free Node relay that speaks the same protocol as the Cloudflare Durable Object.
+
+### Quickstart
+
+Terminal A (relay):
+
+```bash
+node server.mjs
+```
+
+Terminal B (frontend):
+
+```bash
+yarn dev --host
+```
+
+Then:
+
+1. On the desktop (streamer), open DEx and click **Screen streaming**.
+2. Use the stable dev room `local-local`.
+3. Set **Share base URL** to the LAN URL printed by Vite (e.g. `http://192.168.1.10:5173`) so the QR/link works on mobile.
+4. On mobile (same network), open the Join URL from the modal (viewer mode).
+
+Notes:
+
+- On local/LAN hostnames, DEx connects to the relay at port `8787` by default (no `?streamHost=...` needed).
+- If you serve the frontend over HTTPS (secure context), the relay must be reachable via `wss://...` (run `server/relay.mjs` with `--tls-cert/--tls-key`).
+
+---
+
 ## Static type-checking
 
 ```bash

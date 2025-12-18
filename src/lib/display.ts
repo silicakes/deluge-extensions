@@ -467,6 +467,10 @@ let canvasRef: HTMLCanvasElement | null = null;
 export const pollingMs = 1000;
 let pollingId: number | null = null;
 
+export function isPollingActive(): boolean {
+  return pollingId != null;
+}
+
 export function startPolling() {
   if (pollingId == null) {
     pollingId = window.setInterval(() => midi.getDisplay(false), pollingMs);
