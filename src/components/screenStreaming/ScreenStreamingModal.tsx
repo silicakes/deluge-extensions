@@ -283,12 +283,19 @@ export function ScreenStreamingModal(props: { onClose: () => void }) {
                   {copied === "link" ? "Copied" : "Copy"}
                 </button>
               </div>
-              <div className="flex justify-center">
+              <div className="relative flex justify-center">
                 <QrCodeSvg
                   text={joinUrl}
-                  className="w-48 h-48 rounded-lg border border-[var(--color-border)] bg-white p-2"
+                  className={`w-48 h-48 rounded-lg border border-[var(--color-border)] bg-white p-2 transition-opacity ${status !== 'streaming' ? 'grayscale opacity-50' : ''}`}
                   title="Join room QR"
                 />
+                {status !== 'streaming' && (
+                  <div className="absolute inset-0 flex items-center justify-center text-center p-4 bg-black/50 rounded-lg">
+                    <span className="text-xs text-white drop-shadow-md">
+                      Start streaming to activate QR code
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           )}
